@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+.container {
+  display: flex;
+  flex-direction: column; /* ou row, dependendo do layout desejado */
+  align-items: center; /* Alinha os itens no centro */
+  justify-content: center; /* Centraliza os itens verticalmente */
+}
+
+.element {
+  width: 100%; /* ou uma porcentagem adequada */
+  max-width: 1200px; /* Limite máximo para telas grandes */
+}
+
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column; /* Muda a direção em telas menores */
+  }
+}
+
+body {
+  overflow-x: hidden; /* Impede o deslocamento horizontal */
+}
+

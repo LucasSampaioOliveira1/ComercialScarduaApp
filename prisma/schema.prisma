@@ -1,0 +1,263 @@
+datasource db {
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+// User - Mantém apenas o relacionamento com Session
+model User {
+  id          String    @id @default(uuid())
+  nome        String    @db.VarChar(100)
+  sobrenome   String    @db.VarChar(100)
+  email       String    @unique @db.VarChar(150)
+  cpf         String    @unique @db.Char(14)
+  password    String    @db.VarChar(255)
+  role        Role      @default(USER)
+  token       String?   @unique
+  foto        String?   @db.VarChar(255)
+  oculto      Boolean   @default(false)
+  permissions Permission[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  sessions    Session[] @relation("UserSessions")
+  empresasCriadas Empresa[] // relacionamento inverso
+  
+
+  @@map("users")
+}
+
+// Patrimonio - Relacionamento com Colaborador
+model Patrimonio {
+  id                   Int           @id @default(autoincrement())
+  nome                 String        @db.VarChar(255)
+  descricao            String?       @db.Text
+  data_aquisicao       DateTime?
+  valor                String?
+  status               String?
+  fabricante           String        @db.VarChar(255)
+  modelo               String?       @db.VarChar(255) // Novo campo
+  tipo                 String        @db.VarChar(255)
+  responsavelId        Int           // Chave estrangeira para Colaborador
+  responsavel          Colaborador   @relation(fields: [responsavelId], references: [id])
+  localizacao          String        @db.VarChar(255)
+  movimentacoes        Movimentacao[]
+  oculto               Boolean       @default(false)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  // Novos campos
+  numeroNotaFiscal     String?       @db.VarChar(255)
+  dataNotaFiscal       DateTime?
+  dataGarantia         DateTime?
+  placa                String?       @db.VarChar(20)
+  renavan              String?       @db.VarChar(20)
+  locado               Boolean       @default(false)
+  proprietario         String?       @db.VarChar(255)
+  numeroSerie          String?       @db.VarChar(255)
+  anoModelo            Int?
+  segurado             Boolean       @default(false)
+  seguradora           String?       @db.VarChar(255)
+  dataVencimentoSeguro DateTime?
+  kmEntrega            String?          // Novo campo para KM de Entrega (apenas veículos)
+  franquia             String?       @db.VarChar(255) // Novo campo para Franquia (todos os tipos)
+
+  @@map("patrimonios")
+  @@index([responsavelId])
+}
+
+// Movimentacao - Relacionamentos com Colaborador
+model Movimentacao {
+  id                    Int         @id @default(autoincrement())
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  tipo                  String      @db.VarChar(255)
+  
+  patrimonioId          Int
+  patrimonio            Patrimonio  @relation(fields: [patrimonioId], references: [id])
+  
+  localizacaoAnterior   String?     @db.VarChar(255)
+  localizacaoNova       String?     @db.VarChar(255)
+  
+  autorId               Int?
+  autor                 Colaborador? @relation("MovimentacaoAutor", fields: [autorId], references: [id])
+  
+  responsavelAnteriorId Int?
+  responsavelNovoId     Int?
+  responsavelAnterior   Colaborador? @relation("MovimentacaoResponsavelAnterior", fields: [responsavelAnteriorId], references: [id])
+  responsavelNovo       Colaborador? @relation("MovimentacaoResponsavelNovo", fields: [responsavelNovoId], references: [id])
+
+  kmAnterior           String?      @db.VarChar(20)  // Novo campo para KM anterior
+  kmNovo               String?      @db.VarChar(20)  // Novo campo para KM novo
+
+  @@map("movimentacoes")
+  @@index([patrimonioId])
+  @@index([autorId])
+  @@index([responsavelAnteriorId])
+  @@index([responsavelNovoId])
+}
+
+// Colaborador - Com todos os relacionamentos necessários
+model Colaborador {
+  id                Int       @id @default(autoincrement())
+  nome              String?
+  sobrenome         String?
+  idade             Int?
+  dataNascimento    DateTime? // Permitir valores nulos
+  numeroCelular     String?
+  numeroEmergencia  String?
+  
+  // Novos campos adicionados
+  email             String?   
+  estadoCivil       String?
+  conjuge           String?
+  filiacao          String?
+  
+  setor             String?
+  cargo             String?
+  cpf               String?   @unique
+  identidade        String?
+  pis               String?
+  ctps              String?
+  cnhNumero         String?
+  cnhVencimento     DateTime? // Permitir valores nulos
+  endereco          String?
+  bairro            String?
+  cidade            String?
+  cep               String?
+  uf                String?
+  banco             String?
+  bancoNumero       String?
+  contaNumero       String?
+  agenciaNumero     String?
+  tipoVale          String?
+  vt1Valor          Float?
+  // Campos removidos: empresaAcess, empresaRegistro, empresaTrabalho
+  tipo              String?
+  comissao          Float?
+  admissao          DateTime? // Permitir valores nulos
+  demissao          DateTime? // Permitir valores nulos
+  oculto            Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Adicionar este campo
+  numeroEmpresa     String?
+  
+  // Relações
+  empresaId         Int?      
+  empresa           Empresa?  @relation(fields: [empresaId], references: [id])
+  patrimonios                          Patrimonio[]
+  movimentacoesRealizadas             Movimentacao[] @relation("MovimentacaoAutor")
+  movimentacoesComoResponsavelAnterior Movimentacao[] @relation("MovimentacaoResponsavelAnterior")
+  movimentacoesComoResponsavelNovo     Movimentacao[] @relation("MovimentacaoResponsavelNovo")
+  contasCorrentes                      ContaCorrente[]
+
+  @@map("colaboradores")
+  @@index([empresaId]) // Adiciona índice para melhorar performance de consultas
+}
+
+model Session {
+  id        Int      @id @default(autoincrement())
+  sessionId String   @unique @db.VarChar(255)
+  userId    String   
+  user      User     @relation("UserSessions", fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LogPatrimonio {
+  id            Int      @id @default(autoincrement())
+  acao          String
+  patrimonioId  Int?
+  userId        Int
+  detalhes      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Adicionando o modelo Empresa com apenas os campos solicitados
+
+model Empresa {
+  id          Int      @id @default(autoincrement())
+  numero      String?
+  nomeEmpresa String   
+  cnpj        String?  @unique
+  cidade      String?
+  oculto      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Novo campo para rastrear qual usuário admin criou a empresa
+  criadoPorId String?
+  criadoPor   User?   @relation(fields: [criadoPorId], references: [id])
+  
+  // Relacionamento com Colaborador
+  colaboradores Colaborador[]
+  contasCorrentes ContaCorrente[]
+
+  @@map("empresas")
+  @@index([criadoPorId])
+}
+
+model Permission {
+  id          Int      @id @default(autoincrement())
+  userId      String
+  page        String   // 'patrimonio', 'colaboradores', 'fornecedores', etc
+  canAccess   Boolean  @default(false)
+  canEdit     Boolean  @default(false)
+  canDelete   Boolean  @default(false)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, page])
+}
+
+// Modelo ContaCorrente principal
+model ContaCorrente {
+  id              Int             @id @default(autoincrement())
+  empresaId       Int?
+  empresa         Empresa?        @relation(fields: [empresaId], references: [id])
+  colaboradorId   Int?
+  colaborador     Colaborador?    @relation(fields: [colaboradorId], references: [id])
+  data            DateTime
+  tipo            String          // Campo selecionável (ex: "Cliente", "Fornecedor", etc)
+  fornecedorCliente String        // Nome do fornecedor ou cliente
+  observacao      String          @db.Text // Para permitir textos longos
+  setor           String?         // Pode ser obtido do colaborador, mas mantido na tabela para consultas diretas
+  oculto          Boolean         @default(false)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  // Relacionamento com a subtabela de lançamentos
+  lancamentos     Lancamento[]
+
+  @@map("conta_corrente")
+  @@index([empresaId])
+  @@index([colaboradorId])
+}
+
+// Subtabela para os lançamentos com crédito e débito
+model Lancamento {
+  id              Int          @id @default(autoincrement())
+  contaCorrenteId Int
+  contaCorrente   ContaCorrente @relation(fields: [contaCorrenteId], references: [id], onDelete: Cascade)
+  data            DateTime
+  numeroDocumento String?
+  observacao      String       @db.Text // Para observações detalhadas
+  credito         String?      // Mantido como string conforme solicitado
+  debito          String?      // Mantido como string conforme solicitado
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@map("lancamentos")
+  @@index([contaCorrenteId])
+}
+
