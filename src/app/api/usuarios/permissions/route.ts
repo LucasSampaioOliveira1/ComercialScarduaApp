@@ -37,13 +37,15 @@ export async function GET(request: NextRequest) {
     });
     
     // Formatar as permissões com valores padrão
-    const formattedPermissions: Record<string, {canAccess: boolean, canEdit: boolean, canDelete: boolean}> = {
+    const formattedPermissions: Record<string, {canAccess: boolean, canEdit: boolean, canDelete: boolean, canCreate?: boolean}> = {
       // Valores padrão para todas as páginas
       home: { canAccess: true, canEdit: false, canDelete: false },
       patrimonio: { canAccess: false, canEdit: false, canDelete: false },
       empresas: { canAccess: false, canEdit: false, canDelete: false },
       colaboradores: { canAccess: false, canEdit: false, canDelete: false },
-      usuarios: { canAccess: false, canEdit: false, canDelete: false }
+      usuarios: { canAccess: false, canEdit: false, canDelete: false },
+      // Adicionar página de contacorrente
+      contacorrente: { canAccess: false, canEdit: false, canDelete: false, canCreate: false }
     };
     
     // Sobrescrever os valores padrão com os valores do banco
@@ -68,7 +70,8 @@ export async function GET(request: NextRequest) {
         patrimonio: { canAccess: false, canEdit: false, canDelete: false },
         empresas: { canAccess: false, canEdit: false, canDelete: false },
         colaboradores: { canAccess: false, canEdit: false, canDelete: false },
-        usuarios: { canAccess: false, canEdit: false, canDelete: false }
+        usuarios: { canAccess: false, canEdit: false, canDelete: false },
+        contacorrente: { canAccess: false, canEdit: false, canDelete: false, canCreate: false }
       },
       error: "Erro ao obter permissões" 
     }, { status: 500 });

@@ -30,7 +30,7 @@ model User {
   updatedAt   DateTime  @updatedAt
   sessions    Session[] @relation("UserSessions")
   empresasCriadas Empresa[] // relacionamento inverso
-  
+  contasCorrentes   ContaCorrente[]
 
   @@map("users")
 }
@@ -222,19 +222,21 @@ model Permission {
 
 // Modelo ContaCorrente principal
 model ContaCorrente {
-  id              Int             @id @default(autoincrement())
-  empresaId       Int?
-  empresa         Empresa?        @relation(fields: [empresaId], references: [id])
-  colaboradorId   Int?
-  colaborador     Colaborador?    @relation(fields: [colaboradorId], references: [id])
-  data            DateTime
-  tipo            String          // Campo selecionável (ex: "Cliente", "Fornecedor", etc)
+  id                Int             @id @default(autoincrement())
+  empresaId         Int?
+  empresa           Empresa?        @relation(fields: [empresaId], references: [id])
+  colaboradorId     Int?
+  colaborador       Colaborador?    @relation(fields: [colaboradorId], references: [id])
+  userId            String?         // Adicionando relação com User
+  user              User?           @relation(fields: [userId], references: [id])
+  data              DateTime
+  tipo              String          // Campo selecionável (ex: "Cliente", "Fornecedor", etc)
   fornecedorCliente String        // Nome do fornecedor ou cliente
-  observacao      String          @db.Text // Para permitir textos longos
-  setor           String?         // Pode ser obtido do colaborador, mas mantido na tabela para consultas diretas
-  oculto          Boolean         @default(false)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  observacao        String          @db.Text // Para permitir textos longos
+  setor             String?         // Pode ser obtido do colaborador, mas mantido na tabela para consultas diretas
+  oculto            Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
   
   // Relacionamento com a subtabela de lançamentos
   lancamentos     Lancamento[]
@@ -242,6 +244,7 @@ model ContaCorrente {
   @@map("conta_corrente")
   @@index([empresaId])
   @@index([colaboradorId])
+  @@index([userId])
 }
 
 // Subtabela para os lançamentos com crédito e débito

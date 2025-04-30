@@ -6,7 +6,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Home, Package, Users, Menu, X, ChevronDown,
-  Camera, LogOut, AlertTriangle, Building, Settings, ChevronRight, UserCog
+  Camera, LogOut, AlertTriangle, Building, Settings, ChevronRight, UserCog, DollarSign
 } from "lucide-react";
 import React from "react";
 import { useAuth } from './AuthProviderWrapper';
@@ -168,13 +168,29 @@ function HeaderContent() {
   const toggleMenu = () => setMenuOpen(!menuOpen);
   const toggleProfile = () => setProfileOpen(!profileOpen);
   
-  const handleLogout = () => {
-    setLoading(true);
-    setTimeout(() => {
-      logout();
-      router.push("/");
-      setLoading(false);
-    }, 500);
+  // Função de logout melhorada
+
+  const handleLogout = async () => {
+    try {
+      // Limpar localStorage completamente
+      localStorage.clear();
+      
+      // Fazer requisição para invalidar sessão no servidor (se aplicável)
+      await fetch('/api/auth/logout', { 
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      // Redirecionar para login com replace
+      router.replace('/login');
+    } catch (error) {
+      console.error("Erro ao fazer logout:", error);
+      // Mesmo com erro, limpar localStorage e redirecionar
+      localStorage.clear();
+      router.replace('/login');
+    }
   };
 
   const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -296,6 +312,27 @@ function HeaderContent() {
           pageName: 'usuarios' 
         }
       ]
+    },
+    {
+      key: 'financeiro',
+      name: 'Financeiro',
+      icon: <DollarSign size={18} />,
+      type: 'dropdown',
+      children: [
+        { 
+          name: 'Minha Conta Corrente', 
+          path: '/contacorrente', 
+          icon: <DollarSign size={16} />, 
+          pageName: 'contacorrente' 
+        },
+        { 
+          name: 'Todas Contas Correntes', 
+          path: '/contacorrentetodos', 
+          icon: <DollarSign size={16} />, 
+          adminOnly: true, 
+          pageName: 'contacorrentetodos' 
+        }
+      ]
     }
     // Item de Relatórios removido aqui
   ];
@@ -344,7 +381,15 @@ function HeaderContent() {
         }
         
         // Verificar se o caminho atual está dentro deste dropdown
-        const isActive = item.children.some(child => pathname === child.path);
+        const isActive = item.children.some(child => {
+          // Verificação de pathname exato
+          if (pathname === child.path) return true;
+          
+          // Verificação de subpáginas (por exemplo, se a URL atual é /contacorrentetodos/123)
+          if (pathname.startsWith(child.path + '/')) return true;
+          
+          return false;
+        });
         
         return (
           <div 
@@ -388,7 +433,7 @@ function HeaderContent() {
                       <button 
                         key={childItem.path}
                         onClick={() => handleNavigate(childItem.path)}
-                        className={`block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center ${
+                        className={`w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center ${
                           pathname === childItem.path ? 'bg-gray-100 font-medium' : ''
                         }`}
                       >
