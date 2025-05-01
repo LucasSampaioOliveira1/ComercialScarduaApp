@@ -68,7 +68,8 @@ interface Lancamento {
 
 interface Empresa {
   id: number;
-  nome: string;
+  nomeEmpresa?: string;
+  nome?: string;  // Para compatibilidade
 }
 
 interface Colaborador {
@@ -82,24 +83,33 @@ interface Colaborador {
 interface User {
   id: string;
   nome: string;
-  sobrenome: string;
+  sobrenome?: string;
   email: string;
   role?: string;
 }
 
-interface Stats {
-  totalContas: number;
-  totalCreditos: number;
-  totalDebitos: number;
-  creditosMes: number;
-  debitosMes: number;
-  saldoGeral: number;
-  saldoMes?: number;
+// Função para garantir que os dados são arrays
+function ensureArray<T>(data: any, fallback: T[] = []): T[] {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === 'object') {
+    // Tenta encontrar a primeira propriedade que seja um array
+    for (const key in data) {
+      if (Array.isArray(data[key])) return data[key];
+    }
+  }
+  return fallback;
 }
 
 export default function ContaCorrenteTodosPage() {
   const router = useRouter();
   const [contasCorrente, setContasCorrente] = useState<ContaCorrente[]>([]);
+  interface Stats {
+    totalContas: number;
+    saldoGeral: number;
+    creditosMes: number;
+    debitosMes: number;
+  }
+  
   const [estatisticas, setEstatisticas] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingAction, setLoadingAction] = useState(false);
@@ -116,7 +126,8 @@ export default function ContaCorrenteTodosPage() {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [usuarios, setUsuarios] = useState<User[]>([]);
-  
+  const [setores, setSetores] = useState<any[]>([]);
+
   // Estados para filtros e visualização
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -156,6 +167,8 @@ export default function ContaCorrenteTodosPage() {
   });
 
   // Verificar autenticação e permissões
+  const [currentUserId, setCurrentUserId] = useState<string>('');
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     
@@ -191,6 +204,9 @@ export default function ContaCorrenteTodosPage() {
         throw new Error(statusData.message || "Erro na autenticação");
       }
 
+      // Armazenar o ID do usuário atual
+      setCurrentUserId(statusData.userId);
+      
       const isAdmin = statusData.isAdmin;
 
       // Buscar permissões específicas se não for admin
@@ -250,43 +266,18 @@ export default function ContaCorrenteTodosPage() {
     setLoading(true);
     
     try {
-      // Buscar dados em paralelo, mas tratar cada resposta individualmente
-      const contasPromise = fetchContasCorrente(authToken).catch(err => {
-        console.error("Erro ao buscar contas corrente:", err);
-        return [];
-      });
-      
-      const estatisticasPromise = fetchEstatisticas(authToken).catch(err => {
-        console.error("Erro ao buscar estatísticas:", err);
-        return null;
-      });
-      
-      const empresasPromise = fetchEmpresas(authToken).catch(err => {
-        console.error("Erro ao buscar empresas:", err);
-        return [];
-      });
-      
-      const colaboradoresPromise = fetchColaboradores(authToken).catch(err => {
-        console.error("Erro ao buscar colaboradores:", err);
-        return [];
-      });
-      
-      const usuariosPromise = fetchUsuarios(authToken).catch(err => {
-        console.error("Erro ao buscar usuários:", err);
-        return [];
-      });
-      
-      // Aguardar todas as promessas, mesmo que algumas falhem
+      // Buscar dados em paralelo
       await Promise.all([
-        contasPromise, 
-        estatisticasPromise, 
-        empresasPromise, 
-        colaboradoresPromise, 
-        usuariosPromise
+        fetchContasCorrente(authToken).catch(() => []),
+        fetchEstatisticas(authToken).catch(() => null),
+        fetchEmpresas(authToken).catch(() => []),
+        fetchColaboradores(authToken).catch(() => []),
+        fetchUsuarios(authToken).catch(() => [])
       ]);
       
+      // Os estados já são atualizados nas funções individuais
     } catch (error) {
-      console.error("Erro ao carregar dados iniciais:", error);
+      console.error("Erro ao buscar dados iniciais:", error);
       toast.error("Ocorreu um erro ao carregar os dados");
     } finally {
       setLoading(false);
@@ -311,16 +302,11 @@ export default function ContaCorrenteTodosPage() {
       }
       
       const data = await response.json();
-      console.log("Resposta da API para fetchContasCorrente:", data);
+      console.log("Resposta API contasCorrente:", data);
       
-      // Usar a função auxiliar para garantir que teremos um array
+      // Garantir que data seja um array
       const contasArray = ensureArray<ContaCorrente>(data);
       setContasCorrente(contasArray);
-      
-      if (!Array.isArray(data)) {
-        console.warn("API retornou formato inesperado em fetchContasCorrente - convertido para array");
-      }
-      
       return contasArray;
     } catch (error) {
       console.error("Erro ao buscar contas corrente:", error);
@@ -365,10 +351,16 @@ export default function ContaCorrenteTodosPage() {
       }
       
       const data = await response.json();
+      console.log("Resposta API empresas:", data);
       
-      // Garantir que data seja um array
-      const empresasArray = ensureArray(data);
-      setEmpresas(empresasArray as Empresa[]);
+      // Garantir que data seja um array e normalizar os nomes de campos
+      const empresasArray = ensureArray<any>(data).map(empresa => ({
+        id: empresa.id,
+        nomeEmpresa: empresa.nomeEmpresa || empresa.nome || `Empresa ${empresa.id}`,
+        nome: empresa.nome || empresa.nomeEmpresa || `Empresa ${empresa.id}`
+      }));
+      
+      setEmpresas(empresasArray);
       return empresasArray;
     } catch (error) {
       console.error("Erro ao buscar empresas:", error);
@@ -377,7 +369,21 @@ export default function ContaCorrenteTodosPage() {
     }
   };
 
-  // Buscar colaboradores
+  // Adicione esta função para extrair setores únicos
+  const extrairSetoresDosColaboradores = (colaboradores: Colaborador[]) => {
+    if (!Array.isArray(colaboradores)) return [];
+    
+    // Extrai os setores não vazios e remove duplicados
+    const setoresUnicos = [...new Set(
+      colaboradores
+        .filter(col => col.setor && col.setor.trim() !== '')
+        .map(col => col.setor!)
+    )].sort();
+    
+    return setoresUnicos;
+  };
+
+  // No fetchColaboradores, adicione a extração de setores
   const fetchColaboradores = async (authToken: string) => {
     try {
       const response = await fetch("/api/colaboradores", {
@@ -390,20 +396,27 @@ export default function ContaCorrenteTodosPage() {
       }
       
       const data = await response.json();
-      setColaboradores(data);
-      return data;
+      
+      // Garantir que data seja um array
+      const colaboradoresArray = ensureArray<Colaborador>(data);
+      setColaboradores(colaboradoresArray);
+      
+      // Extrair e definir setores
+      const setoresUnicos = extrairSetoresDosColaboradores(colaboradoresArray);
+      setSetores(setoresUnicos);
+      
+      return colaboradoresArray;
     } catch (error) {
       console.error("Erro ao buscar colaboradores:", error);
-      // Não mostrar toast para não sobrecarregar o usuário
-      throw error;
+      setColaboradores([]);
+      return [];
     }
   };
 
-  // Buscar usuários - corrigir para usar o endpoint correto
+  // Função para buscar usuários
   const fetchUsuarios = async (authToken: string) => {
     try {
-      // Ajustar para o endpoint correto
-      const response = await fetch("/api/usuarios", {  // Alterado de /api/users para /api/usuarios
+      const response = await fetch("/api/usuarios", {
         headers: { 
           Authorization: `Bearer ${authToken}`,
           'Content-Type': 'application/json'
@@ -416,15 +429,18 @@ export default function ContaCorrenteTodosPage() {
       }
       
       const data = await response.json();
-      setUsuarios(data);
-      return data;
+      
+      // Garantir que data seja um array
+      const usuariosArray = ensureArray<User>(data);
+      setUsuarios(usuariosArray);
+      return usuariosArray;
     } catch (error) {
       console.error("Erro ao buscar usuários:", error);
-      // Não mostrar toast para não sobrecarregar o usuário com mensagens
-      return [];  // Retornar array vazio em caso de erro
+      setUsuarios([]);
+      return [];
     }
   };
-
+  
   // Atualizar quando o filtro de ocultos mudar
   useEffect(() => {
     if (token) {
@@ -437,38 +453,40 @@ export default function ContaCorrenteTodosPage() {
     setLoadingAction(true);
     
     try {
-      const payload: {
-        userId: any;
-        descricao: any;
-        tipo: any;
-        fornecedorCliente: any;
-        observacao: any;
-        setor: any;
-        empresaId: any | null;
-        colaboradorId: any | null;
-        oculto: any;
-        data: string;
-        lancamentos?: any[];
-      } = {
-        userId: formData.userId,
-        descricao: formData.descricao,
-        tipo: formData.tipo,
-        fornecedorCliente: formData.fornecedorCliente,
-        observacao: formData.observacao,
-        setor: formData.setor,
-        empresaId: formData.empresaId || null,
-        colaboradorId: formData.colaboradorId || null,
-        oculto: formData.oculto,
-        data: new Date().toISOString() // Campo data obrigatório
+      // Preparar payload conforme API
+      const payload: any = {
+        userId: formData.userId || '',
+        descricao: formData.descricao || '',
+        tipo: formData.tipo || 'PESSOAL',
+        fornecedorCliente: formData.fornecedorCliente || '',
+        observacao: formData.observacao || '',
+        setor: formData.setor || '',
+        empresaId: formData.empresaId ? Number(formData.empresaId) : null,
+        colaboradorId: formData.colaboradorId ? Number(formData.colaboradorId) : null,
+        oculto: formData.oculto || false,
+        data: formData.data || new Date().toISOString()
       };
       
-      // Se tiver lançamentos iniciais do componente, adicioná-los ao payload
-      if (formData.lancamentos && formData.lancamentos.length > 0) {
-        payload.lancamentos = formData.lancamentos;
+      // Processar lançamentos se existirem
+      if (formData.lancamentos && Array.isArray(formData.lancamentos)) {
+        payload.lancamentos = formData.lancamentos
+          .filter((l: any) => l.credito || l.debito)
+          .map((l: any) => ({
+            data: l.data || new Date().toISOString(),
+            numeroDocumento: l.numeroDocumento || '',
+            observacao: l.observacao || '',
+            credito: l.credito || null,
+            debito: l.debito || null
+          }));
       }
       
-      const response = await fetch("/api/contacorrente/todos", {
-        method: "POST",
+      console.log("Payload enviado para API:", payload);
+      
+      // Se tem ID, é uma edição
+      const url = formData.id ? `/api/contacorrente/${formData.id}` : "/api/contacorrente/todos";
+      
+      const response = await fetch(url, {
+        method: formData.id ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
@@ -478,7 +496,7 @@ export default function ContaCorrenteTodosPage() {
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || errorData.message || "Erro ao criar conta corrente");
+        throw new Error(errorData.error || errorData.message || "Erro ao criar/editar conta corrente");
       }
       
       // Recarregar dados
@@ -488,10 +506,10 @@ export default function ContaCorrenteTodosPage() {
       ]);
       
       setIsNovaContaModalOpen(false);
-      toast.success("Conta corrente criada com sucesso!");
+      toast.success("Conta corrente criada/atualizada com sucesso!");
     } catch (error) {
-      console.error("Erro ao criar conta corrente:", error);
-      toast.error(error instanceof Error ? error.message : "Erro ao criar conta corrente");
+      console.error("Erro ao criar/editar conta corrente:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao criar/editar conta corrente");
     } finally {
       setLoadingAction(false);
     }
@@ -1264,10 +1282,13 @@ export default function ContaCorrenteTodosPage() {
           onClose={() => setIsNovaContaModalOpen(false)}
           onSave={handleCreateConta}
           initialData={contaSelecionada}
-          empresas={Array.isArray(empresas) ? empresas : []}
-          colaboradores={Array.isArray(colaboradores) ? colaboradores : []}
-          usuarios={Array.isArray(usuarios) ? usuarios : []}
+          empresas={empresas}
+          colaboradores={colaboradores}
+          usuarios={usuarios}
+          setores={setores}
           isLoading={loadingAction}
+          isAdminMode={userPermissions.isAdmin} // Modo admin conforme permissões
+          currentUserId={currentUserId} // ID do usuário atual
         />
       )}
 
@@ -1448,16 +1469,4 @@ export default function ContaCorrenteTodosPage() {
       />
     </div>
   );
-}
-
-// Adicione essa função auxiliar no topo do arquivo
-function ensureArray<T>(data: any, fallback: T[] = []): T[] {
-  if (Array.isArray(data)) return data;
-  if (data && typeof data === 'object') {
-    // Tenta encontrar a primeira propriedade que seja um array
-    for (const key in data) {
-      if (Array.isArray(data[key])) return data[key];
-    }
-  }
-  return fallback;
 }

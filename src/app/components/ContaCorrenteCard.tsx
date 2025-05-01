@@ -1,21 +1,29 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, DollarSign, User, Building, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { Eye, Edit, Trash2, DollarSign, User, Building, ArrowDownCircle, ArrowUpCircle, Calendar, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface ContaCorrenteCardProps {
   conta: any;
-  onViewDetails: () => void;
-  onToggleVisibility: () => void;
+  onViewDetails: (conta: any) => void;
+  onEdit: (conta: any) => void;
+  onToggleVisibility: (conta: any) => void;
   canEdit: boolean;
 }
 
-const formatCurrency = (value: number) => {
+const formatCurrency = (value: any): string => {
+  // Converter para número e verificar se é válido
+  const numericValue = Number(value);
+  
+  if (isNaN(numericValue)) {
+    return "R$ 0,00";
+  }
+  
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL'
-  }).format(value);
+  }).format(numericValue);
 };
 
 const formatDate = (dateString?: string) => {
@@ -28,36 +36,60 @@ const formatDate = (dateString?: string) => {
   }
 };
 
-export default function ContaCorrenteCard({ conta, onViewDetails, onToggleVisibility, canEdit }: ContaCorrenteCardProps) {
-  // Calcular totais
-  const totalEntradas = conta.lancamentos.reduce(
-    (sum: number, l: any) => sum + (l.credito ? parseFloat(l.credito) || 0 : 0), 
-    0
-  );
+// Função segura para calcular totais
+const calcularValoresSeguros = (conta: any) => {
+  // Garantir que lancamentos é um array
+  const lancamentos = Array.isArray(conta?.lancamentos) ? conta.lancamentos : [];
   
-  const totalSaidas = conta.lancamentos.reduce(
-    (sum: number, l: any) => sum + (l.debito ? parseFloat(l.debito) || 0 : 0), 
-    0
-  );
+  // Calcular créditos de forma segura
+  const creditos = lancamentos
+    .filter((l: any) => l?.credito && !isNaN(parseFloat(String(l.credito))))
+    .reduce((sum: number, item: any) => sum + parseFloat(String(item.credito || "0")), 0);
+  
+  // Calcular débitos de forma segura  
+  const debitos = lancamentos
+    .filter((l: any) => l?.debito && !isNaN(parseFloat(String(l.debito))))
+    .reduce((sum: number, item: any) => sum + parseFloat(String(item.debito || "0")), 0);
+  
+  // Calcular saldo (usar o da conta se disponível, senão calcular)
+  const saldo = conta?.saldo !== undefined && !isNaN(Number(conta.saldo))
+    ? Number(conta.saldo)
+    : creditos - debitos;
+  
+  return { creditos, debitos, saldo };
+};
+
+export default function ContaCorrenteCard({ conta, onViewDetails, onEdit, onToggleVisibility, canEdit }: ContaCorrenteCardProps) {
+  // Calcular valores de forma segura
+  const { creditos, debitos, saldo } = calcularValoresSeguros(conta);
 
   return (
     <motion.div
       whileHover={{ y: -5, boxShadow: '0 10px 15px -5px rgba(0, 0, 0, 0.1)' }}
       className={`bg-white rounded-lg shadow-sm overflow-hidden ${conta.oculto ? 'border border-dashed border-gray-300 bg-gray-50' : ''}`}
     >
+      <div className={`h-2 ${saldo >= 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
       <div className="p-5">
         <div className="flex justify-between items-start">
           <div className="flex items-center">
-            <div className={`rounded-full p-2 ${conta.saldo >= 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+            <div className={`rounded-full p-2 ${saldo >= 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
               <DollarSign size={20} />
             </div>
             <div className="ml-3">
               <h3 className="text-lg font-semibold text-gray-900">
                 {conta.fornecedorCliente || `Conta #${conta.id}`}
               </h3>
-              <p className="text-sm text-gray-500">
-                {formatDate(conta.data)} • {conta.user?.nome} {conta.user?.sobrenome}
-              </p>
+              <div className="flex items-center text-sm text-gray-500">
+                <Calendar size={14} className="mr-1" />
+                {formatDate(conta.data)}
+                {conta.user && (
+                  <>
+                    <span className="mx-1">•</span>
+                    <User size={14} className="mr-1" />
+                    {conta.user?.nome} {conta.user?.sobrenome}
+                  </>
+                )}
+              </div>
             </div>
           </div>
           {conta.oculto && (
@@ -70,9 +102,9 @@ export default function ContaCorrenteCard({ conta, onViewDetails, onToggleVisibi
         <div className="mt-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium text-gray-600">Saldo:</span>
-            <span className={`text-lg font-bold ${conta.saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(conta.saldo)}
-            </span>
+            <div className={`font-semibold text-xl ${saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {formatCurrency(saldo)}
+            </div>
           </div>
           
           <div className="grid grid-cols-2 gap-2 mb-2">
@@ -81,7 +113,11 @@ export default function ContaCorrenteCard({ conta, onViewDetails, onToggleVisibi
                 <ArrowDownCircle size={14} className="mr-1" />
                 Entradas
               </span>
-              <span className="text-sm font-bold text-green-700">{formatCurrency(totalEntradas)}</span>
+              <div className="flex items-center">
+                <span className="text-green-600 font-medium">
+                  {formatCurrency(creditos)}
+                </span>
+              </div>
             </div>
             
             <div className="flex items-center justify-between p-2 bg-red-50 rounded">
@@ -89,7 +125,11 @@ export default function ContaCorrenteCard({ conta, onViewDetails, onToggleVisibi
                 <ArrowUpCircle size={14} className="mr-1" />
                 Saídas
               </span>
-              <span className="text-sm font-bold text-red-700">{formatCurrency(totalSaidas)}</span>
+              <div className="flex items-center">
+                <span className="text-red-600 font-medium">
+                  {formatCurrency(debitos)}
+                </span>
+              </div>
             </div>
           </div>
           
@@ -115,13 +155,13 @@ export default function ContaCorrenteCard({ conta, onViewDetails, onToggleVisibi
           
           <div className="flex justify-between items-center">
             <span className="text-sm font-medium text-gray-600">Lançamentos:</span>
-            <span className="text-sm text-gray-800">{conta.lancamentos.length}</span>
+            <span className="text-sm text-gray-800">{Array.isArray(conta.lancamentos) ? conta.lancamentos.length : 0}</span>
           </div>
         </div>
         
-        <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between">
+        <div className="mt-4 pt-4 border-t border-gray-200 flex justify-end space-x-2">
           <button
-            onClick={onViewDetails}
+            onClick={() => onViewDetails(conta)}
             className="text-[#344893] hover:text-blue-700 text-sm font-medium flex items-center"
           >
             <Eye size={16} className="mr-1" />
@@ -129,22 +169,23 @@ export default function ContaCorrenteCard({ conta, onViewDetails, onToggleVisibi
           </button>
           
           {canEdit && (
-            <button
-              onClick={onToggleVisibility}
-              className="text-gray-500 hover:text-gray-700 text-sm font-medium flex items-center"
-            >
-              {conta.oculto ? (
-                <>
-                  <Eye size={16} className="mr-1" />
-                  Mostrar
-                </>
-              ) : (
-                <>
-                  <EyeOff size={16} className="mr-1" />
-                  Ocultar
-                </>
-              )}
-            </button>
+            <>
+              <button
+                onClick={() => onEdit(conta)}
+                className="text-orange-500 hover:text-orange-700 text-sm font-medium flex items-center"
+              >
+                <Edit size={16} className="mr-1" />
+                Editar
+              </button>
+              
+              <button
+                onClick={() => onToggleVisibility(conta)}
+                className="text-red-500 hover:text-red-700 text-sm font-medium flex items-center"
+              >
+                <Trash2 size={16} className="mr-1" />
+                Excluir
+              </button>
+            </>
           )}
         </div>
       </div>

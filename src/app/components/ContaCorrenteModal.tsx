@@ -2,6 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Check, Trash2, PlusCircle, Calendar, DollarSign, Clock, User, Building } from 'lucide-react';
 import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+// Adicione esta interface no início do arquivo:
+interface ContaCorrenteSaveData {
+  contaCorrente: any;
+  lancamentos: any[];
+}
 
 // Definição das interfaces
 interface Lancamento {
@@ -12,14 +19,14 @@ interface Lancamento {
   observacao?: string;
   credito?: string;
   debito?: string;
-  clienteFornecedor?: string;
   createdAt?: string;
   updatedAt?: string;
 }
 
 interface Empresa {
   id: number;
-  nome: string;
+  nome?: string;
+  nomeEmpresa?: string;
 }
 
 interface Colaborador {
@@ -39,8 +46,8 @@ interface User {
 }
 
 interface ContaCorrente {
-  id: number;
-  userId: string;
+  id?: number;
+  userId?: string;
   empresaId?: number;
   colaboradorId?: number;
   descricao?: string;
@@ -52,161 +59,277 @@ interface ContaCorrente {
   oculto: boolean;
   createdAt?: string;
   updatedAt?: string;
-  saldo?: number;
   lancamentos: Lancamento[];
-  user?: {
-    id: string;
-    nome: string;
-    sobrenome?: string;
-    email: string;
-  };
-  empresa?: {
-    id: number;
-    nome: string;
-  };
-  colaborador?: {
-    id: number;
-    nome: string;
-    sobrenome?: string;
-    setor?: string;
-  };
+  user?: User;
+  empresa?: Empresa;
+  colaborador?: Colaborador;
+  saldo?: number;
 }
 
+// Então atualize a interface do modal:
 interface ContaCorrenteModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: any) => void;
-  initialData?: ContaCorrente | null;
-  empresas?: Empresa[];
-  colaboradores?: Colaborador[];
-  usuarios?: User[];
+  onSave: (dados: ContaCorrenteSaveData) => void;
+  isEditMode: boolean;
+  conta: ContaCorrente | null;
+  empresas: Empresa[];
+  colaboradores: Colaborador[];
+  usuarios: User[];
+  setores?: string[];
   isLoading?: boolean;
+  isAdminMode?: boolean;
+  currentUserId?: string;
 }
 
 const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
   isOpen,
   onClose,
   onSave,
-  initialData = null,
+  isEditMode,
+  conta = null,
   empresas = [],
   colaboradores = [],
   usuarios = [],
-  isLoading = false
+  setores = [],
+  isLoading = false,
+  isAdminMode = false,
+  currentUserId = ''
 }) => {
+  // Estado para o formulário principal
   const [formData, setFormData] = useState({
     id: 0,
-    userId: '',
+    userId: isAdminMode ? '' : currentUserId,
     empresaId: '',
     colaboradorId: '',
     data: new Date().toISOString().split('T')[0],
-    tipo: 'PESSOAL',
+    tipo: 'EXTRA_CAIXA',
     fornecedorCliente: '',
     observacao: '',
     setor: '',
     oculto: false
   });
 
-  // Estado para os lançamentos (no estilo tabela Excel)
+  // Estado para os lançamentos
   const [lancamentos, setLancamentos] = useState<{
     id?: number;
     data: string;
-    clienteFornecedor: string;
-    entrada: string;
-    saida: string;
-    documento: string;
-    historico: string;
+    numeroDocumento: string;
+    observacao: string;
+    credito: string;
+    debito: string;
   }[]>([
-    // Linha inicial em branco
     {
       data: new Date().toISOString().split('T')[0],
-      clienteFornecedor: '',
-      entrada: '',
-      saida: '',
-      documento: '',
-      historico: '',
+      numeroDocumento: '',
+      observacao: '',
+      credito: '',
+      debito: '',
     }
   ]);
 
   // Carregar dados iniciais se for edição
   useEffect(() => {
-    if (initialData) {
+    if (conta) {
       setFormData({
-        id: initialData.id || 0,
-        userId: initialData.userId || '',
-        empresaId: initialData.empresaId?.toString() || '',
-        colaboradorId: initialData.colaboradorId?.toString() || '',
-        data: initialData.data ? format(new Date(initialData.data), 'yyyy-MM-dd') : new Date().toISOString().split('T')[0],
-        tipo: initialData.tipo || 'PESSOAL',
-        fornecedorCliente: initialData.fornecedorCliente || '',
-        observacao: initialData.observacao || '',
-        setor: initialData.setor || '',
-        oculto: initialData.oculto || false
+        id: conta.id || 0,
+        userId: conta.userId || (isAdminMode ? '' : currentUserId),
+        empresaId: conta.empresaId?.toString() || '',
+        colaboradorId: conta.colaboradorId?.toString() || '',
+        data: conta.data ? format(new Date(conta.data), 'yyyy-MM-dd') : new Date().toISOString().split('T')[0],
+        tipo: conta.tipo || 'EXTRA_CAIXA',
+        fornecedorCliente: conta.fornecedorCliente || '',
+        observacao: conta.observacao || '',
+        setor: conta.setor || '',
+        oculto: conta.oculto || false
       });
 
-      if (initialData.lancamentos && Array.isArray(initialData.lancamentos) && initialData.lancamentos.length > 0) {
+      if (conta.lancamentos && Array.isArray(conta.lancamentos) && conta.lancamentos.length > 0) {
         try {
-          setLancamentos(initialData.lancamentos.map((l: any) => ({
+          setLancamentos(conta.lancamentos.map((l: any) => ({
             id: l.id,
             data: l.data ? format(new Date(l.data), 'yyyy-MM-dd') : new Date().toISOString().split('T')[0],
-            clienteFornecedor: l.clienteFornecedor || '',
-            entrada: l.credito || '', 
-            saida: l.debito || '',
-            documento: l.numeroDocumento || '',
-            historico: l.observacao || ''
+            numeroDocumento: l.numeroDocumento || '',
+            observacao: l.observacao || '',
+            credito: l.credito || '',
+            debito: l.debito || ''
           })));
         } catch (error) {
           console.error("Erro ao processar lançamentos:", error);
-          // Manter o estado padrão com uma linha em branco
         }
       }
     }
-  }, [initialData]);
+  }, [conta, isAdminMode, currentUserId]);
 
   // Adicionar nova linha à tabela
   const adicionarLinha = () => {
     setLancamentos([...lancamentos, {
       data: new Date().toISOString().split('T')[0],
-      clienteFornecedor: '',
-      entrada: '',
-      saida: '',
-      documento: '',
-      historico: '',
+      numeroDocumento: '',
+      observacao: '',
+      credito: '',
+      debito: '',
     }]);
   };
 
   // Remover linha da tabela
   const removerLinha = (index: number) => {
+    if (lancamentos.length <= 1) return; // Mantém pelo menos uma linha
+    
     const novasLinhas = [...lancamentos];
     novasLinhas.splice(index, 1);
     setLancamentos(novasLinhas);
   };
 
-  // Atualizar dados de uma linha
+  // Adicione esta função para formatar valores monetários no input
+  const formatarValorMonetario = (valor: string): string => {
+    // Remover qualquer caractere que não seja dígito
+    let apenasNumeros = valor.replace(/\D/g, '');
+    
+    // Se não houver números, retorna vazio
+    if (!apenasNumeros) return '';
+    
+    // Converter para número
+    const numero = parseInt(apenasNumeros, 10) / 100;
+    
+    // Formatar para moeda brasileira, sem o símbolo
+    return numero.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
+
+  // Atualizar a função atualizarLinha para usar o formatador
   const atualizarLinha = (index: number, campo: string, valor: string) => {
     const novasLinhas = [...lancamentos];
-    novasLinhas[index] = { ...novasLinhas[index], [campo]: valor };
+    
+    // Se o campo for crédito ou débito, formatar como moeda
+    if (campo === 'credito' || campo === 'debito') {
+      novasLinhas[index] = { 
+        ...novasLinhas[index], 
+        [campo]: formatarValorMonetario(valor)
+      };
+    } else {
+      novasLinhas[index] = { ...novasLinhas[index], [campo]: valor };
+    }
+    
     setLancamentos(novasLinhas);
   };
 
-  // Handle form submission
+  // Função auxiliar para formatar valores monetários
+  const formatarValorParaAPI = (valor: string | null | undefined): number | null => {
+    if (!valor || valor.trim() === '') return null;
+    
+    // Remove qualquer caractere não numérico, exceto ponto e vírgula
+    const valorLimpo = valor.replace(/[^\d.,]/g, '');
+    
+    // Substitui vírgula por ponto para cálculos
+    const valorNumerico = valorLimpo.replace(',', '.');
+    
+    // Converte para número ou retorna null se não for possível
+    const numero = parseFloat(valorNumerico);
+    return isNaN(numero) ? null : numero;
+  };
+
+  // Adicione esta função para garantir que pelo menos o primeiro lançamento tenha um valor:
+  const validarLancamentos = (): boolean => {
+    // Se não houver lançamentos, adicione um
+    if (lancamentos.length === 0) {
+      setLancamentos([{
+        data: new Date().toISOString().split('T')[0],
+        numeroDocumento: '',
+        observacao: '',
+        credito: '',
+        debito: '',
+      }]);
+      return false;
+    }
+    
+    // Verificar se pelo menos um lançamento tem valor
+    const temValor = lancamentos.some(l => {
+      const creditoValido = l.credito && l.credito.trim() !== '';
+      const debitoValido = l.debito && l.debito.trim() !== '';
+      return creditoValido || debitoValido;
+    });
+    
+    return temValor;
+  };
+
+  // No modal de criação de lançamentos
+  const validarLancamento = (lancamento: Lancamento): boolean => {
+    // Formatar valores para garantir que são numéricos
+    if (lancamento.credito) {
+      const creditoLimpo = lancamento.credito.replace(/[^\d.,]/g, '').replace(',', '.');
+      if (isNaN(parseFloat(creditoLimpo))) {
+        return false;
+      }
+    }
+    
+    if (lancamento.debito) {
+      const debitoLimpo = lancamento.debito.replace(/[^\d.,]/g, '').replace(',', '.');
+      if (isNaN(parseFloat(debitoLimpo))) {
+        return false;
+      }
+    }
+    
+    return true;
+  };
+
+  // Melhorar o handleSubmit para garantir o formato correto
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Converter os lançamentos para o formato esperado pela API
-    const lancamentosFormatados = lancamentos
-      .filter(l => l.entrada || l.saida) // Filtra linhas em branco
-      .map(l => ({
-        id: l.id, // Manter o ID se existir (caso de edição)
-        data: l.data,
-        numeroDocumento: l.documento,
-        observacao: l.historico,
-        credito: l.entrada || null,
-        debito: l.saida || null,
-        clienteFornecedor: l.clienteFornecedor
-      }));
+    // Validar se há pelo menos um lançamento válido
+    const lancamentosValidos = lancamentos.filter(l => {
+      const temCredito = l.credito && l.credito.trim() !== '';
+      const temDebito = l.debito && l.debito.trim() !== '';
+      return temCredito || temDebito;
+    });
     
+    if (lancamentosValidos.length === 0) {
+      alert("É necessário adicionar pelo menos um lançamento com valor de crédito ou débito.");
+      return;
+    }
+    
+    // Processar lançamentos
+    const lancamentosFormatados = lancamentosValidos.map(l => {
+      // Limpar e formatar valores, removendo símbolos de moeda e formatação
+      const creditoLimpo = l.credito ? l.credito.replace(/[^\d.,]/g, '').replace(',', '.') : null;
+      const debitoLimpo = l.debito ? l.debito.replace(/[^\d.,]/g, '').replace(',', '.') : null;
+      
+      return {
+        id: l.id || undefined,
+        data: l.data,
+        numeroDocumento: l.numeroDocumento || '',
+        observacao: l.observacao || '',
+        credito: creditoLimpo,
+        debito: debitoLimpo
+      };
+    });
+    
+    // Dados da conta corrente
+    const dadosContaCorrente = {
+      id: formData.id || undefined,
+      userId: formData.userId || currentUserId,
+      empresaId: formData.empresaId ? parseInt(formData.empresaId) : null,
+      colaboradorId: formData.colaboradorId ? parseInt(formData.colaboradorId) : null,
+      data: formData.data,
+      tipo: formData.tipo,
+      fornecedorCliente: formData.fornecedorCliente || '',
+      observacao: formData.observacao || '',
+      setor: formData.setor || '',
+      oculto: formData.oculto || false
+    };
+    
+    // Log para depuração
+    console.log("Enviando dados para salvar:", {
+      contaCorrente: dadosContaCorrente,
+      lancamentos: lancamentosFormatados
+    });
+    
+    // Chamar função de salvamento
     onSave({
-      ...formData,
+      contaCorrente: dadosContaCorrente,
       lancamentos: lancamentosFormatados
     });
   };
@@ -214,314 +337,368 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
   // Calcular saldo total
   const calcularSaldo = () => {
     return lancamentos.reduce((total, linha) => {
-      const entrada = linha.entrada ? parseFloat(linha.entrada) : 0;
-      const saida = linha.saida ? parseFloat(linha.saida) : 0;
+      const entrada = linha.credito ? parseFloat(linha.credito) : 0;
+      const saida = linha.debito ? parseFloat(linha.debito) : 0;
       return total + entrada - saida;
     }, 0);
+  };
+
+  const calcularTotalCreditos = () => {
+    return lancamentos.reduce((total, linha) => {
+      return total + (linha.credito ? parseFloat(linha.credito) || 0 : 0);
+    }, 0);
+  };
+
+  const calcularTotalDebitos = () => {
+    return lancamentos.reduce((total, linha) => {
+      return total + (linha.debito ? parseFloat(linha.debito) || 0 : 0);
+    }, 0);
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-auto py-10">
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-start justify-center z-50 overflow-auto py-5">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-lg shadow-xl w-full max-w-5xl mx-4 my-auto"
+        className="bg-white rounded-xl shadow-2xl w-full max-w-5xl mx-4 my-auto"
       >
-        {/* Cabeçalho com estilo semelhante à imagem */}
-        <div className="bg-blue-700 text-white p-4">
-          <h2 className="text-2xl font-bold">CAIXA VIAGEM - Dinheiro</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-            <div>
-              <label className="block text-xs text-white opacity-80 mb-1">EMPRESA:</label>
-              <select 
-                value={formData.empresaId} 
-                onChange={(e) => setFormData({...formData, empresaId: e.target.value})}
-                className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded"
+        <form onSubmit={handleSubmit}>
+          {/* Cabeçalho do modal com cores claras */}
+          <div className="bg-gradient-to-r from-gray-100 to-blue-50 p-6 rounded-t-xl">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-800">
+                {isEditMode ? 'Editar Conta Corrente' : 'Nova Conta Corrente'}
+              </h2>
+              <button
+                type="button"
+                onClick={onClose}
+                className="text-gray-500 hover:text-gray-800 hover:bg-gray-200 p-2 rounded-full transition-colors"
               >
-                <option value="">Selecione...</option>
-                {Array.isArray(empresas) && empresas.map(empresa => (
-                  <option key={empresa.id} value={empresa.id}>
-                    {empresa.nome}
-                  </option>
-                ))}
-              </select>
+                <X size={20} />
+              </button>
             </div>
             
-            <div>
-              <label className="block text-xs text-white opacity-80 mb-1">FUNC.:</label>
-              <select 
-                value={formData.colaboradorId}
-                onChange={(e) => setFormData({...formData, colaboradorId: e.target.value})}
-                className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded"
-              >
-                <option value="">Selecione...</option>
-                {Array.isArray(colaboradores) && colaboradores.map(col => (
-                  <option key={col.id} value={col.id}>
-                    {col.nome} {col.sobrenome}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-xs text-white opacity-80 mb-1">CAIXA Nº</label>
-              <input 
-                type="text" 
-                value={formData.id || ''}
-                disabled
-                className="w-full px-2 py-1.5 bg-gray-100 text-gray-800 border border-gray-300 rounded"
-              />
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-            <div>
-              <label className="block text-xs text-white opacity-80 mb-1">Veículo:</label>
-              <input 
-                type="text" 
-                value={formData.setor || ''}
-                onChange={(e) => setFormData({...formData, setor: e.target.value})}
-                placeholder="Veículo utilizado"
-                className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-xs text-white opacity-80 mb-1">Destino:</label>
-              <input 
-                type="text" 
-                value={formData.fornecedorCliente || ''}
-                onChange={(e) => setFormData({...formData, fornecedorCliente: e.target.value})}
-                placeholder="Local/Cliente"
-                className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-xs text-white opacity-80 mb-1">Obs:</label>
-              <input 
-                type="text" 
-                value={formData.observacao || ''}
-                onChange={(e) => setFormData({...formData, observacao: e.target.value})}
-                placeholder="Observações"
-                className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded"
-              />
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
-            <div>
-              <label className="block text-xs text-white opacity-80 mb-1">Data inicial:</label>
-              <input 
-                type="date" 
-                value={formData.data}
-                onChange={(e) => setFormData({...formData, data: e.target.value})}
-                className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-xs text-white opacity-80 mb-1">Data final:</label>
-              <input 
-                type="date" 
-                className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded"
-              />
-            </div>
-            
-            <div className="col-span-2 flex items-center gap-2 pt-6">
-              <div className="flex items-center">
-                <input 
-                  type="checkbox" 
-                  id="encerrado"
-                  className="h-4 w-4" 
-                />
-                <label htmlFor="encerrado" className="ml-1 text-sm text-white">Encerrado</label>
+            {/* Primeira linha de campos */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">
+              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                <label className="block text-xs text-gray-700 mb-2 font-medium">EMPRESA</label>
+                <select 
+                  value={formData.empresaId} 
+                  onChange={(e) => setFormData({...formData, empresaId: e.target.value})}
+                  className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                  disabled={isLoading}
+                >
+                  <option value="">Selecione...</option>
+                  {Array.isArray(empresas) && empresas.map(empresa => (
+                    empresa && (
+                      <option key={empresa.id} value={empresa.id}>
+                        {empresa.nomeEmpresa || empresa.nome || `Empresa ${empresa.id}`}
+                      </option>
+                    )
+                  ))}
+                </select>
               </div>
               
-              <div className="flex items-center ml-6">
+              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                <label className="block text-xs text-gray-700 mb-2 font-medium">FUNCIONÁRIO</label>
+                <select 
+                  value={formData.colaboradorId}
+                  onChange={(e) => setFormData({...formData, colaboradorId: e.target.value})}
+                  className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                  disabled={isLoading}
+                >
+                  <option value="">Selecione...</option>
+                  {Array.isArray(colaboradores) && colaboradores.map(col => (
+                    col && (
+                      <option key={col.id} value={col.id}>
+                        {col.nome} {col.sobrenome || ''}
+                      </option>
+                    )
+                  ))}
+                </select>
+              </div>
+
+              {/* Campo de seleção de usuário (apenas em modo admin) */}
+              {isAdminMode ? (
+                <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                  <label className="block text-xs text-gray-700 mb-2 font-medium">RESPONSÁVEL</label>
+                  <select 
+                    value={formData.userId}
+                    onChange={(e) => setFormData({...formData, userId: e.target.value})}
+                    className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                    required
+                    disabled={isLoading}
+                  >
+                    <option value="">Selecione...</option>
+                    {Array.isArray(usuarios) && usuarios.map(usuario => (
+                      usuario && (
+                        <option key={usuario.id} value={usuario.id}>
+                          {usuario.nome} {usuario.sobrenome || ''}
+                        </option>
+                      )
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+            </div>
+            
+            {/* Segunda linha - Tipo, Setor e Data - reorganizados em 3 colunas */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-5">
+              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                <label className="block text-xs text-gray-700 mb-2 font-medium">TIPO</label>
+                <select
+                  value={formData.tipo}
+                  onChange={(e) => setFormData({...formData, tipo: e.target.value})}
+                  className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                  disabled={isLoading}
+                >
+                  <option value="EXTRA_CAIXA">Extra Caixa</option>
+                  <option value="PERMUTA">Permuta</option>
+                  <option value="DEVOLUCAO">Devolução</option>
+                </select>
+              </div>
+              
+              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                <label className="block text-xs text-gray-700 mb-2 font-medium">SETOR</label>
+                <select 
+                  value={formData.setor || ''}
+                  onChange={(e) => setFormData({...formData, setor: e.target.value})}
+                  className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                  disabled={isLoading}
+                >
+                  <option value="">Selecione um setor...</option>
+                  {Array.isArray(setores) && setores.length > 0 ? (
+                    setores.map((setor, index) => (
+                      <option key={`setor-${index}`} value={setor}>
+                        {setor}
+                      </option>
+                    ))
+                  ) : (
+                    <option disabled>Nenhum setor disponível</option>
+                  )}
+                </select>
+              </div>
+              
+              {/* Data movida para esta linha */}
+              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                <label className="block text-xs text-gray-700 mb-2 font-medium">DATA</label>
                 <input 
-                  type="checkbox" 
-                  id="cartao"
-                  className="h-4 w-4" 
+                  type="date" 
+                  value={formData.data}
+                  onChange={(e) => setFormData({...formData, data: e.target.value})}
+                  className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                  disabled={isLoading}
                 />
-                <label htmlFor="cartao" className="ml-1 text-sm text-white">Cartão</label>
+              </div>
+            </div>
+
+            {/* Terceira linha - Agora com Fornecedor/Cliente ocupando toda a largura para dar destaque */}
+            <div className="mt-5">
+              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                <label className="block text-xs text-gray-700 mb-2 font-medium">FORNECEDOR/CLIENTE</label>
+                <input 
+                  type="text" 
+                  value={formData.fornecedorCliente || ''}
+                  onChange={(e) => setFormData({...formData, fornecedorCliente: e.target.value})}
+                  placeholder="Nome do fornecedor ou cliente"
+                  className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+
+            {/* Observações - permanece full width como estava */}
+            <div className="mt-5 bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+              <label className="block text-xs text-gray-700 mb-2 font-medium">OBSERVAÇÕES</label>
+              <textarea 
+                value={formData.observacao || ''}
+                onChange={(e) => setFormData({...formData, observacao: e.target.value})}
+                placeholder="Observações adicionais"
+                className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md h-20 focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                disabled={isLoading}
+              />
+            </div>
+
+            {/* Informações de Saldo - com cores mais suaves */}
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="bg-blue-50 rounded-lg p-4 text-center border border-blue-100 shadow-sm">
+                <p className="text-xs uppercase font-semibold text-blue-600 mb-1">Total Entradas</p>
+                <p className="text-xl font-bold text-green-600">{formatCurrency(calcularTotalCreditos())}</p>
+              </div>
+              <div className="bg-blue-50 rounded-lg p-4 text-center border border-blue-100 shadow-sm">
+                <p className="text-xs uppercase font-semibold text-blue-600 mb-1">Total Saídas</p>
+                <p className="text-xl font-bold text-red-600">{formatCurrency(calcularTotalDebitos())}</p>
+              </div>
+              <div className="bg-blue-50 rounded-lg p-4 text-center border border-blue-100 shadow-sm">
+                <p className="text-xs uppercase font-semibold text-blue-600 mb-1">Saldo Final</p>
+                <p className={`text-xl font-bold ${calcularSaldo() >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(calcularSaldo())}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Informações de Saldo */}
-          <div className="mt-4 border-t border-blue-500 pt-2">
-            <div className="flex justify-between">
-              <div>
-                <p className="text-sm font-bold">SALDO ANTERIOR</p>
-                <p className="text-lg font-bold">R$ 0,00</p>
-              </div>
-              <div>
-                <p className="text-sm font-bold">SALDO FINAL</p>
-                <p className="text-lg font-bold">R$ {calcularSaldo().toFixed(2).replace('.', ',')}</p>
-              </div>
+          {/* Tabela de Lançamentos - redesenhada com visual mais clean */}
+          <div className="p-6 overflow-x-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-800">Lançamentos</h3>
+              <button
+                type="button"
+                onClick={adicionarLinha}
+                className="flex items-center text-sm bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                disabled={isLoading}
+              >
+                <PlusCircle size={16} className="mr-2" /> Adicionar lançamento
+              </button>
             </div>
-          </div>
-        </div>
-
-        {/* Tabela de Lançamentos (Estilo Excel) */}
-        <div className="p-4 overflow-x-auto">
-          <table className="min-w-full border border-gray-200">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="border px-2 py-2 text-left text-sm font-medium text-gray-500 w-16">num</th>
-                <th className="border px-2 py-2 text-left text-sm font-medium text-gray-500">CLIENTE / FORNECEDOR</th>
-                <th className="border px-2 py-2 text-left text-sm font-medium text-gray-500 w-24">entrada</th>
-                <th className="border px-2 py-2 text-left text-sm font-medium text-gray-500 w-24">saída</th>
-                <th className="border px-2 py-2 text-left text-sm font-medium text-gray-500 w-24">data</th>
-                <th className="border px-2 py-2 text-left text-sm font-medium text-gray-500 w-24">doc</th>
-                <th className="border px-2 py-2 text-left text-sm font-medium text-gray-500">historico</th>
-                <th className="w-10"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {lancamentos.map((lancamento, index) => (
-                <tr key={index} className={index % 2 === 0 ? 'bg-blue-50' : 'bg-white'}>
-                  <td className="border px-2 py-2 text-sm">{index + 1}</td>
-                  <td className="border px-2 py-2">
-                    <input
-                      type="text"
-                      value={lancamento.clienteFornecedor}
-                      onChange={(e) => atualizarLinha(index, 'clienteFornecedor', e.target.value)}
-                      className="w-full px-1 py-0.5 border-0 bg-transparent"
-                      placeholder="Nome do cliente/fornecedor"
-                    />
-                  </td>
-                  <td className="border px-2 py-2">
-                    <input
-                      type="text"
-                      value={lancamento.entrada}
-                      onChange={(e) => atualizarLinha(index, 'entrada', e.target.value)}
-                      className="w-full px-1 py-0.5 border-0 bg-transparent text-green-600"
-                      placeholder="R$ 0,00"
-                    />
-                  </td>
-                  <td className="border px-2 py-2">
-                    <input
-                      type="text"
-                      value={lancamento.saida}
-                      onChange={(e) => atualizarLinha(index, 'saida', e.target.value)}
-                      className="w-full px-1 py-0.5 border-0 bg-transparent text-red-600"
-                      placeholder="R$ 0,00"
-                    />
-                  </td>
-                  <td className="border px-2 py-2">
-                    <input
-                      type="date"
-                      value={lancamento.data}
-                      onChange={(e) => atualizarLinha(index, 'data', e.target.value)}
-                      className="w-full px-1 py-0.5 border-0 bg-transparent"
-                    />
-                  </td>
-                  <td className="border px-2 py-2">
-                    <input
-                      type="text"
-                      value={lancamento.documento}
-                      onChange={(e) => atualizarLinha(index, 'documento', e.target.value)}
-                      className="w-full px-1 py-0.5 border-0 bg-transparent"
-                      placeholder="Nº Doc"
-                    />
-                  </td>
-                  <td className="border px-2 py-2">
-                    <input
-                      type="text"
-                      value={lancamento.historico}
-                      onChange={(e) => atualizarLinha(index, 'historico', e.target.value)}
-                      className="w-full px-1 py-0.5 border-0 bg-transparent"
-                      placeholder="Descrição do lançamento"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <button
-                      onClick={() => removerLinha(index)}
-                      className="text-red-500 hover:text-red-700"
-                      title="Remover linha"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
+            
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className="border-b-2 border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                  <th className="border-b-2 border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                  <th className="border-b-2 border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Documento</th>
+                  <th className="border-b-2 border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Observação</th>
+                  <th className="border-b-2 border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Crédito</th>
+                  <th className="border-b-2 border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Débito</th>
+                  <th className="border-b-2 border-gray-200 px-4 py-3"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {lancamentos.map((lancamento, index) => (
+                  // Adicione feedback visual para campos de valor vazios
+                  <tr key={index} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                    <td className="px-4 py-3 text-sm text-gray-900">{index + 1}</td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="date"
+                        value={lancamento.data}
+                        onChange={(e) => atualizarLinha(index, 'data', e.target.value)}
+                        className="block w-full px-3 py-1.5 text-base text-gray-700 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        disabled={isLoading}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        value={lancamento.numeroDocumento}
+                        onChange={(e) => atualizarLinha(index, 'numeroDocumento', e.target.value)}
+                        className="block w-full px-3 py-1.5 text-base text-gray-700 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Nº Doc"
+                        disabled={isLoading}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        value={lancamento.observacao}
+                        onChange={(e) => atualizarLinha(index, 'observacao', e.target.value)}
+                        className="block w-full px-3 py-1.5 text-base text-gray-700 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Descrição do lançamento"
+                        disabled={isLoading}
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">R$</span>
+                        <input
+                          type="text"
+                          value={lancamento.credito}
+                          onChange={(e) => atualizarLinha(index, 'credito', e.target.value)}
+                          className={`block w-full pl-10 pr-3 py-1.5 text-base border rounded-md focus:ring-2 focus:outline-none
+                            ${!lancamento.credito && !lancamento.debito 
+                              ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                              : 'border-gray-300 focus:ring-blue-400 focus:border-blue-400'}`}
+                          placeholder="0,00"
+                          disabled={isLoading}
+                        />
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">R$</span>
+                        <input
+                          type="text"
+                          value={lancamento.debito}
+                          onChange={(e) => atualizarLinha(index, 'debito', e.target.value)}
+                          className={`block w-full pl-10 pr-3 py-1.5 text-base border rounded-md focus:ring-2 focus:outline-none
+                            ${!lancamento.credito && !lancamento.debito 
+                              ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                              : 'border-gray-300 focus:ring-blue-400 focus:border-blue-400'}`}
+                          placeholder="0,00"
+                          disabled={isLoading}
+                        />
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-medium">
+                      <button
+                        type="button"
+                        onClick={() => removerLinha(index)}
+                        className="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:text-gray-400 focus:outline-none"
+                        title="Remover linha"
+                        disabled={isLoading || lancamentos.length <= 1}
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-gray-50">
+                  <td colSpan={4} className="px-4 py-3 text-right font-medium">Totais:</td>
+                  <td className="px-4 py-3 text-right font-medium text-green-600">{formatCurrency(calcularTotalCreditos())}</td>
+                  <td className="px-4 py-3 text-right font-medium text-red-600">{formatCurrency(calcularTotalDebitos())}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
 
-          <div className="mt-2 flex justify-between">
-            <button
-              type="button"
-              onClick={adicionarLinha}
-              className="flex items-center text-sm text-blue-600 hover:text-blue-800"
-            >
-              <PlusCircle size={16} className="mr-1" /> Adicionar linha
-            </button>
-
-            <div className="flex space-x-4 text-sm">
-              <span><strong>Entradas no caixa:</strong> R$ {lancamentos.reduce((total, linha) => total + (linha.entrada ? parseFloat(linha.entrada) || 0 : 0), 0).toFixed(2).replace('.', ',')}</span>
-              <span><strong>Saídas no caixa:</strong> R$ {lancamentos.reduce((total, linha) => total + (linha.saida ? parseFloat(linha.saida) || 0 : 0), 0).toFixed(2).replace('.', ',')}</span>
-              <span><strong>Saldo do caixa:</strong> R$ {calcularSaldo().toFixed(2).replace('.', ',')}</span>
+          {/* Botões de ação - redesenhados */}
+          <div className="border-t border-gray-200 p-6 flex justify-end bg-gray-50 rounded-b-xl">
+            <div className="flex space-x-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-6 py-2.5 bg-gray-200 text-gray-700 font-medium text-sm rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
+                disabled={isLoading}
+              >
+                Cancelar
+              </button>
+              
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="px-6 py-2.5 bg-blue-600 text-white font-medium text-sm rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <div className="flex items-center">
+                    <Clock className="animate-spin mr-2" size={18} />
+                    <span>Salvando...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center">
+                    <Check className="mr-2" size={18} />
+                    <span>Salvar</span>
+                  </div>
+                )}
+              </button>
             </div>
           </div>
-        </div>
-
-        {/* Botões de ação */}
-        <div className="border-t border-gray-200 p-4 flex justify-between bg-gray-50">
-          <div className="flex space-x-2">
-            <button
-              type="button"
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Atualizar Saldo
-            </button>
-            
-            <button
-              type="button"
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Novo
-            </button>
-            
-            <button
-              type="button"
-              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-            >
-              Excluir
-            </button>
-            
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={isLoading}
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <>
-                  <Clock className="inline-block animate-spin mr-2" size={16} />
-                  Salvando...
-                </>
-              ) : (
-                'Salvar'
-              )}
-            </button>
-          </div>
-          
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
-          >
-            Cancelar
-          </button>
-        </div>
+        </form>
       </motion.div>
     </div>
   );
-}
+};
 
 export default ContaCorrenteModal;

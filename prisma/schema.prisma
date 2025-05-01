@@ -230,7 +230,7 @@ model ContaCorrente {
   userId            String?         // Adicionando relação com User
   user              User?           @relation(fields: [userId], references: [id])
   data              DateTime
-  tipo              String          // Campo selecionável (ex: "Cliente", "Fornecedor", etc)
+  tipo              String          
   fornecedorCliente String        // Nome do fornecedor ou cliente
   observacao        String          @db.Text // Para permitir textos longos
   setor             String?         // Pode ser obtido do colaborador, mas mantido na tabela para consultas diretas
