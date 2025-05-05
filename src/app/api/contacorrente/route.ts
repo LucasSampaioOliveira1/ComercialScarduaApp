@@ -34,6 +34,15 @@ const getUserIdFromToken = (req: NextRequest) => {
   }
 };
 
+// Função para autenticar o usuário
+const authenticateToken = (req: NextRequest) => {
+  const userId = getUserIdFromToken(req);
+  if (!userId) {
+    throw new Error("Não autorizado");
+  }
+  return userId;
+};
+
 // GET - Listar contas corrente do usuário logado
 export async function GET(req: NextRequest) {
   try {
@@ -258,36 +267,38 @@ export async function DELETE(req: NextRequest) {
 // PUT - Para alternar visibilidade (mantendo para compatibilidade)
 export async function PUT(req: NextRequest) {
   try {
+    // Obter o ID do usuário do token em vez de usar authenticateToken
     const userId = getUserIdFromToken(req);
-
+    
     if (!userId) {
-      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Não autorizado" },
+        { status: 401 }
+      );
     }
 
     const body = await req.json();
-
+    
     if (!body.id) {
       return NextResponse.json(
-        { error: "ID da conta corrente não fornecido" },
+        { error: "ID da conta corrente não fornecido." }, 
         { status: 400 }
       );
     }
 
-    const contaId = parseInt(body.id);
-
-    // Verificar se a conta existe
+    // Verifica se a conta corrente existe
     const contaCorrente = await prisma.contaCorrente.findUnique({
-      where: { id: contaId },
+      where: { id: parseInt(body.id) }
     });
-
+    
     if (!contaCorrente) {
       return NextResponse.json(
-        { error: "Conta corrente não encontrada" },
+        { error: "Conta corrente não encontrada." }, 
         { status: 404 }
       );
     }
-
-    // Verificar permissões
+    
+    // Verificar permissões (proprietário ou admin)
     const userInfo = await prisma.user.findUnique({
       where: { id: userId },
       select: { role: true }
@@ -298,25 +309,32 @@ export async function PUT(req: NextRequest) {
 
     if (!isAdmin && !isOwner) {
       return NextResponse.json(
-        { error: "Sem permissão para editar esta conta corrente" },
+        { error: "Sem permissão para modificar esta conta corrente" },
         { status: 403 }
       );
     }
 
-    // Alternar visibilidade
-    const updatedConta = await prisma.contaCorrente.update({
-      where: { id: contaId },
-      data: { oculto: !contaCorrente.oculto }
+    // Alterna o status de oculto
+    const updatedContaCorrente = await prisma.contaCorrente.update({
+      where: { id: parseInt(body.id.toString()) },
+      data: { 
+        oculto: !contaCorrente.oculto
+      }
     });
 
     return NextResponse.json({
       success: true,
-      message: `Conta ${updatedConta.oculto ? 'ocultada' : 'restaurada'} com sucesso`
+      message: `Conta corrente ${updatedContaCorrente.oculto ? 'ocultada' : 'tornada visível'} com sucesso.`,
+      contaCorrente: updatedContaCorrente
     });
   } catch (error) {
-    console.error("Erro ao alternar visibilidade da conta corrente:", error);
+    console.error("Erro ao alterar visibilidade da conta corrente:", error);
+    
     return NextResponse.json(
-      { error: "Erro ao processar ação" },
+      { 
+        error: "Erro ao alterar visibilidade da conta corrente.",
+        details: error instanceof Error ? error.message : "Erro desconhecido" 
+      }, 
       { status: 500 }
     );
   } finally {

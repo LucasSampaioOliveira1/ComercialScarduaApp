@@ -14,7 +14,7 @@ import {
   ArrowUpCircle, Users, Calendar, Building, ChevronDown, Plus, Check, 
   AlertCircle, Info, FileSpreadsheet, Wallet, User, Landmark, Briefcase, Eye, Edit, Trash2, 
   Database,
-  ChevronRight, SearchX, FileText, BarChart as ChartBarIcon, PieChart as ChartPieIcon, FilePen, PlusCircle, MinusCircle 
+  ChevronRight, SearchX, FileText, BarChart as ChartBarIcon, PieChart as ChartPieIcon, FilePen, PlusCircle, MinusCircle, RefreshCw 
 } from 'lucide-react';
 
 import Header from '../components/Header';
@@ -486,18 +486,40 @@ export default function ContaCorrentePage() {
     try {
       setLoadingAction(true);
       
-      const response = await fetch('/api/contacorrente', {
-        method: 'PUT',
+      // Registrar mais informações para depuração
+      console.log("Tentando ocultar conta:", contaToDelete.id);
+      console.log("Usando userId:", userId);
+      
+      // Enviar userId diretamente no corpo da requisição
+      const response = await fetch('/api/contacorrente/ocultar', {
+        method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ id: contaToDelete.id })
+        body: JSON.stringify({ 
+          id: contaToDelete.id,
+          userId: userId  // Enviar o userId junto
+        })
       });
       
+      // Para depuração - registrar o código de status da resposta
+      console.log("Código de status da resposta:", response.status);
+      
+      // Capture o texto da resposta para depuração, independente de ser OK ou não
+      const responseText = await response.text();
+      console.log("Resposta completa:", responseText);
+      
+      let responseData;
+      try {
+        // Tenta converter o texto para JSON
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        console.error("Erro ao parsear resposta como JSON:", e);
+        throw new Error("A resposta da API não está em formato JSON válido");
+      }
+      
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Erro ao atualizar conta corrente');
+        throw new Error(responseData.error || "Erro ao atualizar conta corrente");
       }
       
       // Atualizar a lista de contas localmente
@@ -509,7 +531,7 @@ export default function ContaCorrentePage() {
             <Check size={18} className="text-red-600" />
           </div>
           <div>
-            <p className="font-medium">Conta excluída com sucesso!</p>
+            <p className="font-medium text-red-600">Conta excluída com sucesso!</p>
             <p className="text-sm text-gray-600">
               A conta{' '}
               <strong>{contaToDelete.fornecedorCliente || `#${contaToDelete.id}`}</strong>{' '}
@@ -528,7 +550,7 @@ export default function ContaCorrentePage() {
       setContaToDelete(null);
     } catch (error) {
       console.error("Erro ao excluir conta:", error);
-      toast.error("Erro ao excluir conta");
+      toast.error(`Falha ao excluir conta: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setLoadingAction(false);
     }
@@ -896,6 +918,9 @@ export default function ContaCorrentePage() {
 
   // Filtrar contas
   const filteredContas = contasCorrente.filter(conta => {
+    // Primeiro, filtrar contas ocultadas
+    if (conta.oculto) return false;
+    
     // Busca por termo
     const search = searchTerm.toLowerCase();
     const matchesSearch = 
@@ -1353,20 +1378,42 @@ export default function ContaCorrentePage() {
           )}
 
           {!loading && contasCorrente.length === 0 && (
-            <div className="bg-white rounded-lg shadow p-4 mb-6">
-              <h3 className="font-medium text-gray-700">Diagnóstico de acesso</h3>
-              <div className="text-sm text-gray-500 mt-2">
-                <div><strong>User ID:</strong> {userId || 'Não disponível'}</div>
-                <div><strong>Admin:</strong> {isAdmin ? 'Sim' : 'Não'}</div>
-                <div><strong>Token presente:</strong> {localStorage.getItem("token") ? 'Sim' : 'Não'}</div>
-                <div className="mt-3">
-                  <button 
-                    onClick={() => userId ? buscarContasDoUsuario(userId) : null} 
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm"
-                  >
-                    Tentar novamente
-                  </button>
-                </div>
+            <div className="bg-white rounded-xl p-8 shadow-md mb-6 text-center">
+              <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                <Wallet size={28} className="text-blue-600" />
+              </div>
+              <h3 className="text-xl font-medium text-gray-800 mb-2">Nenhuma conta corrente encontrada</h3>
+              <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                Você ainda não possui nenhuma conta corrente cadastrada. 
+                Crie sua primeira conta para começar a controlar seus lançamentos financeiros.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <button 
+                  onClick={handleOpenNewContaModal}
+                  className="px-6 py-3 bg-[#344893] text-white rounded-lg hover:bg-[#2a3a74] transition-colors flex items-center"
+                >
+                  <Plus size={18} className="mr-2" />
+                  Criar nova conta
+                </button>
+                <button 
+                  onClick={() => userId ? buscarContasDoUsuario(userId) : null}
+                  className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center"
+                >
+                  <RefreshCw size={18} className="mr-2" />
+                  Atualizar dados
+                </button>
+              </div>
+              
+              <div className="mt-8 pt-6 border-t border-gray-100 text-sm text-gray-500">
+                <p className="mb-1">Se você acredita que deveria ter acesso a contas existentes, verifique suas permissões.</p>
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-blue-600 hover:text-blue-800">Informações de diagnóstico</summary>
+                  <div className="p-3 bg-gray-50 rounded-lg mt-2 text-left">
+                    <div><strong>User ID:</strong> {userId || 'Não disponível'}</div>
+                    <div><strong>Admin:</strong> {isAdmin ? 'Sim' : 'Não'}</div>
+                    <div><strong>Token presente:</strong> {localStorage.getItem("token") ? 'Sim' : 'Não'}</div>
+                  </div>
+                </details>
               </div>
             </div>
           )}

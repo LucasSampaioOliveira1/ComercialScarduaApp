@@ -446,6 +446,20 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
     }, 0);
   };
 
+  // Substitua a função calcularSaldo por esta versão corrigida:
+  const calcularSaldo = () => {
+    return lancamentos.reduce((total, linha) => {
+      // Usar a função formatarValorParaAPI para processar os valores corretamente
+      const credito = linha.credito ? formatarValorParaAPI(linha.credito) || 0 : 0;
+      const debito = linha.debito ? formatarValorParaAPI(linha.debito) || 0 : 0;
+      
+      // Log para diagnóstico
+      console.log(`Lançamento: ${linha.observacao} - Crédito: ${credito}, Débito: ${debito}`);
+      
+      return total + credito - debito;
+    }, 0);
+  };
+
   // Modifique a função handleSubmit para não exigir um ID válido ao criar nova conta
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -514,15 +528,6 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
       preserveExistingEntries: isEditMode && preserveExistingEntries,
       modificacoesContaCorrente: contaModificada
     });
-  };
-
-  // Calcular saldo total
-  const calcularSaldo = () => {
-    return lancamentos.reduce((total, linha) => {
-      const entrada = linha.credito ? parseFloat(linha.credito) : 0;
-      const saida = linha.debito ? parseFloat(linha.debito) : 0;
-      return total + entrada - saida;
-    }, 0);
   };
 
   const formatCurrency = (value: number) => {
@@ -697,14 +702,11 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                   })}
                 </span>
               </div>
+              {/* No bloco de exibição do saldo final */}
               <div className="text-center p-4 bg-blue-50 rounded-lg">
                 <span className="block text-sm font-medium text-blue-500">SALDO FINAL</span>
                 <span className={`text-xl font-bold ${calcularSaldo() >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {calcularSaldo() >= 0 ? '' : '-'}R$ {Math.abs(calcularSaldo()).toLocaleString('pt-BR', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                    useGrouping: true
-                  })}
+                  {formatCurrency(calcularSaldo())}
                 </span>
               </div>
             </div>

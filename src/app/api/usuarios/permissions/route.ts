@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       empresas: { canAccess: false, canEdit: false, canDelete: false },
       colaboradores: { canAccess: false, canEdit: false, canDelete: false },
       usuarios: { canAccess: false, canEdit: false, canDelete: false },
-      // Adicionar página de contacorrente
+      // Página de contacorrente já está incluída
       contacorrente: { canAccess: false, canEdit: false, canDelete: false, canCreate: false }
     };
     

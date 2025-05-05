@@ -183,13 +183,13 @@ function HeaderContent() {
         }
       });
       
-      // Redirecionar para login com replace
-      router.replace('/login');
+      // Redirecionar para a página inicial (/) em vez de /login
+      router.replace('/');
     } catch (error) {
       console.error("Erro ao fazer logout:", error);
       // Mesmo com erro, limpar localStorage e redirecionar
       localStorage.clear();
-      router.replace('/login');
+      router.replace('/');
     }
   };
 
