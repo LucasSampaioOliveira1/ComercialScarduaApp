@@ -8,6 +8,8 @@ import { ptBR } from 'date-fns/locale';
 interface ContaCorrenteSaveData {
   contaCorrente: any;
   lancamentos: any[];
+  preserveExistingEntries?: boolean;
+  modificacoesContaCorrente?: boolean;
 }
 
 // Definição das interfaces
@@ -91,7 +93,7 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
   empresas = [],
   colaboradores = [],
   usuarios = [],
-  setores = [],
+  setores: setoresProp = [], // Renomeie para setoresProp para evitar conflito
   isLoading = false,
   isAdminMode = false,
   currentUserId = ''
@@ -128,10 +130,102 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
     }
   ]);
 
-  // Carregar dados iniciais se for edição
+  // No ContaCorrenteModal, adicione um estado para controlar se devemos preservar lançamentos existentes
+  const [preserveExistingEntries, setPreserveExistingEntries] = useState(true);
+
+  // Novo estado para rastrear se o usuário modificou os dados da conta
+  const [contaModificada, setContaModificada] = useState(false);
+
+  // Dados originais para comparação
+  const [dadosOriginais, setDadosOriginais] = useState<any>(null);
+
+  // Estado para os setores - usar setoresProp como valor inicial
+  const [setores, setSetores] = useState<string[]>(setoresProp);
+
+  // Carregar dados iniciais se for edição ou limpar dados se não for
   useEffect(() => {
+    const carregarDadosIniciais = async () => {
+      try {
+        // Buscar colaboradores para extrair seus setores
+        const responseColaboradores = await fetch('/api/colaboradores');
+        if (responseColaboradores.ok) {
+          const colaboradores = await responseColaboradores.json();
+          
+          // Extrair setores únicos dos colaboradores
+          const setoresColaboradores = colaboradores
+            .filter((c: any) => c.setor)
+            .map((c: any) => c.setor);
+          
+          // Adicionar os setores padrão do sistema
+          const setoresPadrao = [
+            "Administração", 
+            "Comercial", 
+            "Diretoria",
+            "Financeiro", 
+            "Logística", 
+            "Marketing", 
+            "Operacional", 
+            "Peças",
+            "Pós-vendas",
+            "Produção",
+            "RH", 
+            "Serviço Externo",
+            "Serviço Interno",
+            "TI",
+            "Vendedor Externo",
+            "Vendedor Interno"
+          ];
+          
+          // Combinar todos os setores, remover duplicatas e ordenar
+          const todosSetores = [...new Set([...setoresPadrao, ...setoresColaboradores, ...setoresProp])];
+          todosSetores.sort();
+          
+          // Atualizar o estado com os setores
+          setSetores(todosSetores);
+        }
+        
+        // Outras requisições para carregar dados (empresas, etc.)...
+        
+      } catch (error) {
+        console.error("Erro ao carregar dados iniciais:", error);
+      }
+    };
+
+    carregarDadosIniciais();
+
+    // Se não estiver em modo de edição OU se o modal foi fechado, limpar os dados
+    if (!isEditMode || !isOpen) {
+      const dadosIniciais = {
+        id: 0,
+        userId: isAdminMode ? '' : currentUserId,
+        empresaId: '',
+        colaboradorId: '',
+        data: new Date().toISOString().split('T')[0],
+        tipo: 'EXTRA_CAIXA',
+        fornecedorCliente: '',
+        observacao: '',
+        setor: '',
+        oculto: false
+      };
+
+      setFormData(dadosIniciais);
+      setDadosOriginais(JSON.stringify(dadosIniciais));
+      setContaModificada(false);
+
+      setLancamentos([{
+        data: new Date().toISOString().split('T')[0],
+        numeroDocumento: '',
+        observacao: '',
+        credito: '',
+        debito: '',
+      }]);
+      
+      return; // Sair do useEffect se não estiver em modo de edição
+    }
+    
+    // Se estiver em modo de edição e tiver uma conta selecionada, carregar os dados
     if (conta) {
-      setFormData({
+      const dadosCarregados = {
         id: conta.id || 0,
         userId: conta.userId || (isAdminMode ? '' : currentUserId),
         empresaId: conta.empresaId?.toString() || '',
@@ -142,24 +236,51 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
         observacao: conta.observacao || '',
         setor: conta.setor || '',
         oculto: conta.oculto || false
-      });
+      };
 
-      if (conta.lancamentos && Array.isArray(conta.lancamentos) && conta.lancamentos.length > 0) {
-        try {
-          setLancamentos(conta.lancamentos.map((l: any) => ({
-            id: l.id,
-            data: l.data ? format(new Date(l.data), 'yyyy-MM-dd') : new Date().toISOString().split('T')[0],
-            numeroDocumento: l.numeroDocumento || '',
-            observacao: l.observacao || '',
-            credito: l.credito || '',
-            debito: l.debito || ''
-          })));
-        } catch (error) {
-          console.error("Erro ao processar lançamentos:", error);
-        }
+      // Salvar os dados originais para comparação
+      setDadosOriginais(JSON.stringify(dadosCarregados));
+      setFormData(dadosCarregados);
+      setContaModificada(false);
+
+      if (conta.lancamentos && conta.lancamentos.length > 0) {
+        const lancamentosCarregados = conta.lancamentos.map(l => ({
+          id: l.id, // IMPORTANTE: Preservar o ID original
+          data: l.data ? format(new Date(l.data), 'yyyy-MM-dd') : new Date().toISOString().split('T')[0],
+          numeroDocumento: l.numeroDocumento || '',
+          observacao: l.observacao || '',
+          credito: l.credito || '',
+          debito: l.debito || '',
+        }));
+        
+        setLancamentos(lancamentosCarregados);
+        console.log('Lançamentos carregados com IDs:', lancamentosCarregados);
+      } else {
+        setLancamentos([{ 
+          data: new Date().toISOString().split('T')[0], 
+          numeroDocumento: '', 
+          observacao: '', 
+          credito: '', 
+          debito: '' 
+        }]);
       }
     }
-  }, [conta, isAdminMode, currentUserId]);
+  }, [conta, isEditMode, isAdminMode, currentUserId, isOpen, setoresProp]);
+
+  // Atualizar a função que modifica o formulário para verificar alterações
+  const handleFormChange = (field: string, value: any) => {
+    const novoFormData = { ...formData, [field]: value };
+    setFormData(novoFormData);
+    
+    // Verificar se a conta foi modificada comparando com os dados originais
+    if (dadosOriginais) {
+      const dadosOriginaisObj = JSON.parse(dadosOriginais);
+      const foiModificada = Object.entries(novoFormData).some(([key, val]) => {
+        return val !== dadosOriginaisObj[key] && key !== 'lancamentos';
+      });
+      setContaModificada(foiModificada);
+    }
+  };
 
   // Adicionar nova linha à tabela
   const adicionarLinha = () => {
@@ -172,6 +293,21 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
     }]);
   };
 
+  // Na função que adiciona um novo lançamento à tabela:
+  const adicionarLancamento = () => {
+    // Criar novo lançamento sem ID (para ser identificado como novo)
+    const novoLancamento = {
+      // Explicitamente SEM ID
+      data: new Date().toISOString().split('T')[0],
+      numeroDocumento: '',
+      observacao: '',
+      credito: '',
+      debito: ''
+    };
+    
+    setLancamentos([...lancamentos, novoLancamento]);
+  };
+
   // Remover linha da tabela
   const removerLinha = (index: number) => {
     if (lancamentos.length <= 1) return; // Mantém pelo menos uma linha
@@ -181,7 +317,70 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
     setLancamentos(novasLinhas);
   };
 
-  // Adicione esta função para formatar valores monetários no input
+  // Substitua a função removerLancamento atual por esta versão corrigida:
+  const removerLancamento = (index: number, e: React.MouseEvent) => {
+    // IMPORTANTE: Impedir a propagação do evento
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Criar uma cópia do array de lançamentos
+    const novosLancamentos = [...lancamentos];
+    
+    // Log para verificar se estamos removendo um lançamento com ID (existente) ou sem ID (novo)
+    console.log("Removendo lançamento:", lancamentos[index]);
+    
+    // Remover o lançamento
+    novosLancamentos.splice(index, 1);
+    setLancamentos(novosLancamentos);
+    
+    // Se não houver lançamentos após a remoção, adicione um em branco
+    if (novosLancamentos.length === 0) {
+      setLancamentos([{
+        data: new Date().toISOString().split('T')[0],
+        numeroDocumento: '',
+        observacao: '',
+        credito: '',
+        debito: '',
+      }]);
+    }
+    
+    // Importante: não fazer nada mais aqui que possa afetar o fechamento do modal
+  };
+
+  // Corrija a função de formatação de valores para a API
+  const formatarValorParaAPI = (valor: string | null | undefined): number | null => {
+    if (!valor || valor.trim() === '') return null;
+    
+    // Primeiro, remover símbolos de moeda e espaços extras
+    let valorLimpo = valor.replace(/[R$\s]/g, '');
+    
+    // Log para diagnóstico
+    console.log("Valor original:", valor, "Valor limpo inicial:", valorLimpo);
+    
+    // Detectar o formato do valor
+    const temPonto = valorLimpo.includes('.');
+    const temVirgula = valorLimpo.includes(',');
+    
+    if (temPonto && temVirgula) {
+      // Formato brasileiro completo: 1.234,56
+      // Remover pontos e substituir vírgula por ponto
+      valorLimpo = valorLimpo.replace(/\./g, '').replace(',', '.');
+    } else if (temVirgula && !temPonto) {
+      // Formato brasileiro simples: 1234,56
+      // Substituir vírgula por ponto
+      valorLimpo = valorLimpo.replace(',', '.');
+    }
+    // Se tiver apenas ponto (1234.56), já está no formato correto para o JS
+    
+    // Log para diagnóstico
+    console.log("Valor limpo final:", valorLimpo);
+    
+    // Converte para número ou retorna null se não for possível
+    const numero = parseFloat(valorLimpo);
+    return isNaN(numero) ? null : numero;
+  };
+
+  // Também corrija a função de formatação para exibição nos inputs
   const formatarValorMonetario = (valor: string): string => {
     // Remover qualquer caractere que não seja dígito
     let apenasNumeros = valor.replace(/\D/g, '');
@@ -189,10 +388,10 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
     // Se não houver números, retorna vazio
     if (!apenasNumeros) return '';
     
-    // Converter para número
+    // Converter para número decimal (dividir por 100 para considerar centavos)
     const numero = parseInt(apenasNumeros, 10) / 100;
     
-    // Formatar para moeda brasileira, sem o símbolo
+    // Formatar para moeda brasileira (sem o símbolo R$)
     return numero.toLocaleString('pt-BR', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
@@ -203,86 +402,58 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
   const atualizarLinha = (index: number, campo: string, valor: string) => {
     const novasLinhas = [...lancamentos];
     
-    // Se o campo for crédito ou débito, formatar como moeda
+    // Se estiver atualizando campos de valor, aplicar formatação monetária
     if (campo === 'credito' || campo === 'debito') {
-      novasLinhas[index] = { 
-        ...novasLinhas[index], 
-        [campo]: formatarValorMonetario(valor)
-      };
+      // Garantir formatação correta para valores monetários
+      const valorFormatado = formatarValorMonetario(valor);
+      novasLinhas[index] = { ...novasLinhas[index], [campo]: valorFormatado };
+      
+      // Log para diagnóstico
+      console.log(`Atualizando ${campo}:`, valor, "=>", valorFormatado);
     } else {
+      // Para outros campos, usar o valor diretamente
       novasLinhas[index] = { ...novasLinhas[index], [campo]: valor };
     }
     
     setLancamentos(novasLinhas);
   };
 
-  // Função auxiliar para formatar valores monetários
-  const formatarValorParaAPI = (valor: string | null | undefined): number | null => {
-    if (!valor || valor.trim() === '') return null;
-    
-    // Remove qualquer caractere não numérico, exceto ponto e vírgula
-    const valorLimpo = valor.replace(/[^\d.,]/g, '');
-    
-    // Substitui vírgula por ponto para cálculos
-    const valorNumerico = valorLimpo.replace(',', '.');
-    
-    // Converte para número ou retorna null se não for possível
-    const numero = parseFloat(valorNumerico);
-    return isNaN(numero) ? null : numero;
+  // Atualize a função de cálculo do total de créditos
+  const calcularTotalCreditos = () => {
+    return lancamentos.reduce((total, linha) => {
+      if (!linha.credito || linha.credito.trim() === '') return total;
+      
+      const valorNumerico = formatarValorParaAPI(linha.credito);
+      
+      // Log para diagnóstico
+      console.log("Calculando crédito:", linha.credito, "=>", valorNumerico);
+      
+      return total + (valorNumerico || 0);
+    }, 0);
   };
 
-  // Adicione esta função para garantir que pelo menos o primeiro lançamento tenha um valor:
-  const validarLancamentos = (): boolean => {
-    // Se não houver lançamentos, adicione um
-    if (lancamentos.length === 0) {
-      setLancamentos([{
-        data: new Date().toISOString().split('T')[0],
-        numeroDocumento: '',
-        observacao: '',
-        credito: '',
-        debito: '',
-      }]);
-      return false;
-    }
-    
-    // Verificar se pelo menos um lançamento tem valor
-    const temValor = lancamentos.some(l => {
-      const creditoValido = l.credito && l.credito.trim() !== '';
-      const debitoValido = l.debito && l.debito.trim() !== '';
-      return creditoValido || debitoValido;
-    });
-    
-    return temValor;
+  // Atualize a função de cálculo do total de débitos
+  const calcularTotalDebitos = () => {
+    return lancamentos.reduce((total, linha) => {
+      if (!linha.debito || linha.debito.trim() === '') return total;
+      
+      const valorNumerico = formatarValorParaAPI(linha.debito);
+      
+      // Log para diagnóstico
+      console.log("Calculando débito:", linha.debito, "=>", valorNumerico);
+      
+      return total + (valorNumerico || 0);
+    }, 0);
   };
 
-  // No modal de criação de lançamentos
-  const validarLancamento = (lancamento: Lancamento): boolean => {
-    // Formatar valores para garantir que são numéricos
-    if (lancamento.credito) {
-      const creditoLimpo = lancamento.credito.replace(/[^\d.,]/g, '').replace(',', '.');
-      if (isNaN(parseFloat(creditoLimpo))) {
-        return false;
-      }
-    }
-    
-    if (lancamento.debito) {
-      const debitoLimpo = lancamento.debito.replace(/[^\d.,]/g, '').replace(',', '.');
-      if (isNaN(parseFloat(debitoLimpo))) {
-        return false;
-      }
-    }
-    
-    return true;
-  };
-
-  // Melhorar o handleSubmit para garantir o formato correto
+  // Modifique a função handleSubmit para não exigir um ID válido ao criar nova conta
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validar se há pelo menos um lançamento válido
     const lancamentosValidos = lancamentos.filter(l => {
-      const temCredito = l.credito && l.credito.trim() !== '';
-      const temDebito = l.debito && l.debito.trim() !== '';
+      const temCredito = l.credito && l.credito.toString().trim() !== '';
+      const temDebito = l.debito && l.debito.toString().trim() !== '';
       return temCredito || temDebito;
     });
     
@@ -293,17 +464,13 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
     
     // Processar lançamentos
     const lancamentosFormatados = lancamentosValidos.map(l => {
-      // Limpar e formatar valores, removendo símbolos de moeda e formatação
-      const creditoLimpo = l.credito ? l.credito.replace(/[^\d.,]/g, '').replace(',', '.') : null;
-      const debitoLimpo = l.debito ? l.debito.replace(/[^\d.,]/g, '').replace(',', '.') : null;
-      
       return {
-        id: l.id || undefined,
+        id: l.id,
         data: l.data,
         numeroDocumento: l.numeroDocumento || '',
         observacao: l.observacao || '',
-        credito: creditoLimpo,
-        debito: debitoLimpo
+        credito: l.credito ? formatarValorParaAPI(l.credito) : null,
+        debito: l.debito ? formatarValorParaAPI(l.debito) : null
       };
     });
     
@@ -321,16 +488,31 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
       oculto: formData.oculto || false
     };
     
+    // MODIFICAÇÃO AQUI: Verificar se é uma edição ou uma nova conta
+    if (isEditMode) {
+      // Garantir que o contaCorrenteId é um número e é válido apenas em modo de edição
+      const contaCorrenteId = Number(dadosContaCorrente.id);
+      
+      if (isNaN(contaCorrenteId)) {
+        console.error("ID de conta corrente inválido:", dadosContaCorrente.id);
+        alert("Erro: ID de conta corrente inválido");
+        return;
+      }
+    }
+    
     // Log para depuração
     console.log("Enviando dados para salvar:", {
       contaCorrente: dadosContaCorrente,
-      lancamentos: lancamentosFormatados
+      lancamentos: lancamentosFormatados,
+      clearExisting: !preserveExistingEntries
     });
     
-    // Chamar função de salvamento
+    // Chamar função de salvamento com informação sobre modificações
     onSave({
       contaCorrente: dadosContaCorrente,
-      lancamentos: lancamentosFormatados
+      lancamentos: lancamentosFormatados,
+      preserveExistingEntries: isEditMode && preserveExistingEntries,
+      modificacoesContaCorrente: contaModificada
     });
   };
 
@@ -340,18 +522,6 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
       const entrada = linha.credito ? parseFloat(linha.credito) : 0;
       const saida = linha.debito ? parseFloat(linha.debito) : 0;
       return total + entrada - saida;
-    }, 0);
-  };
-
-  const calcularTotalCreditos = () => {
-    return lancamentos.reduce((total, linha) => {
-      return total + (linha.credito ? parseFloat(linha.credito) || 0 : 0);
-    }, 0);
-  };
-
-  const calcularTotalDebitos = () => {
-    return lancamentos.reduce((total, linha) => {
-      return total + (linha.debito ? parseFloat(linha.debito) || 0 : 0);
     }, 0);
   };
 
@@ -387,13 +557,13 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
               </button>
             </div>
             
-            {/* Primeira linha de campos */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">
+            {/* Primeira linha de campos - Removido campo responsável, renomeado Funcionário para Colaborador */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
               <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                 <label className="block text-xs text-gray-700 mb-2 font-medium">EMPRESA</label>
                 <select 
                   value={formData.empresaId} 
-                  onChange={(e) => setFormData({...formData, empresaId: e.target.value})}
+                  onChange={(e) => handleFormChange('empresaId', e.target.value)}
                   className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
                   disabled={isLoading}
                 >
@@ -409,10 +579,10 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
               </div>
               
               <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                <label className="block text-xs text-gray-700 mb-2 font-medium">FUNCIONÁRIO</label>
+                <label className="block text-xs text-gray-700 mb-2 font-medium">COLABORADOR</label>
                 <select 
                   value={formData.colaboradorId}
-                  onChange={(e) => setFormData({...formData, colaboradorId: e.target.value})}
+                  onChange={(e) => handleFormChange('colaboradorId', e.target.value)}
                   className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
                   disabled={isLoading}
                 >
@@ -426,29 +596,6 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                   ))}
                 </select>
               </div>
-
-              {/* Campo de seleção de usuário (apenas em modo admin) */}
-              {isAdminMode ? (
-                <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                  <label className="block text-xs text-gray-700 mb-2 font-medium">RESPONSÁVEL</label>
-                  <select 
-                    value={formData.userId}
-                    onChange={(e) => setFormData({...formData, userId: e.target.value})}
-                    className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
-                    required
-                    disabled={isLoading}
-                  >
-                    <option value="">Selecione...</option>
-                    {Array.isArray(usuarios) && usuarios.map(usuario => (
-                      usuario && (
-                        <option key={usuario.id} value={usuario.id}>
-                          {usuario.nome} {usuario.sobrenome || ''}
-                        </option>
-                      )
-                    ))}
-                  </select>
-                </div>
-              ) : null}
             </div>
             
             {/* Segunda linha - Tipo, Setor e Data - reorganizados em 3 colunas */}
@@ -457,7 +604,7 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                 <label className="block text-xs text-gray-700 mb-2 font-medium">TIPO</label>
                 <select
                   value={formData.tipo}
-                  onChange={(e) => setFormData({...formData, tipo: e.target.value})}
+                  onChange={(e) => handleFormChange('tipo', e.target.value)}
                   className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
                   disabled={isLoading}
                 >
@@ -471,7 +618,7 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                 <label className="block text-xs text-gray-700 mb-2 font-medium">SETOR</label>
                 <select 
                   value={formData.setor || ''}
-                  onChange={(e) => setFormData({...formData, setor: e.target.value})}
+                  onChange={(e) => handleFormChange('setor', e.target.value)}
                   className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
                   disabled={isLoading}
                 >
@@ -494,7 +641,7 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                 <input 
                   type="date" 
                   value={formData.data}
-                  onChange={(e) => setFormData({...formData, data: e.target.value})}
+                  onChange={(e) => handleFormChange('data', e.target.value)}
                   className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
                   disabled={isLoading}
                 />
@@ -508,7 +655,7 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                 <input 
                   type="text" 
                   value={formData.fornecedorCliente || ''}
-                  onChange={(e) => setFormData({...formData, fornecedorCliente: e.target.value})}
+                  onChange={(e) => handleFormChange('fornecedorCliente', e.target.value)}
                   placeholder="Nome do fornecedor ou cliente"
                   className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
                   disabled={isLoading}
@@ -521,7 +668,7 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
               <label className="block text-xs text-gray-700 mb-2 font-medium">OBSERVAÇÕES</label>
               <textarea 
                 value={formData.observacao || ''}
-                onChange={(e) => setFormData({...formData, observacao: e.target.value})}
+                onChange={(e) => handleFormChange('observacao', e.target.value)}
                 placeholder="Observações adicionais"
                 className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md h-20 focus:ring-2 focus:ring-blue-400 focus:border-transparent"
                 disabled={isLoading}
@@ -530,25 +677,55 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
 
             {/* Informações de Saldo - com cores mais suaves */}
             <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className="bg-blue-50 rounded-lg p-4 text-center border border-blue-100 shadow-sm">
-                <p className="text-xs uppercase font-semibold text-blue-600 mb-1">Total Entradas</p>
-                <p className="text-xl font-bold text-green-600">{formatCurrency(calcularTotalCreditos())}</p>
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <span className="block text-sm font-medium text-blue-500">TOTAL ENTRADAS</span>
+                <span className="text-xl font-bold text-green-600">
+                  R$ {calcularTotalCreditos().toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                    useGrouping: true
+                  })}
+                </span>
               </div>
-              <div className="bg-blue-50 rounded-lg p-4 text-center border border-blue-100 shadow-sm">
-                <p className="text-xs uppercase font-semibold text-blue-600 mb-1">Total Saídas</p>
-                <p className="text-xl font-bold text-red-600">{formatCurrency(calcularTotalDebitos())}</p>
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <span className="block text-sm font-medium text-blue-500">TOTAL SAÍDAS</span>
+                <span className="text-xl font-bold text-red-600">
+                  R$ {calcularTotalDebitos().toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                    useGrouping: true
+                  })}
+                </span>
               </div>
-              <div className="bg-blue-50 rounded-lg p-4 text-center border border-blue-100 shadow-sm">
-                <p className="text-xs uppercase font-semibold text-blue-600 mb-1">Saldo Final</p>
-                <p className={`text-xl font-bold ${calcularSaldo() >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatCurrency(calcularSaldo())}
-                </p>
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <span className="block text-sm font-medium text-blue-500">SALDO FINAL</span>
+                <span className={`text-xl font-bold ${calcularSaldo() >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {calcularSaldo() >= 0 ? '' : '-'}R$ {Math.abs(calcularSaldo()).toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                    useGrouping: true
+                  })}
+                </span>
               </div>
             </div>
           </div>
 
           {/* Tabela de Lançamentos - redesenhada com visual mais clean */}
           <div className="p-6 overflow-x-auto">
+            {isEditMode && (
+              <div className="flex items-center mb-4 p-2 bg-blue-50 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="preserveExisting"
+                  checked={preserveExistingEntries}
+                  onChange={(e) => setPreserveExistingEntries(e.target.checked)}
+                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 rounded"
+                />
+                <label htmlFor="preserveExisting" className="text-sm text-gray-700">
+                  Preservar lançamentos existentes (adicionar apenas novos lançamentos)
+                </label>
+              </div>
+            )}
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-gray-800">Lançamentos</h3>
               <button
@@ -640,14 +817,13 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right text-sm font-medium">
-                      <button
-                        type="button"
-                        onClick={() => removerLinha(index)}
-                        className="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:text-gray-400 focus:outline-none"
-                        title="Remover linha"
-                        disabled={isLoading || lancamentos.length <= 1}
+                      <button 
+                        onClick={(e) => removerLancamento(index, e)}
+                        type="button" // Importante adicionar type="button"
+                        className="p-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-full transition-colors"
+                        title="Remover lançamento"
                       >
-                        <Trash2 size={18} />
+                        <Trash2 size={16} />
                       </button>
                     </td>
                   </tr>

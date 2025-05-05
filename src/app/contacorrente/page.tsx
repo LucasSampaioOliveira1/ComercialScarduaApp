@@ -14,14 +14,16 @@ import {
   ArrowUpCircle, Users, Calendar, Building, ChevronDown, Plus, Check, 
   AlertCircle, Info, FileSpreadsheet, Wallet, User, Landmark, Briefcase, Eye, Edit, Trash2, 
   Database,
-  ChevronRight, SearchX, FileText, BarChart as ChartBarIcon, PieChart as ChartPieIcon 
+  ChevronRight, SearchX, FileText, BarChart as ChartBarIcon, PieChart as ChartPieIcon, FilePen, PlusCircle, MinusCircle 
 } from 'lucide-react';
 
 import Header from '../components/Header';
 import ContaCorrenteCard from '../components/ContaCorrenteCard';
 import ContaCorrenteModal from '../components/ContaCorrenteModal';
+import ContaCorrenteDetalhesModal from '../components/ContaCorrenteDetalhesModal';
 import ProtectedRoute from '../components/ProtectedRoute';
 import PermissionGuard from '../components/PermissionGuard';
+import CardResumo from '../components/CardResumo';
 
 // Implementação simples do DashboardPieChart
 const DashboardPieChart = ({ data }: { data: { name: string; value: number; color: string }[] }) => {
@@ -125,6 +127,46 @@ interface User {
   email: string;
 }
 
+// Atualizar a interface Stats
+interface Stats {
+  total: number;
+  totalPositivo: number;
+  totalNegativo: number;
+  totalCredito: number;
+  totalDebito: number;
+  porEmpresa: Record<string, number>;
+  porFornecedor: Record<string, number>; // Adicionar esta propriedade
+}
+
+const calculateStats = (contas: ContaCorrente[]) => {
+  const stats = {
+    totalCredito: 0,
+    totalDebito: 0,
+    totalPositivo: 0,
+    totalNegativo: 0,
+    total: 0,
+    porTipo: {
+      EXTRA_CAIXA: 0,
+      PERMUTA: 0,
+      DEVOLUCAO: 0
+    },
+    porEmpresa: {} as Record<string, number>
+  };
+
+  contas.forEach(conta => {
+    // Contagem por tipo
+    if (conta.tipo) {
+      if (stats.porTipo.hasOwnProperty(conta.tipo)) {
+        stats.porTipo[conta.tipo as keyof typeof stats.porTipo]++;
+      }
+    }
+
+    // Resto do código...
+  });
+
+  return stats;
+};
+
 export default function ContaCorrentePage() {
   const [contasCorrente, setContasCorrente] = useState<ContaCorrente[]>([]);
   const [token, setToken] = useState<string | null>(null);
@@ -146,73 +188,115 @@ export default function ContaCorrentePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [filterTipo, setFilterTipo] = useState('');
+  const [filterTipo, setFilterTipo] = useState<string | null>('');
   const [filterSetor, setFilterSetor] = useState('');
   const [filterEmpresa, setFilterEmpresa] = useState(0);
   const [filterDateRange, setFilterDateRange] = useState<{start: string, end: string}>({start: '', end: ''});
-  const [filterUsuario, setFilterUsuario] = useState('');
   const [filterPositiveSaldo, setFilterPositiveSaldo] = useState<boolean | null>(null);
   const [showDashboard, setShowDashboard] = useState(false);
   const [showExportOptions, setShowExportOptions] = useState(false);
   
   // Estatísticas
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<Stats>({
     total: 0,
     totalPositivo: 0,
     totalNegativo: 0,
     totalCredito: 0,
     totalDebito: 0,
-    porEmpresa: {} as Record<string, number>
+    porEmpresa: {},
+    porFornecedor: {} // Inicializar como objeto vazio
   });
   
   // Paginação
   const [visibleItems, setVisibleItems] = useState<number>(12);
   const [itemsPerLoad, setItemsPerLoad] = useState<number>(12);
 
+  // Adicione estados para armazenar os dados de resumo
+  const [totalCreditos, setTotalCreditos] = useState<number>(0);
+  const [totalDebitos, setTotalDebitos] = useState<number>(0);
+  const [balancoGeral, setBalancoGeral] = useState<number>(0);
+  const [resumoFinanceiro, setResumoFinanceiro] = useState<any>(null);
+
   const router = useRouter();
   const viewModalRef = useRef<HTMLDivElement>(null);
 
-  // Verificar autenticação
+  // Verificar autenticação e carregar dados
   useEffect(() => {
-    console.log("Verificando autenticação...");
-    const token = localStorage.getItem("token");
-    
-    if (!token) {
-      console.log("Token não encontrado no localStorage");
-      router.push("/");
-      return;
-    }
-    
-    console.log("Token encontrado no localStorage");
-    setToken(token);
+    // Verificar se o localStorage está disponível no cliente
+    if (typeof window === 'undefined') return;
     
     try {
+      // Obter dados do usuário do localStorage
       const userStr = localStorage.getItem("user");
-      console.log("Dados do usuário encontrados:", userStr ? "Sim" : "Não");
       
-      const user = JSON.parse(userStr || "{}");
-      setUserId(user.id);
-      setIsAdmin(user.role === "ADMIN");
-      
-      console.log("ID do usuário:", user.id);
-      console.log("Papel do usuário:", user.role);
-      
-      if (user.id) {
-        // Antes de chamar as funções
-        console.log("Iniciando carregamento de dados...");
-        fetchMinhasContas();
-        fetchDadosAuxiliares(token);
-      } else {
-        console.error("ID do usuário não encontrado nos dados");
+      if (!userStr) {
+        console.error("Dados do usuário não encontrados");
+        router.push('/');
+        return;
       }
+      
+      // Processar dados do usuário
+      const userData = JSON.parse(userStr);
+      
+      if (!userData || !userData.id) {
+        console.error("Dados do usuário inválidos");
+        router.push('/');
+        return;
+      }
+      
+      // Salvar no estado
+      setUserId(userData.id);
+      setIsAdmin(userData.role === "ADMIN");
+      
+      // Debug
+      console.log("ID do usuário:", userData.id);
+      console.log("É admin:", userData.role === "ADMIN");
+      
+      // Buscar contas correntes e dados auxiliares
+      // Aqui não chamamos diretamente fetchMinhasContas, pois o estado pode não estar atualizado ainda
+      buscarContasDoUsuario(userData.id);
+      calcularResumoFinanceiro(userData.id);
+      fetchDadosAuxiliares();
     } catch (error) {
-      console.error("Erro ao processar dados do usuário:", error);
-      if (!userId) {
-        console.log("Redirecionando para login devido a erro crítico");
-      }
+      console.error("Erro ao processar dados:", error);
+      router.push('/');
     }
-  }, [router]);
+  }, [router, userId]);
   
+  // Adicione esta função para buscar contas diretamente com o ID do usuário
+  const buscarContasDoUsuario = async (id: string) => {
+    try {
+      setLoading(true);
+      
+      console.log("Buscando contas correntes para o usuário:", id);
+      
+      const response = await fetch(`/api/contacorrente/usuario/${id}`, {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      if (!response.ok) {
+        console.error(`Erro ${response.status} ao buscar contas correntes`);
+        setContasCorrente([]);
+        return;
+      }
+      
+      const data = await response.json();
+      console.log(`Recebidas ${data.length} contas correntes`);
+      setContasCorrente(Array.isArray(data) ? data : []);
+      
+      // Forçar recálculo do resumo financeiro
+      await calcularResumoFinanceiro(id);
+    } catch (error) {
+      console.error("Erro ao buscar contas:", error);
+      setContasCorrente([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Efeito para fechar modal ao clicar fora
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -240,6 +324,7 @@ export default function ContaCorrentePage() {
       let totalCredito = 0;
       let totalDebito = 0;
       const porEmpresa: Record<string, number> = {};
+      const porFornecedor: Record<string, number> = {}; // Adicionar contador de fornecedores
       
       contasCorrente.forEach(conta => {
         // Garantir que lancamentos é um array
@@ -271,6 +356,10 @@ export default function ContaCorrentePage() {
         if (conta.empresa?.nome) {
           porEmpresa[conta.empresa.nome] = (porEmpresa[conta.empresa.nome] || 0) + 1;
         }
+        
+        // Contar por fornecedor/cliente
+        const fornecedor = conta.fornecedorCliente || `Conta #${conta.id}`;
+        porFornecedor[fornecedor] = (porFornecedor[fornecedor] || 0) + 1;
       });
       
       // Atualizar estatísticas
@@ -280,7 +369,8 @@ export default function ContaCorrentePage() {
         totalNegativo,
         totalCredito,
         totalDebito,
-        porEmpresa
+        porEmpresa,
+        porFornecedor // Adicionar ao objeto de estatísticas
       });
       
       // Extrair setores únicos
@@ -295,134 +385,37 @@ export default function ContaCorrentePage() {
   // Resetar itens visíveis quando os filtros mudam
   useEffect(() => {
     setVisibleItems(itemsPerLoad);
-  }, [searchTerm, filterTipo, filterSetor, filterEmpresa, filterDateRange, filterUsuario, filterPositiveSaldo, itemsPerLoad]);
+  }, [searchTerm, filterTipo, filterSetor, filterEmpresa, filterDateRange, filterPositiveSaldo, itemsPerLoad]);
 
-  const fetchMinhasContas = async () => {
-    setLoading(true);
+  const fetchDadosAuxiliares = async () => {
     try {
-      console.log("Iniciando busca de contas correntes...");
+      // Obter token do localStorage
+      const token = localStorage.getItem("token");
       
-      // Garantir que token está definido
-      const currentToken = token || localStorage.getItem("token");
-      
-      // Verificar se há token
-      if (!currentToken) {
+      if (!token) {
         console.error("Token não encontrado");
-        toast.error("Sessão expirada, faça login novamente");
-        router.push('/');
-        return [];
-      }
-
-      // Obter userId do estado ou do localStorage (mais seguro)
-      let userIdParam = userId;
-      if (!userIdParam) {
-        try {
-          const userStr = localStorage.getItem("user");
-          if (userStr) {
-            const userData = JSON.parse(userStr);
-            userIdParam = userData.id;
-            console.log("UserId obtido do localStorage:", userIdParam);
-          }
-        } catch (e) {
-          console.error("Erro ao obter userId do localStorage:", e);
-        }
+        return;
       }
       
-      // Construir URL
-      let url = '/api/contacorrente';
-      if (userIdParam) {
-        url += `?userId=${userIdParam}`;
-        console.log("URL da requisição com userId:", url);
-      } else {
-        console.log("URL da requisição sem userId - usando ID do token:", url);
-      }
-      
-      // Fazer requisição com token atualizado
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${currentToken}`
-        },
-        cache: 'no-store'
-      });
-      
-      console.log("Status da resposta:", response.status);
-      
-      if (!response.ok) {
-        const responseText = await response.text();
-        console.error("Erro na resposta:", responseText);
-        
-        // Se for erro de autenticação (401), atualizar token e tentar novamente
-        if (response.status === 401) {
-          console.log("Erro de autenticação. Verificando sessão...");
-          toast.error("Sessão expirada, faça login novamente");
-          router.push('/');
-          return [];
-        } else {
-          throw new Error(`Erro ao buscar contas: ${response.status}`);
-        }
-      }
-      
-      const data = await response.json();
-      console.log("Resposta da API contasCorrente:", data);
-      
-      // Tratar diferentes formatos de resposta
-      let contasArray = Array.isArray(data) ? data : Array.isArray(data.contas) ? data.contas : [];
-      
-      if (!Array.isArray(contasArray)) {
-        console.log("API retornou formato inesperado - convertido para array:", data);
-        contasArray = [];
-      }
-      
-      // Processar contas para garantir saldo correto
-      const contasProcessadas = contasArray.map((conta: any) => {
-        // Garantir que lancamentos é array
-        const lancamentos = Array.isArray(conta.lancamentos) ? conta.lancamentos : [];
-        
-        // Calcular créditos com validação
-        const creditos = lancamentos
-          .filter((l: any) => l && l.credito && !isNaN(parseFloat(String(l.credito))))
-          .reduce((sum: number, item: any) => sum + parseFloat(String(item.credito || "0")), 0);
-        
-        // Calcular débitos com validação
-        const debitos = lancamentos
-          .filter((l: any) => l && l.debito && !isNaN(parseFloat(String(l.debito))))
-          .reduce((sum: number, item: any) => sum + parseFloat(String(item.debito || "0")), 0);
-        
-        // Usar saldo existente ou calcular
-        const saldo = conta.saldo !== undefined && !isNaN(Number(conta.saldo))
-          ? Number(conta.saldo)
-          : creditos - debitos;
-        
-        // Retornar conta com dados seguros
-        return {
-          ...conta,
-          saldo,
-          lancamentos // Garantir que lancamentos é sempre um array acessível
-        };
-      });
-      
-      setContasCorrente(contasProcessadas);
-      return contasProcessadas;
-      
-    } catch (error) {
-      console.error("Erro ao buscar contas correntes:", error);
-      toast.error("Erro ao carregar contas correntes");
-      setContasCorrente([]);
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchDadosAuxiliares = async (token: string) => {
-    try {
       // Fetch empresas
+      console.log("Buscando lista de empresas...");
       const empresasResponse = await fetch('/api/empresas/list', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
       if (empresasResponse.ok) {
         const empresasData = await empresasResponse.json();
-        setEmpresas(empresasData);
+        console.log(`Encontradas ${empresasData.length} empresas`);
+        
+        // Normalizar os dados das empresas para garantir que todos tenham a propriedade nome
+        const empresasNormalizadas = empresasData.map((empresa: any) => ({
+          ...empresa,
+          nome: empresa.nome || empresa.nomeEmpresa || `Empresa ${empresa.id}`
+        }));
+        
+        setEmpresas(empresasNormalizadas);
+      } else {
+        console.error("Erro ao buscar empresas:", empresasResponse.status);
       }
       
       // Fetch colaboradores
@@ -462,6 +455,21 @@ export default function ContaCorrentePage() {
     setIsContaModalOpen(true);
   };
 
+  const handleEditarContaCorrente = (conta: any) => {
+    // Certificar-se de que os lançamentos têm IDs definidos
+    const contaCompleta = {
+      ...conta,
+      lancamentos: conta.lancamentos?.map((l: any) => ({
+        ...l,
+        id: l.id || undefined  // Garantir que o ID está definido para lançamentos existentes
+      })) || []
+    };
+    
+    console.log('Abrindo modal de edição com conta:', contaCompleta);
+    setSelectedConta(contaCompleta);
+    setIsContaModalOpen(true);
+  };
+
   const handleViewDetails = (conta: ContaCorrente) => {
     setSelectedConta(conta);
     setIsViewModalOpen(true);
@@ -493,7 +501,7 @@ export default function ContaCorrentePage() {
       }
       
       // Atualizar a lista de contas localmente
-      await fetchMinhasContas();
+      await buscarContasDoUsuario(userId || '');
       
       toast.success(
         <div className="flex items-center">
@@ -526,80 +534,164 @@ export default function ContaCorrentePage() {
     }
   };
 
-  const handleSaveContaCorrente = async (dados: { contaCorrente: any, lancamentos: any[] }) => {
+  const handleSaveContaCorrente = async (dados: { 
+    contaCorrente: any, 
+    lancamentos: any[], 
+    preserveExistingEntries?: boolean,
+    modificacoesContaCorrente?: boolean
+  }) => {
     try {
       setLoadingAction(true);
-      console.log("Salvando conta corrente:", dados);
       
-      // 1. Salvar a conta corrente primeiro
-      const responseCC = await fetch('/api/contacorrente', {
-        method: dados.contaCorrente.id ? 'PATCH' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(dados.contaCorrente)
-      });
-
-      if (!responseCC.ok) {
-        const errorData = await responseCC.json();
-        throw new Error(errorData.error || `Erro ao salvar conta corrente: ${responseCC.status}`);
+      // Verificar se o usuário está disponível
+      if (!userId) {
+        toast.error("Sessão expirada. Por favor, faça login novamente.");
+        router.push('/');
+        return;
       }
-
-      const contaSalva = await responseCC.json();
-      console.log("Conta corrente salva com sucesso:", contaSalva);
       
-      // 2. Salvar os lançamentos associados à conta corrente
+      let contaSalvaId = dados.contaCorrente.id;
+      
+      // Se a conta corrente foi modificada ou é uma nova conta, salvar os dados da conta
+      const contaFoiModificada = dados.modificacoesContaCorrente || !dados.contaCorrente.id;
+      
+      if (contaFoiModificada) {
+        // IMPORTANTE: Validação de dados da conta corrente
+        const dadosProcessados = {
+          ...dados.contaCorrente,
+          id: dados.contaCorrente.id ? Number(dados.contaCorrente.id) : undefined,
+          empresaId: dados.contaCorrente.empresaId ? Number(dados.contaCorrente.empresaId) : null,
+          colaboradorId: dados.contaCorrente.colaboradorId ? Number(dados.contaCorrente.colaboradorId) : null,
+          userId: dados.contaCorrente.id ? dados.contaCorrente.userId : userId,
+          data: dados.contaCorrente.data || new Date().toISOString().split('T')[0]
+        };
+        
+        console.log("Dados da conta corrente modificados, enviando para API:", dadosProcessados);
+        
+        try {
+          // Usar a API que já está funcionando (por ID de usuário)
+          const responseCC = await fetch(`/api/contacorrente/usuario/${userId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(dadosProcessados)
+          });
+          
+          if (!responseCC.ok) {
+            let errorMessage = "Erro ao salvar conta corrente";
+            try {
+              const errorData = await responseCC.json();
+              if (errorData.error) errorMessage += `: ${errorData.error}`;
+            } catch (e) {
+              console.error("Erro ao processar resposta de erro:", e);
+            }
+            throw new Error(errorMessage);
+          }
+          
+          const contaSalva = await responseCC.json();
+          contaSalvaId = contaSalva.id;
+          console.log("Conta corrente salva com sucesso:", contaSalva);
+        } catch (error) {
+          console.error("Erro ao salvar conta corrente:", error);
+          throw error; // Repassar o erro para ser tratado pelo catch externo
+        }
+      } else {
+        console.log("Nenhuma alteração na conta corrente, usando ID existente:", contaSalvaId);
+      }
+      
+      // Processar lançamentos (independente de alterações na conta)
       if (dados.lancamentos && dados.lancamentos.length > 0) {
-        const responseLanc = await fetch('/api/lancamento', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            contaCorrenteId: contaSalva.id,
-            lancamentos: dados.lancamentos,
-            replace: !!dados.contaCorrente.id // Se tem ID, atualiza; se não tem, é novo
-          })
+        // Filtrar lançamentos válidos
+        const lancamentosValidos = dados.lancamentos.filter(l => {
+          const temCredito = l.credito && l.credito.toString().trim() !== '';
+          const temDebito = l.debito && l.debito.toString().trim() !== '';
+          return temCredito || temDebito;
         });
-    
-        if (!responseLanc.ok) {
-          const errorData = await responseLanc.json();
-          throw new Error(errorData.error || `Erro ao salvar lançamentos: ${responseLanc.status}`);
+        
+        // Se não houver lançamentos válidos, não precisamos fazer nada
+        if (lancamentosValidos.length === 0) {
+          console.warn("Nenhum lançamento válido para processar");
+        } else {
+          // Processar e normalizar lançamentos
+          const lancamentosProcessados = lancamentosValidos.map(l => ({
+            // IMPORTANTE: Preservar o ID para identificar lançamentos existentes vs. novos
+            id: l.id, // Manter o ID se existir
+            data: l.data || new Date().toISOString().split('T')[0],
+            numeroDocumento: l.numeroDocumento || '',
+            observacao: l.observacao || '',
+            credito: l.credito ? l.credito.toString().replace(/[^\d.,]/g, '').replace(',', '.') : null,
+            debito: l.debito ? l.debito.toString().replace(/[^\d.,]/g, '').replace(',', '.') : null
+          }));
+          
+          console.log("Lançamentos processados para envio:", lancamentosProcessados);
+          console.log("Preservar lançamentos existentes?", dados.preserveExistingEntries === true ? "Sim" : "Não");
+          
+          try {
+            const lancamentosResponse = await fetch(`/api/lancamento/usuario/${userId}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                contaCorrenteId: contaSalvaId,
+                lancamentos: lancamentosProcessados,
+                clearExisting: !dados.preserveExistingEntries // Inverter a lógica para maior clareza
+              })
+            });
+            
+            if (!lancamentosResponse.ok) {
+              console.error("Erro ao salvar lançamentos:", await lancamentosResponse.text());
+              toast.warn("Houve um problema ao salvar os lançamentos");
+            } else {
+              const resultadoLancamentos = await lancamentosResponse.json();
+              console.log("Lançamentos salvos com sucesso:", resultadoLancamentos);
+            }
+          } catch (error) {
+            console.error("Erro ao salvar lançamentos:", error);
+            toast.warn("Erro ao processar lançamentos");
+          }
         }
-    
-        console.log("Lançamentos salvos com sucesso");
       }
-
-      // Exibir mensagem, fechar modal e atualizar lista
-      toast.success(
-        <div className="flex items-center">
-          <div className="mr-3 bg-green-100 p-2 rounded-full">
-            <Check size={18} className="text-green-600" />
-          </div>
-          <div>
-            <p className="font-medium">Conta corrente salva com sucesso!</p>
-            <p className="text-sm text-gray-600">
-              {dados.contaCorrente.id ? "Dados atualizados" : "Nova conta criada"} com sucesso.
-            </p>
-          </div>
-        </div>,
-        {
-          icon: false,
-          closeButton: true,
-          className: "border-l-4 border-green-500"
-        }
-      );
       
+      toast.success("Conta corrente salva com sucesso!");
       setIsContaModalOpen(false);
-      fetchMinhasContas(); // Recarregar lista
       
+      // IMPORTANTE: Forçar atualização completa dos dados após salvar
+      if (userId) {
+        await buscarContasDoUsuario(userId);
+        await calcularResumoFinanceiro(userId);
+      }
     } catch (error) {
       console.error("Erro ao salvar conta corrente:", error);
       toast.error(`Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     } finally {
       setLoadingAction(false);
+    }
+  };
+
+  // Adicione esta função para recalcular o resumo financeiro
+  const calcularResumoFinanceiro = async (userId: string) => {
+    try {
+      // Buscar todas as contas correntes com seus lançamentos
+      const response = await fetch(`/api/contacorrente/resumo/${userId}`);
+      
+      if (!response.ok) {
+        console.error("Erro ao buscar resumo financeiro:", await response.text());
+        return;
+      }
+      
+      const resumo = await response.json();
+      
+      // Atualizar os estados com os dados do resumo
+      setTotalCreditos(resumo.totalEntradas);
+      setTotalDebitos(resumo.totalSaidas);
+      setBalancoGeral(resumo.balanco);
+      // Atualize outros estados de resumo se existirem
+      
+      console.log("Resumo financeiro atualizado:", resumo);
+    } catch (error) {
+      console.error("Erro ao calcular resumo financeiro:", error);
     }
   };
 
@@ -630,7 +722,6 @@ export default function ContaCorrentePage() {
     setFilterSetor('');
     setFilterEmpresa(0);
     setFilterDateRange({start: '', end: ''});
-    setFilterUsuario('');
     setFilterPositiveSaldo(null);
     setIsFilterOpen(false);
     
@@ -657,7 +748,7 @@ export default function ContaCorrentePage() {
   // Função para verificar se há filtros ativos
   const isFilterActive = searchTerm || filterTipo || filterSetor || filterEmpresa > 0 || 
                         filterDateRange.start || filterDateRange.end || 
-                        filterUsuario || filterPositiveSaldo !== null;
+                        filterPositiveSaldo !== null;
 
   // Função aprimorada para exportar para Excel
   const exportToExcel = async (advanced = false) => {
@@ -691,7 +782,9 @@ export default function ContaCorrentePage() {
           'ID': conta.id,
           'Fornecedor/Cliente': conta.fornecedorCliente || '',
           'Data': formatDate(conta.data),
-          'Tipo': conta.tipo || '',
+          'Tipo': conta.tipo === 'EXTRA_CAIXA' ? 'Extra Caixa' : 
+                  conta.tipo === 'PERMUTA' ? 'Permuta' : 
+                  conta.tipo === 'DEVOLUCAO' ? 'Devolução' : conta.tipo || '',
           'Setor': conta.setor || '',
           'Observação': conta.observacao || '',
           'Usuário': `${conta.user?.nome || ''} ${conta.user?.sobrenome || ''}`.trim(),
@@ -762,7 +855,6 @@ export default function ContaCorrentePage() {
       }
       if (filterDateRange.start) fileNameParts.push(`de-${filterDateRange.start}`);
       if (filterDateRange.end) fileNameParts.push(`ate-${filterDateRange.end}`);
-      if (filterUsuario) fileNameParts.push(`usuario-${filterUsuario}`);
       if (filterPositiveSaldo !== null) fileNameParts.push(filterPositiveSaldo ? 'saldo-positivo' : 'saldo-negativo');
       if (searchTerm) fileNameParts.push(`busca-${searchTerm.replace(/[\/\\:*?"<>|]/g, '_')}`);
       if (advanced) fileNameParts.push('detalhado');
@@ -836,8 +928,6 @@ export default function ContaCorrentePage() {
       }
     }
     
-    if (filterUsuario && conta.user?.id !== filterUsuario) return false;
-    
     if (filterPositiveSaldo !== null) {
       const saldo = conta.saldo || 0;
       if (filterPositiveSaldo && saldo < 0) return false;
@@ -885,76 +975,31 @@ export default function ContaCorrentePage() {
             </div>
             
             {/* Cards de estatísticas */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Total de Contas</p>
-                    <h3 className="text-2xl font-bold text-gray-800 mt-1">{stats.total}</h3>
-                  </div>
-                  <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-500">
-                    <FileText size={24} />
-                  </div>
-                </div>
-              </motion.div>
-              
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Total Entradas</p>
-                    <h3 className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(stats.totalCredito)}</h3>
-                  </div>
-                  <div className="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center text-green-500">
-                    <ArrowDownCircle size={24} />
-                  </div>
-                </div>
-              </motion.div>
-              
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Total Saídas</p>
-                    <h3 className="text-2xl font-bold text-red-600 mt-1">{formatCurrency(stats.totalDebito)}</h3>
-                  </div>
-                  <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center text-red-500">
-                    <ArrowUpCircle size={24} />
-                  </div>
-                </div>
-              </motion.div>
-              
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Balanço</p>
-                    <div className={`text-2xl font-bold mt-1 ${stats.totalCredito - stats.totalDebito >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {formatCurrency(stats.totalCredito - stats.totalDebito)}
-                    </div>
-                  </div>
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${stats.totalCredito - stats.totalDebito >= 0 ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}>
-                    <DollarSign size={24} />
-                  </div>
-                </div>
-              </motion.div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <CardResumo 
+                titulo="Total de Contas" 
+                valor={contasCorrente.length} 
+                icone={<FilePen size={24} />} 
+                cor="blue"
+              />
+              <CardResumo 
+                titulo="Total Entradas" 
+                valor={formatCurrency(totalCreditos)} 
+                icone={<PlusCircle size={24} />} 
+                cor="green"
+              />
+              <CardResumo 
+                titulo="Total Saídas" 
+                valor={formatCurrency(totalDebitos)} 
+                icone={<MinusCircle size={24} />} 
+                cor="red"
+              />
+              <CardResumo 
+                titulo="Balanço" 
+                valor={formatCurrency(balancoGeral)} 
+                icone={<DollarSign size={24} />} 
+                cor={balancoGeral >= 0 ? "green" : "red"}
+              />
             </div>
           </div>
 
@@ -980,12 +1025,12 @@ export default function ContaCorrentePage() {
                     <span className="font-medium">{filteredContas.filter(c => c.tipo === 'EXTRA_CAIXA').length}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span>A Pagar:</span>
-                    <span className="font-medium">{filteredContas.filter(c => c.tipo === 'CONTA_PAGAR').length}</span>
+                    <span>Permuta:</span>
+                    <span className="font-medium">{filteredContas.filter(c => c.tipo === 'PERMUTA').length}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span>A Receber:</span>
-                    <span className="font-medium">{filteredContas.filter(c => c.tipo === 'CONTA_RECEBER').length}</span>
+                    <span>Devolução:</span>
+                    <span className="font-medium">{filteredContas.filter(c => c.tipo === 'DEVOLUCAO').length}</span>
                   </div>
                 </div>
               </div>
@@ -1009,21 +1054,21 @@ export default function ContaCorrentePage() {
                 </div>
               </div>
 
-              {/* Top empresas (por quantidade) */}
+              {/* Top fornecedores/clientes (por quantidade) */}
               <div className="rounded-lg bg-gray-50 p-3">
-                <h3 className="text-xs font-medium text-gray-500 mb-2">Top Empresas</h3>
+                <h3 className="text-xs font-medium text-gray-500 mb-2">Top Fornecedores/Clientes</h3>
                 <div className="space-y-1">
-                  {Object.entries(stats.porEmpresa)
+                  {Object.entries(stats.porFornecedor)
                     .sort((a, b) => b[1] - a[1])
                     .slice(0, 3)
-                    .map(([empresa, count], idx) => (
+                    .map(([fornecedor, count], idx) => (
                       <div key={idx} className="flex justify-between text-sm truncate">
-                        <span className="truncate">{empresa}:</span>
+                        <span className="truncate">{fornecedor}:</span>
                         <span className="font-medium">{count}</span>
                       </div>
                     ))
                   }
-                  {Object.keys(stats.porEmpresa).length === 0 && (
+                  {Object.keys(stats.porFornecedor).length === 0 && (
                     <div className="text-sm text-gray-500">Sem dados</div>
                   )}
                 </div>
@@ -1085,7 +1130,7 @@ export default function ContaCorrentePage() {
                     }`}
                   >
                     <Filter size={16} className="mr-1.5" />
-                    {isFilterActive ? `${Object.values({filterTipo, filterSetor, filterEmpresa, filterDateRange, filterUsuario, filterPositiveSaldo}).filter(Boolean).length} filtros` : "Filtrar"}
+                    {isFilterActive ? `${Object.values({filterTipo, filterSetor, filterEmpresa, filterDateRange, filterPositiveSaldo}).filter(Boolean).length} filtros` : "Filtrar"}
                     <ChevronDown size={16} className="ml-1.5" />
                   </button>
                 </div>
@@ -1192,24 +1237,26 @@ export default function ContaCorrentePage() {
                 >
                   <div className="border-t border-gray-100 mt-5 pt-5">
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {/* Filtro por Tipo */}
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-gray-700">Tipo</label>
+                      {/* Filtro por tipo */}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                          Tipo
+                        </label>
                         <select
-                          value={filterTipo}
-                          onChange={(e) => setFilterTipo(e.target.value)}
-                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#344893]"
+                          className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm"
+                          value={filterTipo || ""}
+                          onChange={(e) => setFilterTipo(e.target.value === '' ? null : e.target.value)}
                         >
-                          <option value="">Todos os tipos</option>
+                          <option value="">Todos</option>
                           <option value="EXTRA_CAIXA">Extra Caixa</option>
-                          <option value="CONTA_PAGAR">Conta a Pagar</option>
-                          <option value="CONTA_RECEBER">Conta a Receber</option>
+                          <option value="PERMUTA">Permuta</option>
+                          <option value="DEVOLUCAO">Devolução</option>
                         </select>
                       </div>
 
                       {/* Filtro por Setor */}
                       <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-gray-700">Setor/Veículo</label>
+                        <label className="text-sm font-medium text-gray-700">Setor</label>
                         <select
                           value={filterSetor}
                           onChange={(e) => setFilterSetor(e.target.value)}
@@ -1224,7 +1271,7 @@ export default function ContaCorrentePage() {
                         </select>
                       </div>
 
-                      {/* Filtro por Empresa */}
+                      {/* Filtro por Empresa - Corrigido */}
                       <div className="space-y-1.5">
                         <label className="text-sm font-medium text-gray-700">Empresa</label>
                         <select
@@ -1233,28 +1280,15 @@ export default function ContaCorrentePage() {
                           className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#344893]"
                         >
                           <option value="0">Todas as empresas</option>
-                          {empresas.map((empresa) => (
-                            <option key={empresa.id} value={empresa.id}>
-                              {empresa.nome}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Filtro por Usuário */}
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-gray-700">Usuário</label>
-                        <select
-                          value={filterUsuario}
-                          onChange={(e) => setFilterUsuario(e.target.value)}
-                          className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#344893]"
-                        >
-                          <option value="">Todos os usuários</option>
-                          {usuarios.map((usuario) => (
-                            <option key={usuario.id} value={usuario.id}>
-                              {usuario.nome} {usuario.sobrenome}
-                            </option>
-                          ))}
+                          {Array.isArray(empresas) && empresas.length > 0 ? (
+                            empresas.map((empresa) => (
+                              <option key={empresa.id} value={empresa.id}>
+                                {empresa.nome || `Empresa ${empresa.id}`}
+                              </option>
+                            ))
+                          ) : (
+                            <option disabled>Carregando empresas...</option>
+                          )}
                         </select>
                       </div>
 
@@ -1309,6 +1343,34 @@ export default function ContaCorrentePage() {
           </div>
 
           {/* Visualização de contas */}
+          {loading && (
+            <div className="bg-white rounded-lg shadow p-4 mb-6">
+              <h3 className="font-medium text-gray-700">Verificando acesso...</h3>
+              <div className="text-sm text-gray-500 mt-2">
+                <div>Por favor, aguarde enquanto verificamos suas permissões.</div>
+              </div>
+            </div>
+          )}
+
+          {!loading && contasCorrente.length === 0 && (
+            <div className="bg-white rounded-lg shadow p-4 mb-6">
+              <h3 className="font-medium text-gray-700">Diagnóstico de acesso</h3>
+              <div className="text-sm text-gray-500 mt-2">
+                <div><strong>User ID:</strong> {userId || 'Não disponível'}</div>
+                <div><strong>Admin:</strong> {isAdmin ? 'Sim' : 'Não'}</div>
+                <div><strong>Token presente:</strong> {localStorage.getItem("token") ? 'Sim' : 'Não'}</div>
+                <div className="mt-3">
+                  <button 
+                    onClick={() => userId ? buscarContasDoUsuario(userId) : null} 
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm"
+                  >
+                    Tentar novamente
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {viewMode === "grid" ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {sortedContas.slice(0, visibleItems).map((conta) => (
@@ -1388,7 +1450,7 @@ export default function ContaCorrentePage() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">{conta.tipo}</div>
                           <div className="text-xs text-gray-500">
-                            {conta.setor || '-'}
+                            Setor: {conta.setor || '-'}
                           </div>
                         </td>
 
@@ -1499,6 +1561,10 @@ export default function ContaCorrentePage() {
           empresas={empresas}
           colaboradores={colaboradores}
           usuarios={usuarios}
+          setores={setores} // Garantir que esta linha existe
+          isLoading={loadingAction}
+          isAdminMode={isAdmin}
+          currentUserId={userId || ''}
         />
 
         <AnimatePresence>
@@ -1572,232 +1638,14 @@ export default function ContaCorrentePage() {
 
         {/* Modal de visualização de detalhes */}
         {isViewModalOpen && selectedConta && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div 
-              ref={viewModalRef}
-              className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-            >
-              <div className="p-6 border-b border-gray-100">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold text-gray-800 flex items-center">
-                    <DollarSign size={20} className="mr-2 text-[#344893]" />
-                    Detalhes da Conta Corrente
-                  </h3>
-                  <button
-                    onClick={() => setIsViewModalOpen(false)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-              </div>
-              
-              <div className="p-6">
-                {/* Informações gerais */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-500 mb-2">Informações Gerais</h4>
-                    <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">ID:</span>
-                        <span className="font-medium">{selectedConta.id}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Fornecedor/Cliente:</span>
-                        <span className="font-medium">{selectedConta.fornecedorCliente || '-'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Data:</span>
-                        <span className="font-medium">{formatDate(selectedConta.data)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Tipo:</span>
-                        <span className="font-medium">{selectedConta.tipo}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Setor/Veículo:</span>
-                        <span className="font-medium">{selectedConta.setor || '-'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Status:</span>
-                        <span className={`font-medium ${selectedConta.oculto ? 'text-red-600' : 'text-green-600'}`}>
-                          {selectedConta.oculto ? 'Oculto' : 'Visível'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-500 mb-2">Dados Adicionais</h4>
-                    <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Empresa:</span>
-                        <span className="font-medium">{selectedConta.empresa?.nome || '-'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Usuário:</span>
-                        <span className="font-medium">{selectedConta.user?.nome} {selectedConta.user?.sobrenome}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Criado em:</span>
-                        <span className="font-medium">{formatDate(selectedConta.createdAt)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Atualizado em:</span>
-                        <span className="font-medium">{formatDate(selectedConta.updatedAt)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Observação:</span>
-                        <span className="font-medium">{selectedConta.observacao || '-'}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Resumo financeiro */}
-                <div className="mb-8">
-                  <h4 className="text-sm font-medium text-gray-500 mb-2">Resumo Financeiro</h4>
-                  <div className="grid grid-cols-3 gap-4">
-                    {(() => {
-                      // Calcular valores
-                      const lancamentos = Array.isArray(selectedConta.lancamentos) ? selectedConta.lancamentos : [];
-                      const creditos = lancamentos
-                        .filter(l => l?.credito && !isNaN(parseFloat(String(l.credito))))
-                        .reduce((sum, item) => sum + parseFloat(String(item.credito || "0")), 0);
-                      
-                      const debitos = lancamentos
-                        .filter(l => l?.debito && !isNaN(parseFloat(String(l.debito))))
-                        .reduce((sum, item) => sum + parseFloat(String(item.debito || "0")), 0);
-                      
-                      const saldo = creditos - debitos;
-                      
-                      return (
-                        <>
-                          <div className="bg-green-50 rounded-lg p-4 text-center">
-                            <div className="text-green-600 text-sm font-medium mb-1">Total Entradas</div>
-                            <div className="text-green-700 text-lg font-bold">{formatCurrency(creditos)}</div>
-                          </div>
-                          
-                          <div className="bg-red-50 rounded-lg p-4 text-center">
-                            <div className="text-red-600 text-sm font-medium mb-1">Total Saídas</div>
-                            <div className="text-red-700 text-lg font-bold">{formatCurrency(debitos)}</div>
-                          </div>
-                          
-                          <div className={`rounded-lg p-4 text-center ${saldo >= 0 ? 'bg-blue-50' : 'bg-orange-50'}`}>
-                            <div className={`text-sm font-medium mb-1 ${saldo >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
-                              Saldo Final
-                            </div>
-                            <div className={`text-lg font-bold ${saldo >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>
-                              {formatCurrency(saldo)}
-                            </div>
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-                
-                {/* Tabela de lançamentos */}
-                <div>
-                  <h4 className="text-sm font-medium text-gray-500 mb-2">Lançamentos</h4>
-                  {selectedConta.lancamentos && selectedConta.lancamentos.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Data
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Documento
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Observação
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Crédito
-                            </th>
-                            <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Débito
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {selectedConta.lancamentos.map((lancamento, idx) => (
-                            <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                              <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">
-                                {formatDate(lancamento.data)}
-                              </td>
-                              <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">
-                                {lancamento.numeroDocumento || '-'}
-                              </td>
-                              <td className="px-6 py-2 text-sm text-gray-900 max-w-xs truncate">
-                                {lancamento.observacao || '-'}
-                              </td>
-                              <td className="px-6 py-2 whitespace-nowrap text-sm text-right font-medium text-green-600">
-                                {lancamento.credito ? formatCurrency(parseFloat(String(lancamento.credito))) : '-'}
-                              </td>
-                              <td className="px-6 py-2 whitespace-nowrap text-sm text-right font-medium text-red-600">
-                                {lancamento.debito ? formatCurrency(parseFloat(String(lancamento.debito))) : '-'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot className="bg-gray-50">
-                          <tr>
-                            <td colSpan={3} className="px-6 py-3 text-right text-sm font-medium text-gray-900">
-                              Total:
-                            </td>
-                            <td className="px-6 py-3 text-right text-sm font-medium text-green-600">
-                              {formatCurrency(
-                                selectedConta.lancamentos
-                                  .filter(l => l?.credito && !isNaN(parseFloat(String(l.credito))))
-                                  .reduce((sum, item) => sum + parseFloat(String(item.credito || "0")), 0)
-                              )}
-                            </td>
-                            <td className="px-6 py-3 text-right text-sm font-medium text-red-600">
-                              {formatCurrency(
-                                selectedConta.lancamentos
-                                  .filter(l => l?.debito && !isNaN(parseFloat(String(l.debito))))
-                                  .reduce((sum, item) => sum + parseFloat(String(item.debito || "0")), 0)
-                              )}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="bg-gray-50 rounded-lg p-6 text-center">
-                      <p className="text-gray-500">Esta conta não possui lançamentos registrados.</p>
-                    </div>
-                  )}
-                </div>
-                
-                {/* Botões de ação */}
-                <div className="flex justify-end space-x-3 mt-8 pt-4 border-t border-gray-100">
-                  {(isAdmin || selectedConta.userId === userId) && (
-                    <button
-                      onClick={() => {
-                        setIsViewModalOpen(false);
-                        handleOpenEditModal(selectedConta);
-                      }}
-                      className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                      <Edit size={16} className="mr-1" />
-                      Editar Conta
-                    </button>
-                  )}
-                  
-                  <button
-                    onClick={() => setIsViewModalOpen(false)}
-                    className="px-4 py-2 bg-[#344893] text-white rounded-lg text-sm font-medium hover:bg-[#2a3a74]"
-                  >
-                    Fechar
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ContaCorrenteDetalhesModal
+            conta={selectedConta}
+            onClose={() => setIsViewModalOpen(false)}
+            onEdit={() => {
+              setIsViewModalOpen(false);
+              handleOpenEditModal(selectedConta);
+            }}
+          />
         )}
 
         <ToastContainer />

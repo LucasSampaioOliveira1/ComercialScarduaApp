@@ -60,6 +60,19 @@ const calcularValoresSeguros = (conta: any) => {
 };
 
 export default function ContaCorrenteCard({ conta, onViewDetails, onEdit, onToggleVisibility, canEdit }: ContaCorrenteCardProps) {
+  // Debugging para verificar a estrutura
+  console.log("Conta recebida no card:", {
+    id: conta.id,
+    fornecedorCliente: conta.fornecedorCliente,
+    empresa: conta.empresa,
+    empresaId: conta.empresaId
+  });
+
+  // Garantir acesso correto aos dados da empresa
+  const empresaNome = conta.empresa?.nome || 
+                     conta.empresa?.nomeEmpresa || // Possível variação no nome da propriedade
+                     (typeof conta.empresa === 'string' ? conta.empresa : '-');
+  
   // Calcular valores de forma segura
   const { creditos, debitos, saldo } = calcularValoresSeguros(conta);
 
@@ -76,20 +89,12 @@ export default function ContaCorrenteCard({ conta, onViewDetails, onEdit, onTogg
               <DollarSign size={20} />
             </div>
             <div className="ml-3">
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-gray-900 truncate">
                 {conta.fornecedorCliente || `Conta #${conta.id}`}
               </h3>
-              <div className="flex items-center text-sm text-gray-500">
-                <Calendar size={14} className="mr-1" />
-                {formatDate(conta.data)}
-                {conta.user && (
-                  <>
-                    <span className="mx-1">•</span>
-                    <User size={14} className="mr-1" />
-                    {conta.user?.nome} {conta.user?.sobrenome}
-                  </>
-                )}
-              </div>
+              <p className="text-sm text-gray-500">
+                {formatDate(conta.data)} • {conta.colaborador?.nome} {conta.colaborador?.sobrenome || ''}
+              </p>
             </div>
           </div>
           {conta.oculto && (
@@ -139,19 +144,15 @@ export default function ContaCorrenteCard({ conta, onViewDetails, onEdit, onTogg
             <span className="text-sm text-gray-800">{conta.tipo}</span>
           </div>
           
-          {conta.setor && (
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm font-medium text-gray-600">Veículo/Setor:</span>
-              <span className="text-sm text-gray-800">{conta.setor}</span>
-            </div>
-          )}
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium text-gray-600">Setor:</span>
+            <span className="text-sm text-gray-800">{conta.setor || '-'}</span>
+          </div>
           
-          {conta.empresa && (
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm font-medium text-gray-600">Empresa:</span>
-              <span className="text-sm text-gray-800">{conta.empresa.nome}</span>
-            </div>
-          )}
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm font-medium text-gray-600">Empresa:</span>
+            <span className="text-sm text-gray-800">{empresaNome}</span>
+          </div>
           
           <div className="flex justify-between items-center">
             <span className="text-sm font-medium text-gray-600">Lançamentos:</span>
@@ -192,3 +193,21 @@ export default function ContaCorrenteCard({ conta, onViewDetails, onEdit, onTogg
     </motion.div>
   );
 }
+
+// Se ainda não aparecer, verifique na chamada da API o retorno da empresa
+const fetchMinhasContas = async () => {
+  // Resto do código...
+  // Declare and initialize contasArray
+    const contasArray: any[] = []; // Replace with actual data source or API response
+    const contasProcessadas = contasArray.map((conta: any) => {
+    // Log temporário
+    if (conta.empresaId) {
+      console.log("Empresa da conta:", conta.id, {
+        empresaId: conta.empresaId,
+        empresa: conta.empresa
+      });
+    }
+    
+    // Resto do processamento...
+  });
+};
