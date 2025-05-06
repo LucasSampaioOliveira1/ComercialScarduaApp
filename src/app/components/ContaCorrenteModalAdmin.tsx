@@ -13,6 +13,52 @@ const getLocalISODate = () => {
     .split('T')[0];
 };
 
+// Substituir a função formatarDataISO atual por esta:
+const formatarDataISO = (dataString?: string) => {
+  if (!dataString) return getLocalISODate();
+  
+  try {
+    // Se já estiver no formato ISO, retornar como está
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dataString)) {
+      return dataString;
+    }
+    
+    // Processamento seguro para datas com timestamp
+    if (dataString.includes('T')) {
+      const [datePart] = dataString.split('T');
+      return datePart;
+    }
+    
+    // Para lidar com formato dd/mm/aaaa
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataString)) {
+      const [dia, mes, ano] = dataString.split('/');
+      return `${ano}-${mes}-${dia}`;
+    }
+    
+    // Processamento seguro para outros formatos
+    const parts = dataString.split(/[-\/.]/);
+    if (parts.length >= 3) {
+      // Tentar descobrir qual é qual baseado no formato mais comum
+      let year, month, day;
+      
+      if (parts[0].length === 4) { // Se começa com ano (yyyy-mm-dd)
+        [year, month, day] = parts;
+      } else if (parts[2].length === 4) { // Se termina com ano (dd/mm/yyyy)
+        [day, month, year] = parts;
+      } else { // Padrão americano (mm/dd/yyyy)
+        [month, day, year] = parts;
+      }
+      
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+    
+    return getLocalISODate();
+  } catch (error) {
+    console.error("Erro ao formatar data:", error);
+    return getLocalISODate();
+  }
+};
+
 // Definição das interfaces
 interface Lancamento {
   id?: number;
@@ -198,11 +244,11 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
       if (contaSelecionada.lancamentos && contaSelecionada.lancamentos.length > 0) {
         const lancamentosFormatados = contaSelecionada.lancamentos.map(l => ({
           id: l.id,
-          data: l.data || getLocalISODate(),
+          data: formatarDataISO(l.data), // Formatar data para ISO
           numeroDocumento: l.numeroDocumento || '',
           observacao: l.observacao || '',
-          credito: l.credito !== undefined ? String(l.credito) : '',
-          debito: l.debito !== undefined ? String(l.debito) : ''
+          credito: l.credito ? String(l.credito) : '', // Usar string vazia em vez de null
+          debito: l.debito ? String(l.debito) : ''    // Usar string vazia em vez de null
         }));
         setLancamentos(lancamentosFormatados);
       }
@@ -231,6 +277,50 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
     }
   }, [isEditMode, contaSelecionada, isOpen, setoresProp]);
 
+  useEffect(() => {
+    if (contaSelecionada) {
+      console.log("Dados recebidos para edição:", contaSelecionada);
+      
+      setFormData({
+        id: contaSelecionada.id,
+        userId: contaSelecionada.userId || contaSelecionada.user?.id || '',
+        empresaId: contaSelecionada.empresaId?.toString() || '',
+        colaboradorId: contaSelecionada.colaboradorId?.toString() || '',
+        data: contaSelecionada.data || getLocalISODate(),
+        tipo: contaSelecionada.tipo || 'EXTRA_CAIXA',
+        fornecedorCliente: contaSelecionada.fornecedorCliente || '',
+        observacao: contaSelecionada.observacao || '',
+        setor: contaSelecionada.setor || '',
+        oculto: contaSelecionada.oculto || false
+      });
+
+      if (contaSelecionada.lancamentos && contaSelecionada.lancamentos.length > 0) {
+        // LOG para depuração
+        console.log("Lançamentos originais:", contaSelecionada.lancamentos);
+        
+        const lancamentosFormatados = contaSelecionada.lancamentos.map(l => {
+          // Garantir que os valores são strings para evitar erros com null
+          const creditoFormatado = l.credito !== null && l.credito !== undefined ? String(l.credito) : '';
+          const debitoFormatado = l.debito !== null && l.debito !== undefined ? String(l.debito) : '';
+          
+          return {
+            id: l.id,
+            // Garantir que a data está no formato correto para input date
+            data: l.data || getLocalISODate(),
+            numeroDocumento: l.numeroDocumento || '',
+            observacao: l.observacao || '',
+            credito: creditoFormatado,
+            debito: debitoFormatado
+          };
+        });
+        
+        // LOG para depuração
+        console.log("Lançamentos formatados para edição:", lancamentosFormatados);
+        setLancamentos(lancamentosFormatados);
+      }
+    }
+  }, [contaSelecionada]);
+
   // Atualizar o formulário
   const handleFormChange = (field: string, value: any) => {
     setFormData({ ...formData, [field]: value });
@@ -238,13 +328,20 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
 
   // Adicionar nova linha de lançamento
   const adicionarLinha = () => {
-    setLancamentos([...lancamentos, {
-      data: getLocalISODate(),
-      numeroDocumento: '',
-      observacao: '',
-      credito: '',
-      debito: '',
-    }]);
+    // Usar a data atual para o novo lançamento, garantindo formato YYYY-MM-DD
+    const dataAtual = new Date().toISOString().split('T')[0];
+    
+    setLancamentos([
+      ...lancamentos,
+      {
+        id: 0,
+        data: dataAtual,
+        numeroDocumento: '',
+        observacao: '',
+        credito: '',
+        debito: ''
+      }
+    ]);
   };
 
   // Remover linha da tabela
@@ -331,13 +428,12 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
   const atualizarLinha = (index: number, campo: string, valor: string) => {
     const novasLinhas = [...lancamentos];
     
-    // Se estiver atualizando campos de valor, aplicar formatação monetária
-    if (campo === 'credito' || campo === 'debito') {
-      // Garantir formatação correta para valores monetários
-      const valorFormatado = formatarValorMonetario(valor);
-      novasLinhas[index] = { ...novasLinhas[index], [campo]: valorFormatado };
-    } else {
-      // Para outros campos, usar o valor diretamente
+    if (campo === 'data') {
+      // Preservar o formato da data exatamente como foi inserido
+      novasLinhas[index] = { ...novasLinhas[index], [campo]: valor };
+      console.log(`Data atualizada para: ${valor}`); // Log para debug
+    }
+    else {
       novasLinhas[index] = { ...novasLinhas[index], [campo]: valor };
     }
     
@@ -661,9 +757,9 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
                     <td className="px-4 py-3">
                       <input
                         type="date"
-                        value={lancamento.data}
+                        value={lancamento.data || getLocalISODate()}
                         onChange={(e) => atualizarLinha(index, 'data', e.target.value)}
-                        className="block w-full px-3 py-1.5 text-base text-gray-700 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                         disabled={isLoading}
                       />
                     </td>

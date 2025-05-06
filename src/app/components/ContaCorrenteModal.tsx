@@ -142,6 +142,38 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
   // Estado para os setores - usar setoresProp como valor inicial
   const [setores, setSetores] = useState<string[]>(setoresProp);
 
+  // Substituir a função preserveLocalDate atual por esta:
+  const preserveLocalDate = (dateString?: string): string => {
+    if (!dateString) return new Date().toISOString().split('T')[0];
+    
+    // Se já estiver no formato YYYY-MM-DD, retornar como está
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      return dateString;
+    }
+    
+    try {
+      // Importante: Não usar o construtor de Date diretamente para evitar problemas de timezone
+      // Em vez disso, extrair os componentes da data e construir manualmente
+      
+      // Se for um ISO string com timestamp (formato que vem do banco)
+      if (dateString.includes('T')) {
+        const [datePart] = dateString.split('T');
+        return datePart;
+      }
+      
+      // Para outros formatos, vamos tentar converter usando uma data local
+      const date = new Date(dateString);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      
+      return `${year}-${month}-${day}`;
+    } catch (e) {
+      console.error("Erro ao preservar data local:", e);
+      return new Date().toISOString().split('T')[0];
+    }
+  };
+
   // Carregar dados iniciais se for edição ou limpar dados se não for
   useEffect(() => {
     const carregarDadosIniciais = async () => {
@@ -223,14 +255,15 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
       return; // Sair do useEffect se não estiver em modo de edição
     }
     
-    // Se estiver em modo de edição e tiver uma conta selecionada, carregar os dados
+    // Substitua a função de manipulação de data no useEffect que carrega os dados 
     if (conta) {
       const dadosCarregados = {
         id: conta.id || 0,
         userId: conta.userId || (isAdminMode ? '' : currentUserId),
         empresaId: conta.empresaId?.toString() || '',
         colaboradorId: conta.colaboradorId?.toString() || '',
-        data: conta.data ? format(new Date(conta.data), 'yyyy-MM-dd') : new Date().toISOString().split('T')[0],
+        // CORREÇÃO: Usar método para preservar a data exata sem ajustes de timezone
+        data: preserveLocalDate(conta.data),
         tipo: conta.tipo || 'EXTRA_CAIXA',
         fornecedorCliente: conta.fornecedorCliente || '',
         observacao: conta.observacao || '',
@@ -238,15 +271,14 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
         oculto: conta.oculto || false
       };
 
-      // Salvar os dados originais para comparação
-      setDadosOriginais(JSON.stringify(dadosCarregados));
       setFormData(dadosCarregados);
-      setContaModificada(false);
 
+      // Formatar os lançamentos de maneira semelhante
       if (conta.lancamentos && conta.lancamentos.length > 0) {
         const lancamentosCarregados = conta.lancamentos.map(l => ({
-          id: l.id, // IMPORTANTE: Preservar o ID original
-          data: l.data ? format(new Date(l.data), 'yyyy-MM-dd') : new Date().toISOString().split('T')[0],
+          id: l.id,
+          // CORREÇÃO: Preservar data sem ajuste de timezone
+          data: preserveLocalDate(l.data),
           numeroDocumento: l.numeroDocumento || '',
           observacao: l.observacao || '',
           credito: l.credito || '',
@@ -254,15 +286,6 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
         }));
         
         setLancamentos(lancamentosCarregados);
-        console.log('Lançamentos carregados com IDs:', lancamentosCarregados);
-      } else {
-        setLancamentos([{ 
-          data: new Date().toISOString().split('T')[0], 
-          numeroDocumento: '', 
-          observacao: '', 
-          credito: '', 
-          debito: '' 
-        }]);
       }
     }
   }, [conta, isEditMode, isAdminMode, currentUserId, isOpen, setoresProp]);
@@ -380,42 +403,55 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
     return isNaN(numero) ? null : numero;
   };
 
-  // Também corrija a função de formatação para exibição nos inputs
+  // Substitua a função formatarValorMonetario pelo código abaixo:
   const formatarValorMonetario = (valor: string): string => {
-    // Remover qualquer caractere que não seja dígito
-    let apenasNumeros = valor.replace(/\D/g, '');
+    if (!valor || valor.trim() === '') return '';
     
-    // Se não houver números, retorna vazio
-    if (!apenasNumeros) return '';
-    
-    // Converter para número decimal (dividir por 100 para considerar centavos)
-    const numero = parseInt(apenasNumeros, 10) / 100;
-    
-    // Formatar para moeda brasileira (sem o símbolo R$)
-    return numero.toLocaleString('pt-BR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+    try {
+      // Primeiro remove qualquer formatação existente (R$, pontos, espaços)
+      let valorLimpo = valor
+        .replace(/[R$\s]/g, '')  // Remove R$, espaços
+        .replace(/\./g, '')      // Remove pontos de milhar
+        .replace(',', '.');      // Substitui vírgula decimal por ponto
+      
+      // Verifica se é um número válido
+      const numero = parseFloat(valorLimpo);
+      
+      if (isNaN(numero)) return valor; // Se não for número válido, retorna o valor original
+      
+      // Formata para o padrão brasileiro com vírgula decimal e pontos nos milhares
+      return numero.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    } catch (e) {
+      console.error("Erro ao formatar valor:", e);
+      return valor; // Em caso de erro, retorna o valor original
+    }
   };
 
-  // Atualizar a função atualizarLinha para usar o formatador
+  // Substitua a função atualizarLinha pelo código abaixo:
   const atualizarLinha = (index: number, campo: string, valor: string) => {
+    console.log(`Atualizando campo ${campo} do lançamento ${index} para: ${valor}`);
+    
     const novasLinhas = [...lancamentos];
-    
-    // Se estiver atualizando campos de valor, aplicar formatação monetária
-    if (campo === 'credito' || campo === 'debito') {
-      // Garantir formatação correta para valores monetários
-      const valorFormatado = formatarValorMonetario(valor);
-      novasLinhas[index] = { ...novasLinhas[index], [campo]: valorFormatado };
-      
-      // Log para diagnóstico
-      console.log(`Atualizando ${campo}:`, valor, "=>", valorFormatado);
-    } else {
-      // Para outros campos, usar o valor diretamente
-      novasLinhas[index] = { ...novasLinhas[index], [campo]: valor };
-    }
-    
+    novasLinhas[index] = { ...novasLinhas[index], [campo]: valor };
     setLancamentos(novasLinhas);
+  };
+
+  // Adicione esta nova função para formatar após perder o foco
+  const formatarAoPerderFoco = (index: number, campo: string) => {
+    if (campo !== 'credito' && campo !== 'debito') return;
+    
+    const novasLinhas = [...lancamentos];
+    const valorAtual = novasLinhas[index][campo as keyof typeof novasLinhas[typeof index]];
+    
+    if (typeof valorAtual === 'string' && valorAtual.trim() !== '') {
+      // Aplicar formatação apenas quando o campo perder o foco
+      const valorFormatado = formatarValorMonetario(valorAtual);
+      novasLinhas[index] = { ...novasLinhas[index], [campo]: valorFormatado };
+      setLancamentos(novasLinhas);
+    }
   };
 
   // Atualize a função de cálculo do total de créditos
@@ -791,7 +827,7 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                         <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">R$</span>
                         <input
                           type="text"
-                          value={lancamento.credito}
+                          value={lancamento.credito || ''} // Garantir que nunca é null ou undefined
                           onChange={(e) => atualizarLinha(index, 'credito', e.target.value)}
                           className={`block w-full pl-10 pr-3 py-1.5 text-base border rounded-md focus:ring-2 focus:outline-none
                             ${!lancamento.credito && !lancamento.debito 
@@ -807,7 +843,7 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                         <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">R$</span>
                         <input
                           type="text"
-                          value={lancamento.debito}
+                          value={lancamento.debito || ''} // Garantir que nunca é null ou undefined
                           onChange={(e) => atualizarLinha(index, 'debito', e.target.value)}
                           className={`block w-full pl-10 pr-3 py-1.5 text-base border rounded-md focus:ring-2 focus:outline-none
                             ${!lancamento.credito && !lancamento.debito 

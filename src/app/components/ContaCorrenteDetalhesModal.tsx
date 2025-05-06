@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { JSX } from 'react';
 import { motion } from 'framer-motion';
 import { X, DollarSign, FileText, Calendar, Building, User, ArrowDownCircle, ArrowUpCircle, Download, Edit, Briefcase, Tag, Clock, Info } from 'lucide-react';
 import { format } from 'date-fns';
@@ -22,10 +22,26 @@ export default function ContaCorrenteDetalhesModal({ conta, onClose, onEdit }: C
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return "";
+    
     try {
+      // Abordagem direta: extrair componentes da data sem usar o construtor Date
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        const [year, month, day] = dateString.split('-');
+        return `${day}/${month}/${year}`;
+      }
+      
+      // Processamento seguro para outros formatos
+      if (dateString.includes('T')) {
+        const [datePart] = dateString.split('T');
+        const [year, month, day] = datePart.split('-');
+        return `${day}/${month}/${year}`;
+      }
+      
+      // Último recurso com o método tradicional
       const date = new Date(dateString);
       return format(date, 'dd/MM/yyyy', { locale: ptBR });
     } catch (error) {
+      console.error("Erro ao formatar data:", error);
       return dateString;
     }
   };
@@ -261,7 +277,33 @@ export default function ContaCorrenteDetalhesModal({ conta, onClose, onEdit }: C
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">Data</p>
-                      <p className="font-medium text-gray-900">{formatDate(conta.data)}</p>
+                      <p className="mt-1 text-sm text-gray-900">
+                        {(() => {
+                          // Verificar se a data existe
+                          if (!conta.data) return "";
+                          
+                          try {
+                            // Se for uma string ISO com timezone (formato completo)
+                            if (conta.data.includes('T')) {
+                              // Extrair apenas a parte da data e formatar manualmente
+                              const [ano, mes, dia] = conta.data.split('T')[0].split('-');
+                              return `${dia}/${mes}/${ano}`;
+                            }
+                            
+                            // Se já estiver no formato YYYY-MM-DD
+                            if (/^\d{4}-\d{2}-\d{2}$/.test(conta.data)) {
+                              const [ano, mes, dia] = conta.data.split('-');
+                              return `${dia}/${mes}/${ano}`;
+                            }
+                            
+                            // Para outros formatos, tentar formatar usando date-fns
+                            return format(new Date(conta.data), 'dd/MM/yyyy', { locale: ptBR });
+                          } catch (error) {
+                            console.error("Erro ao formatar data:", error, conta.data);
+                            return String(conta.data);
+                          }
+                        })()}
+                      </p>
                     </div>
                   </div>
                   

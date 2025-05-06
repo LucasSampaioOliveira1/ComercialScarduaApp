@@ -329,7 +329,6 @@ function HeaderContent() {
           name: 'Todas Contas Correntes', 
           path: '/contacorrentetodos', 
           icon: <DollarSign size={16} />, 
-          adminOnly: true, 
           pageName: 'contacorrentetodos' 
         }
       ]

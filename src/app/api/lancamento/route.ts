@@ -106,17 +106,48 @@ export async function POST(req: NextRequest) {
     
     for (const lancamento of body.lancamentos) {
       try {
-        // Garantir formato correto para os valores
-        const data = lancamento.data ? new Date(lancamento.data) : new Date();
+        // Garantir formato correto para as datas
+        let dataLancamento;
+        
+        if (lancamento.data) {
+          // Verificar o formato da data recebida
+          if (typeof lancamento.data === 'string') {
+            // Se receber no formato ISO como string (YYYY-MM-DD)
+            if (/^\d{4}-\d{2}-\d{2}$/.test(lancamento.data)) {
+              const [year, month, day] = lancamento.data.split('-').map(Number);
+              dataLancamento = new Date(year, month - 1, day, 12, 0, 0); // Meio-dia para evitar problemas de timezone
+            } else {
+              // Outras strings de data
+              dataLancamento = new Date(lancamento.data);
+            }
+          } else {
+            // Se não for string, tentar converter
+            dataLancamento = new Date(lancamento.data);
+          }
+        } else {
+          // Se não tiver data, usar data atual
+          dataLancamento = new Date();
+        }
+        
+        // Garantir que temos uma data válida
+        if (isNaN(dataLancamento.getTime())) {
+          console.warn("Data inválida, usando data atual:", lancamento.data);
+          dataLancamento = new Date();
+        }
+        
         const numeroDocumento = lancamento.numeroDocumento || "";
         const observacao = lancamento.observacao || "";
         
         // Processar valores
-        const credito = lancamento.credito ? String(lancamento.credito).replace(/[^\d.,]/g, '').replace(',', '.') : null;
-        const debito = lancamento.debito ? String(lancamento.debito).replace(/[^\d.,]/g, '').replace(',', '.') : null;
+        const credito = lancamento.credito !== null && lancamento.credito !== undefined ? 
+          String(lancamento.credito).replace(/[^\d.,]/g, '').replace(',', '.') : 
+          null;
+        const debito = lancamento.debito !== null && lancamento.debito !== undefined ? 
+          String(lancamento.debito).replace(/[^\d.,]/g, '').replace(',', '.') : 
+          null;
         
         // Validar que os valores são números
-        if ((credito && isNaN(Number(credito))) || (debito && isNaN(Number(debito)))) {
+        if ((credito !== null && isNaN(Number(credito))) || (debito !== null && isNaN(Number(debito)))) {
           console.warn("Valor inválido encontrado, pulando:", { credito, debito });
           continue; // Pular lançamento inválido
         }
@@ -125,7 +156,7 @@ export async function POST(req: NextRequest) {
         const novoLancamento = await prisma.lancamento.create({
           data: {
             contaCorrenteId,
-            data,
+            data: dataLancamento,
             numeroDocumento,
             observacao,
             credito,

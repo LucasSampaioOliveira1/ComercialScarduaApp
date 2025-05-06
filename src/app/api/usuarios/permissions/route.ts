@@ -36,25 +36,25 @@ export async function GET(request: NextRequest) {
       }
     });
     
-    // Formatar as permissões com valores padrão
+    // No backend, garantir que as permissões incluem 'contacorrentetodos'
     const formattedPermissions: Record<string, {canAccess: boolean, canEdit: boolean, canDelete: boolean, canCreate?: boolean}> = {
-      // Valores padrão para todas as páginas
       home: { canAccess: true, canEdit: false, canDelete: false },
       patrimonio: { canAccess: false, canEdit: false, canDelete: false },
       empresas: { canAccess: false, canEdit: false, canDelete: false },
       colaboradores: { canAccess: false, canEdit: false, canDelete: false },
       usuarios: { canAccess: false, canEdit: false, canDelete: false },
-      // Página de contacorrente já está incluída
-      contacorrente: { canAccess: false, canEdit: false, canDelete: false, canCreate: false }
+      contacorrente: { canAccess: false, canEdit: false, canDelete: false, canCreate: false },
+      contacorrentetodos: { canAccess: false, canEdit: false, canDelete: false, canCreate: false }
     };
     
-    // Sobrescrever os valores padrão com os valores do banco
+    // Garantir que as permissões do banco são mapeadas corretamente
     if (permissions.length > 0) {
       permissions.forEach(perm => {
         formattedPermissions[perm.page] = {
           canAccess: perm.canAccess,
           canEdit: perm.canEdit,
-          canDelete: perm.canDelete
+          canDelete: perm.canDelete,
+          canCreate: perm.canEdit // Usar canEdit como valor para canCreate por padrão
         };
       });
     }
@@ -71,7 +71,8 @@ export async function GET(request: NextRequest) {
         empresas: { canAccess: false, canEdit: false, canDelete: false },
         colaboradores: { canAccess: false, canEdit: false, canDelete: false },
         usuarios: { canAccess: false, canEdit: false, canDelete: false },
-        contacorrente: { canAccess: false, canEdit: false, canDelete: false, canCreate: false }
+        contacorrente: { canAccess: false, canEdit: false, canDelete: false, canCreate: false },
+        contacorrentetodos: { canAccess: false, canEdit: false, canDelete: false, canCreate: false }
       },
       error: "Erro ao obter permissões" 
     }, { status: 500 });

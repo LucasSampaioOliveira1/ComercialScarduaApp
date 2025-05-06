@@ -56,7 +56,8 @@ export default function ControleUsuarios() {
     { id: 'patrimonio', name: 'Controle de Patrimônio' },
     { id: 'empresas', name: 'Empresas' },
     { id: 'colaboradores', name: 'Colaboradores' },
-    { id: 'contacorrente', name: 'Conta Corrente' }, // Adicionar esta linha
+    { id: 'contacorrente', name: 'Conta Corrente' },
+    { id: 'contacorrentetodos', name: 'Gestão de Contas Corrente' },
     { id: 'usuarios', name: 'Controle de Usuários' }
   ];
 
@@ -285,7 +286,8 @@ export default function ControleUsuarios() {
         patrimonio: { canAccess: false, canEdit: false, canDelete: false },
         empresas: { canAccess: false, canEdit: false, canDelete: false },
         colaboradores: { canAccess: false, canEdit: false, canDelete: false },
-        contacorrente: { canAccess: false, canEdit: false, canDelete: false }, // Adicionar esta linha
+        contacorrente: { canAccess: false, canEdit: false, canDelete: false },
+        contacorrentetodos: { canAccess: false, canEdit: false, canDelete: false },
         usuarios: { canAccess: false, canEdit: false, canDelete: false }
       };
       

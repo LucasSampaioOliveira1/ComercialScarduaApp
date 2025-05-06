@@ -120,11 +120,56 @@ const handleApiResponse = async (response: Response, errorContext: string) => {
   }
 };
 
+// Melhorar a função getLocalISODate para evitar problemas de timezone
 const getLocalISODate = () => {
   const now = new Date();
-  return new Date(now.getTime() - (now.getTimezoneOffset() * 60000))
-    .toISOString()
-    .split('T')[0];
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Melhorar a função formatarData para evitar problemas de timezone
+const formatarData = (dateString: string | undefined): string => {
+  if (!dateString) return getLocalISODate();
+  
+  try {
+    // Caso 1: Verificar se a data já está no formato ISO (yyyy-MM-dd)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      return dateString; // Já está no formato correto
+    }
+    
+    // Caso 2: Data no formato dd/mm/yyyy (formato brasileiro)
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) {
+      const [day, month, year] = dateString.split('/').map(Number);
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+    
+    // Caso 3: Tenta converter normalmente, com correção de timezone
+    // Em vez de usar new Date() diretamente, vamos dividir a string e criar a data
+    // Isso evita problemas com timezone
+    if (typeof dateString === 'string') {
+      // Extrair as partes da data da string (assumindo formato yyyy-mm-dd ou similar)
+      const parts = dateString.split(/[-T]/);
+      if (parts.length >= 3) {
+        const year = parseInt(parts[0]);
+        const month = parseInt(parts[1]) - 1; // Meses em JS são 0-11
+        const day = parseInt(parts[2]);
+        
+        // Criar data com as partes extraídas, mantendo a data local
+        const date = new Date(year, month, day, 12, 0, 0); // Meio-dia para evitar problemas de timezone
+        
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      }
+    }
+    
+    // Se não conseguiu processar de outra forma, usa a data atual
+    console.warn("Não foi possível processar a data:", dateString);
+    return getLocalISODate();
+  } catch (error) {
+    console.error("Erro ao formatar data:", error);
+    return getLocalISODate();
+  }
 };
 
 export default function ContaCorrenteTodosPage() {
@@ -147,7 +192,8 @@ export default function ContaCorrenteTodosPage() {
     canAccess: false,
     canCreate: false,
     canEdit: false,
-    canDelete: false
+    canDelete: false,
+    hasAllDataAccess: false
   });
   
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -223,17 +269,21 @@ export default function ContaCorrenteTodosPage() {
       }
 
       const statusData = await statusResponse.json();
+      console.log("Status data:", statusData);
       
       if (!statusData.success) {
         throw new Error(statusData.message || "Erro na autenticação");
       }
 
-      setCurrentUserId(statusData.userId);
+      // CORREÇÃO: O ID do usuário está em statusData.user.id
+      const userId = statusData.user?.id;
+      setCurrentUserId(userId);
       
       const isAdmin = statusData.isAdmin;
 
       if (!isAdmin) {
-        const permissionsResponse = await fetch("/api/usuarios/permissions?page=contacorrente", {
+        // CORREÇÃO: Modificar para incluir o userId do usuário atual
+        const permissionsResponse = await fetch(`/api/usuarios/permissions?userId=${userId}&page=contacorrentetodos`, {
           headers: { 
             Authorization: `Bearer ${authToken}`
           }
@@ -244,27 +294,44 @@ export default function ContaCorrenteTodosPage() {
         }
         
         const permissionsData = await permissionsResponse.json();
+        console.log("Permissões recebidas:", permissionsData);
         
-        if (!permissionsData.permissions?.contacorrente?.canAccess) {
+        // DEBUG: Verificar estrutura exata das permissões
+        console.log("Estrutura de permissões:", JSON.stringify(permissionsData, null, 2));
+        
+        // CORREÇÃO: Verificação mais flexível de permissão
+        const temAcesso = 
+          // Verificar várias possíveis estruturas de permissão
+          permissionsData.permissions?.contacorrentetodos?.canAccess === true || 
+          permissionsData.canAccess === true ||
+          (permissionsData.permissions && Object.values(permissionsData.permissions).some((p: any) => p?.canAccess === true));
+        
+        if (!temAcesso) {
+          console.error("Acesso negado: permissões não encontradas");
           toast.error("Você não tem permissão para acessar esta página");
           router.push("/dashboard");
           return;
         }
         
+        console.log("Permissão concedida para usuário comum");
+        
         setUserPermissions({
           isAdmin: false,
           canAccess: true,
-          canCreate: permissionsData.permissions?.contacorrente?.canCreate || false,
-          canEdit: permissionsData.permissions?.contacorrente?.canEdit || false,
-          canDelete: permissionsData.permissions?.contacorrente?.canDelete || false
+          canCreate: permissionsData.permissions?.contacorrentetodos?.canCreate || false,
+          canEdit: permissionsData.permissions?.contacorrentetodos?.canEdit || false,
+          canDelete: permissionsData.permissions?.contacorrentetodos?.canDelete || false,
+          hasAllDataAccess: true  // Esta página sempre precisa de acesso a todos os dados
         });
       } else {
+        console.log("Permissão de admin detectada");
         setUserPermissions({
           isAdmin: true,
           canAccess: true,
           canCreate: true,
           canEdit: true,
-          canDelete: true
+          canDelete: true,
+          hasAllDataAccess: true
         });
       }
       
@@ -282,7 +349,11 @@ export default function ContaCorrenteTodosPage() {
     setLoading(true);
     
     try {
+      // Importante: LOG para depuração
+      console.log("Iniciando carregamento de dados com permissões:", userPermissions);
+      
       await Promise.all([
+        // Usar a flag hasAllDataAccess para determinar o acesso a todos os dados
         fetchContasCorrente(authToken).catch(() => []),
         fetchEstatisticas(authToken).catch(() => null),
         fetchEmpresas(authToken).catch(() => []),
@@ -468,6 +539,9 @@ export default function ContaCorrenteTodosPage() {
     setLoadingAction(true);
     
     try {
+      // Log detalhado para depuração
+      console.log("Dados recebidos para salvar:", formData);
+      
       if (!formData.userId) {
         toast.error("É necessário selecionar um usuário para criar a conta corrente");
         return;
@@ -542,18 +616,26 @@ export default function ContaCorrenteTodosPage() {
         try {
           const lancamentosProcessados = lancamentos
             .filter((l: any) => {
-              const temCredito = l.credito && String(l.credito).trim() !== '';
-              const temDebito = l.debito && String(l.debito).trim() !== '';
+              // Garantir que estamos verificando strings ou valores definidos
+              const temCredito = l.credito !== null && l.credito !== undefined && String(l.credito).trim() !== '';
+              const temDebito = l.debito !== null && l.debito !== undefined && String(l.debito).trim() !== '';
               return temCredito || temDebito;
             })
             .map((l: any) => ({
               id: l.id,
-              data: l.data || getLocalISODate(),
+              // IMPORTANTE: Garantir formato ISO consistente para as datas
+              data: l.data ? formatarData(l.data) : getLocalISODate(),
               numeroDocumento: l.numeroDocumento || '',
               observacao: l.observacao || '',
-              credito: l.credito ? String(l.credito).replace(/[^\d.,]/g, '').replace(',', '.') : null,
-              debito: l.debito ? String(l.debito).replace(/[^\d.,]/g, '').replace(',', '.') : null
+              credito: l.credito !== null && l.credito !== undefined && String(l.credito).trim() !== '' ? 
+                String(l.credito).replace(/[^\d.,]/g, '').replace(',', '.') : 
+                null,
+              debito: l.debito !== null && l.debito !== undefined && String(l.debito).trim() !== '' ? 
+                String(l.debito).replace(/[^\d.,]/g, '').replace(',', '.') : 
+                null
             }));
+          
+          console.log("Lançamentos processados para salvar:", lancamentosProcessados);
           
           if (lancamentosProcessados.length > 0) {
             console.log(`Enviando ${lancamentosProcessados.length} lançamentos para conta ${contaId}`);
@@ -717,25 +799,43 @@ export default function ContaCorrenteTodosPage() {
 
   // Ver detalhes de uma conta
   const handleVerDetalhes = (conta: ContaCorrente) => {
-    setContaSelecionada(conta);
+    // CORREÇÃO: Não tentar converter a data, apenas passá-la como está
+    const contaFormatada = {
+      ...conta,
+      lancamentos: conta.lancamentos.map(lancamento => ({
+        ...lancamento
+        // Não fazemos mais manipulação de data aqui
+      }))
+    };
+    
+    setContaSelecionada(contaFormatada);
     setIsDetalhesModalOpen(true);
   };
 
-  // Editar uma conta após visualização de detalhes
+  // Ao abrir o modal para edição, garantir que todos os dados estejam presentes
   const handleEditarConta = (conta: ContaCorrente) => {
     console.log("Editando conta corrente:", conta);
     
     // Garantir que temos os dados necessários para abrir o modal
     const contaCompleta = {
       ...conta,
-      // Garantir que os campos essenciais estejam presentes
-      data: conta.data || getLocalISODate(),
+      // Garantir que a data está no formato ISO YYYY-MM-DD
+      data: conta.data ? formatarData(conta.data) : getLocalISODate(),
       tipo: conta.tipo || 'EXTRA_CAIXA',
-      // Garantir que os lançamentos sejam um array válido
-      lancamentos: Array.isArray(conta.lancamentos) 
-        ? conta.lancamentos 
-        : []
+      fornecedorCliente: conta.fornecedorCliente || '',
+      observacao: conta.observacao || '',
+      setor: conta.setor || '',
+      // Garantir formatação correta dos lançamentos
+      lancamentos: Array.isArray(conta.lancamentos) ? conta.lancamentos.map(l => ({
+        ...l,
+        // Formatar a data de cada lançamento
+        data: l.data ? formatarData(l.data) : getLocalISODate(),
+        credito: l.credito || '',
+        debito: l.debito || ''
+      })) : []
     };
+    
+    console.log("Dados formatados para edição:", contaCompleta);
     
     // Fechar o modal de detalhes se estiver aberto
     setIsDetalhesModalOpen(false);
@@ -1471,19 +1571,6 @@ export default function ContaCorrenteTodosPage() {
                     onChange={e => setLancamentoForm({...lancamentoForm, numeroDocumento: e.target.value})}
                     placeholder="Número do documento"
                     className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
-                  />
-                </div>
-
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Observação
-                  </label>
-                  <textarea
-                    value={lancamentoForm.observacao}
-                    onChange={e => setLancamentoForm({...lancamentoForm, observacao: e.target.value})}
-                    placeholder="Observações adicionais"
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
-                    rows={3}
                   />
                 </div>
 

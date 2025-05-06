@@ -26,13 +26,33 @@ const formatCurrency = (value: any): string => {
   }).format(numericValue);
 };
 
-const formatDate = (dateString?: string) => {
-  if (!dateString) return "";
+const formatarData = (dataString?: string) => {
+  if (!dataString) return "";
+  
   try {
-    const date = new Date(dateString);
-    return format(date, 'dd/MM/yyyy', { locale: ptBR });
+    // Se for uma data em formato ISO com 'T' (timestamp)
+    if (dataString.includes('T')) {
+      // Extrair apenas a parte da data (YYYY-MM-DD)
+      const [ano, mes, dia] = dataString.split('T')[0].split('-');
+      return `${dia}/${mes}/${ano}`;
+    }
+    
+    // Se for formato ISO simples (YYYY-MM-DD)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dataString)) {
+      const [ano, mes, dia] = dataString.split('-');
+      return `${dia}/${mes}/${ano}`;
+    }
+    
+    // Para outros formatos
+    const date = new Date(dataString);
+    // Usar método manual para evitar problemas de timezone
+    const dia = String(date.getDate()).padStart(2, '0');
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const ano = date.getFullYear();
+    return `${dia}/${mes}/${ano}`;
   } catch (error) {
-    return dateString;
+    console.error("Erro ao formatar data:", error);
+    return dataString;
   }
 };
 
@@ -92,8 +112,8 @@ export default function ContaCorrenteCard({ conta, onViewDetails, onEdit, onTogg
               <h3 className="text-lg font-semibold text-gray-900 truncate">
                 {conta.fornecedorCliente || `Conta #${conta.id}`}
               </h3>
-              <p className="text-sm text-gray-500">
-                {formatDate(conta.data)} • {conta.colaborador?.nome} {conta.colaborador?.sobrenome || ''}
+              <p className="text-sm text-gray-600">
+                {formatarData(conta.data)} • {conta.colaborador?.nome || 'Sem colaborador'}
               </p>
             </div>
           </div>
