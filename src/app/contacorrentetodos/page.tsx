@@ -7,7 +7,7 @@ import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Header from '../components/Header';
 import ContaCorrenteCard from '../components/ContaCorrenteCard';
-import ContaCorrenteModal from '../components/ContaCorrenteModal';
+import ContaCorrenteModalAdmin from '../components/ContaCorrenteModalAdmin';
 import ContaCorrenteDetalhesModal from '../components/ContaCorrenteDetalhesModal';
 import { format } from 'date-fns';
 import { 
@@ -25,8 +25,7 @@ interface ContaCorrente {
   userId: string;
   empresaId?: number;
   colaboradorId?: number;
-  descricao?: string;
-  data?: string;
+  data: string;
   fornecedorCliente?: string;
   observacao?: string;
   setor?: string;
@@ -69,7 +68,7 @@ interface Lancamento {
 interface Empresa {
   id: number;
   nomeEmpresa?: string;
-  nome?: string;  // Para compatibilidade
+  nome?: string;
 }
 
 interface Colaborador {
@@ -92,13 +91,41 @@ interface User {
 function ensureArray<T>(data: any, fallback: T[] = []): T[] {
   if (Array.isArray(data)) return data;
   if (data && typeof data === 'object') {
-    // Tenta encontrar a primeira propriedade que seja um array
     for (const key in data) {
       if (Array.isArray(data[key])) return data[key];
     }
   }
   return fallback;
 }
+
+// Função auxiliar para tratar respostas da API de forma segura
+const handleApiResponse = async (response: Response, errorContext: string) => {
+  if (!response.ok) {
+    const responseText = await response.text();
+    if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+      throw new Error(`${errorContext}: Endpoint não encontrado ou erro do servidor (${response.status})`);
+    }
+    try {
+      const errorData = JSON.parse(responseText);
+      throw new Error(errorData.error || errorData.message || `${errorContext} (${response.status})`);
+    } catch (e) {
+      throw new Error(`${errorContext}: ${responseText}`);
+    }
+  }
+  try {
+    return await response.json();
+  } catch (error) {
+    console.error("Erro ao analisar resposta JSON:", error);
+    throw new Error(`Erro ao processar resposta do servidor: ${error instanceof Error ? error.message : String(error)}`);
+  }
+};
+
+const getLocalISODate = () => {
+  const now = new Date();
+  return new Date(now.getTime() - (now.getTimezoneOffset() * 60000))
+    .toISOString()
+    .split('T')[0];
+};
 
 export default function ContaCorrenteTodosPage() {
   const router = useRouter();
@@ -108,6 +135,7 @@ export default function ContaCorrenteTodosPage() {
     saldoGeral: number;
     creditosMes: number;
     debitosMes: number;
+    resultadoPeriodo?: number;
   }
   
   const [estatisticas, setEstatisticas] = useState<Stats | null>(null);
@@ -122,13 +150,11 @@ export default function ContaCorrenteTodosPage() {
     canDelete: false
   });
   
-  // Estados para dados auxiliares (para formulários)
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [usuarios, setUsuarios] = useState<User[]>([]);
   const [setores, setSetores] = useState<any[]>([]);
 
-  // Estados para filtros e visualização
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [filterTipo, setFilterTipo] = useState<string>("");
@@ -137,17 +163,19 @@ export default function ContaCorrenteTodosPage() {
   const [showHidden, setShowHidden] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   
-  // Estados para modais
   const [isNovaContaModalOpen, setIsNovaContaModalOpen] = useState(false);
   const [isLancamentoModalOpen, setIsLancamentoModalOpen] = useState(false);
   const [isDetalhesModalOpen, setIsDetalhesModalOpen] = useState(false);
   const [contaSelecionada, setContaSelecionada] = useState<ContaCorrente | null>(null);
   
+  // Adicione este estado para o modal de confirmação
+  const [isConfirmOcultarModalOpen, setIsConfirmOcultarModalOpen] = useState(false);
+  const [contaParaOcultar, setContaParaOcultar] = useState<number | null>(null);
+
   // Formulário para nova conta
   const [contaForm, setContaForm] = useState({
     userId: '',
-    descricao: '',
-    tipo: 'PESSOAL',
+    tipo: 'EXTRA_CAIXA',
     fornecedorCliente: '',
     observacao: '',
     setor: '',
@@ -156,7 +184,6 @@ export default function ContaCorrenteTodosPage() {
     oculto: false
   });
 
-  // Formulário para novo lançamento
   const [lancamentoForm, setLancamentoForm] = useState({
     contaCorrenteId: '',
     tipo: 'CREDITO',
@@ -166,7 +193,6 @@ export default function ContaCorrenteTodosPage() {
     observacao: ''
   });
 
-  // Verificar autenticação e permissões
   const [currentUserId, setCurrentUserId] = useState<string>('');
 
   useEffect(() => {
@@ -181,12 +207,10 @@ export default function ContaCorrenteTodosPage() {
     fetchPermissions(token);
   }, [router]);
 
-  // Buscar permissões e validar acesso à página
   const fetchPermissions = async (authToken: string) => {
     try {
       setLoading(true);
       
-      // Primeiro verifica o status do usuário
       const statusResponse = await fetch("/api/status", {
         headers: { 
           Authorization: `Bearer ${authToken}`,
@@ -204,12 +228,10 @@ export default function ContaCorrenteTodosPage() {
         throw new Error(statusData.message || "Erro na autenticação");
       }
 
-      // Armazenar o ID do usuário atual
       setCurrentUserId(statusData.userId);
       
       const isAdmin = statusData.isAdmin;
 
-      // Buscar permissões específicas se não for admin
       if (!isAdmin) {
         const permissionsResponse = await fetch("/api/usuarios/permissions?page=contacorrente", {
           headers: { 
@@ -223,14 +245,12 @@ export default function ContaCorrenteTodosPage() {
         
         const permissionsData = await permissionsResponse.json();
         
-        // Se não for admin e não tiver permissão, redireciona
         if (!permissionsData.permissions?.contacorrente?.canAccess) {
           toast.error("Você não tem permissão para acessar esta página");
           router.push("/dashboard");
           return;
         }
         
-        // Define as permissões específicas baseado nos dados recebidos
         setUserPermissions({
           isAdmin: false,
           canAccess: true,
@@ -239,7 +259,6 @@ export default function ContaCorrenteTodosPage() {
           canDelete: permissionsData.permissions?.contacorrente?.canDelete || false
         });
       } else {
-        // Se for admin, tem todas as permissões
         setUserPermissions({
           isAdmin: true,
           canAccess: true,
@@ -249,24 +268,20 @@ export default function ContaCorrenteTodosPage() {
         });
       }
       
-      // Carregar os dados iniciais
       fetchInitialData(authToken);
     } catch (error) {
       console.error("Erro ao verificar permissões:", error);
       toast.error("Erro ao verificar suas permissões");
-      // Em caso de erro, redireciona para o dashboard
       router.push("/dashboard");
     } finally {
       setLoading(false);
     }
   };
 
-  // Buscar todos os dados iniciais
   const fetchInitialData = async (authToken: string) => {
     setLoading(true);
     
     try {
-      // Buscar dados em paralelo
       await Promise.all([
         fetchContasCorrente(authToken).catch(() => []),
         fetchEstatisticas(authToken).catch(() => null),
@@ -275,7 +290,6 @@ export default function ContaCorrenteTodosPage() {
         fetchUsuarios(authToken).catch(() => [])
       ]);
       
-      // Os estados já são atualizados nas funções individuais
     } catch (error) {
       console.error("Erro ao buscar dados iniciais:", error);
       toast.error("Ocorreu um erro ao carregar os dados");
@@ -284,7 +298,6 @@ export default function ContaCorrenteTodosPage() {
     }
   };
 
-  // Buscar todas as contas corrente
   const fetchContasCorrente = async (authToken: string) => {
     try {
       const url = `/api/contacorrente/todos?showHidden=${showHidden}`;
@@ -304,7 +317,6 @@ export default function ContaCorrenteTodosPage() {
       const data = await response.json();
       console.log("Resposta API contasCorrente:", data);
       
-      // Garantir que data seja um array
       const contasArray = ensureArray<ContaCorrente>(data);
       setContasCorrente(contasArray);
       return contasArray;
@@ -316,10 +328,10 @@ export default function ContaCorrenteTodosPage() {
     }
   };
 
-  // Buscar estatísticas
   const fetchEstatisticas = async (authToken: string) => {
     try {
-      const response = await fetch("/api/contacorrente/stats", {
+      // Garantir que as estatísticas correspondam ao que está sendo exibido
+      const response = await fetch(`/api/contacorrente/stats?showHidden=${showHidden}`, {
         headers: { Authorization: `Bearer ${authToken}` }
       });
       
@@ -329,16 +341,24 @@ export default function ContaCorrenteTodosPage() {
       }
       
       const data = await response.json();
-      setEstatisticas(data);
-      return data;
+      
+      const resultadoPeriodo = (data.creditosMes || 0) - (data.debitosMes || 0);
+      
+      const estatisticasCompletas = {
+        ...data,
+        resultadoPeriodo,
+        // Garantir que totalContas reflita apenas o número de contas visíveis
+        totalContas: showHidden ? data.totalContas : data.totalContasVisiveis || data.totalContas
+      };
+      
+      setEstatisticas(estatisticasCompletas);
+      return estatisticasCompletas;
     } catch (error) {
       console.error("Erro ao buscar estatísticas:", error);
-      // Não mostrar toast para não sobrecarregar o usuário com mensagens de erro
       throw error;
     }
   };
 
-  // Buscar empresas
   const fetchEmpresas = async (authToken: string) => {
     try {
       const response = await fetch("/api/empresas", {
@@ -353,7 +373,6 @@ export default function ContaCorrenteTodosPage() {
       const data = await response.json();
       console.log("Resposta API empresas:", data);
       
-      // Garantir que data seja um array e normalizar os nomes de campos
       const empresasArray = ensureArray<any>(data).map(empresa => ({
         id: empresa.id,
         nomeEmpresa: empresa.nomeEmpresa || empresa.nome || `Empresa ${empresa.id}`,
@@ -369,11 +388,9 @@ export default function ContaCorrenteTodosPage() {
     }
   };
 
-  // Adicione esta função para extrair setores únicos
   const extrairSetoresDosColaboradores = (colaboradores: Colaborador[]) => {
     if (!Array.isArray(colaboradores)) return [];
     
-    // Extrai os setores não vazios e remove duplicados
     const setoresUnicos = [...new Set(
       colaboradores
         .filter(col => col.setor && col.setor.trim() !== '')
@@ -383,7 +400,6 @@ export default function ContaCorrenteTodosPage() {
     return setoresUnicos;
   };
 
-  // No fetchColaboradores, adicione a extração de setores
   const fetchColaboradores = async (authToken: string) => {
     try {
       const response = await fetch("/api/colaboradores", {
@@ -397,11 +413,9 @@ export default function ContaCorrenteTodosPage() {
       
       const data = await response.json();
       
-      // Garantir que data seja um array
       const colaboradoresArray = ensureArray<Colaborador>(data);
       setColaboradores(colaboradoresArray);
       
-      // Extrair e definir setores
       const setoresUnicos = extrairSetoresDosColaboradores(colaboradoresArray);
       setSetores(setoresUnicos);
       
@@ -413,7 +427,6 @@ export default function ContaCorrenteTodosPage() {
     }
   };
 
-  // Função para buscar usuários
   const fetchUsuarios = async (authToken: string) => {
     try {
       const response = await fetch("/api/usuarios", {
@@ -430,7 +443,6 @@ export default function ContaCorrenteTodosPage() {
       
       const data = await response.json();
       
-      // Garantir que data seja um array
       const usuariosArray = ensureArray<User>(data);
       setUsuarios(usuariosArray);
       return usuariosArray;
@@ -441,85 +453,171 @@ export default function ContaCorrenteTodosPage() {
     }
   };
   
-  // Atualizar quando o filtro de ocultos mudar
   useEffect(() => {
     if (token) {
-      fetchContasCorrente(token);
+      Promise.all([
+        fetchContasCorrente(token),
+        fetchEstatisticas(token)
+      ]).then(([contasResult, statsResult]) => {
+        // Após obter ambos os resultados, atualizar estatísticas com o total correto
+        if (Array.isArray(contasResult) && statsResult) {
+          // Usar o comprimento do array de contas para refletir o número real de contas visíveis
+          const totalContasVisiveis = contasResult.length;
+          
+          setEstatisticas(prevStats => {
+            if (!prevStats) return statsResult;
+            return {
+              ...prevStats,
+              totalContas: totalContasVisiveis
+            };
+          });
+        }
+      }).catch(error => {
+        console.error("Erro ao atualizar dados:", error);
+      });
     }
   }, [showHidden, token]);
 
-  // Criar nova conta corrente usando o modal de componente
   const handleCreateConta = async (formData: any) => {
     setLoadingAction(true);
     
     try {
-      // Preparar payload conforme API
-      const payload: any = {
-        userId: formData.userId || '',
-        descricao: formData.descricao || '',
-        tipo: formData.tipo || 'PESSOAL',
+      if (!formData.userId) {
+        toast.error("É necessário selecionar um usuário para criar a conta corrente");
+        return;
+      }
+
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Sessão expirada. Por favor, faça login novamente.");
+        router.push('/login');
+        return;
+      }
+      
+      console.log("Processando dados para salvar conta corrente:", formData);
+      
+      const dadosConta = { ...formData };
+      
+      const lancamentos = formData.lancamentos || [];
+      
+      const isEditing = !!formData.id;
+      let url;
+      let method;
+      
+      if (isEditing) {
+        url = `/api/contacorrente/usuario/${formData.userId}`;
+        method = "POST";
+        console.log(`Editando conta ${formData.id} para usuário ${formData.userId}`);
+      } else {
+        url = `/api/contacorrente/usuario/${formData.userId}`;
+        method = "POST";
+        console.log(`Criando nova conta para usuário ${formData.userId}`);
+      }
+      
+      const payloadConta = {
+        id: formData.id,
+        userId: formData.userId,
         fornecedorCliente: formData.fornecedorCliente || '',
         observacao: formData.observacao || '',
         setor: formData.setor || '',
+        tipo: formData.tipo || 'EXTRA_CAIXA',
         empresaId: formData.empresaId ? Number(formData.empresaId) : null,
         colaboradorId: formData.colaboradorId ? Number(formData.colaboradorId) : null,
         oculto: formData.oculto || false,
-        data: formData.data || new Date().toISOString()
+        data: formData.data || getLocalISODate()
       };
       
-      // Processar lançamentos se existirem
-      if (formData.lancamentos && Array.isArray(formData.lancamentos)) {
-        payload.lancamentos = formData.lancamentos
-          .filter((l: any) => l.credito || l.debito)
-          .map((l: any) => ({
-            data: l.data || new Date().toISOString(),
-            numeroDocumento: l.numeroDocumento || '',
-            observacao: l.observacao || '',
-            credito: l.credito || null,
-            debito: l.debito || null
-          }));
-      }
-      
-      console.log("Payload enviado para API:", payload);
-      
-      // Se tem ID, é uma edição
-      const url = formData.id ? `/api/contacorrente/${formData.id}` : "/api/contacorrente/todos";
-      
+      console.log("Enviando dados da conta:", payloadConta);
       const response = await fetch(url, {
-        method: formData.id ? "PUT" : "POST",
+        method: method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
+          "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payloadConta)
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || errorData.message || "Erro ao criar/editar conta corrente");
+        const errorText = await response.text();
+        console.error("Erro da API:", errorText);
+        throw new Error(`Erro ao ${isEditing ? 'editar' : 'criar'} conta corrente: ${errorText}`);
       }
       
-      // Recarregar dados
+      const contaResponse = await response.json();
+      console.log("Conta criada/atualizada com sucesso:", contaResponse);
+      
+      if (lancamentos.length > 0) {
+        const contaId = contaResponse.id;
+        
+        if (!contaId) {
+          throw new Error("Não foi possível determinar o ID da conta para adicionar lançamentos");
+        }
+        
+        try {
+          const lancamentosProcessados = lancamentos
+            .filter((l: any) => {
+              const temCredito = l.credito && String(l.credito).trim() !== '';
+              const temDebito = l.debito && String(l.debito).trim() !== '';
+              return temCredito || temDebito;
+            })
+            .map((l: any) => ({
+              id: l.id,
+              data: l.data || getLocalISODate(),
+              numeroDocumento: l.numeroDocumento || '',
+              observacao: l.observacao || '',
+              credito: l.credito ? String(l.credito).replace(/[^\d.,]/g, '').replace(',', '.') : null,
+              debito: l.debito ? String(l.debito).replace(/[^\d.,]/g, '').replace(',', '.') : null
+            }));
+          
+          if (lancamentosProcessados.length > 0) {
+            console.log(`Enviando ${lancamentosProcessados.length} lançamentos para conta ${contaId}`);
+            
+            const lancamentosResponse = await fetch(`/api/lancamento/usuario/${formData.userId}`, {
+              method: 'POST',
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                contaCorrenteId: contaId,
+                lancamentos: lancamentosProcessados,
+                clearExisting: true
+              })
+            });
+            
+            if (!lancamentosResponse.ok) {
+              const lancamentosErrorText = await lancamentosResponse.text();
+              console.warn("Aviso: Problema ao salvar lançamentos:", lancamentosErrorText);
+              toast.warn("Alguns lançamentos podem não ter sido salvos corretamente.");
+            } else {
+              console.log("Lançamentos salvos com sucesso!");
+            }
+          }
+        } catch (lancamentosError) {
+          console.error("Erro ao processar lançamentos:", lancamentosError);
+          toast.warn("A conta foi salva, mas houve um problema com os lançamentos.");
+        }
+      }
+      
       await Promise.all([
-        fetchContasCorrente(token!),
-        fetchEstatisticas(token!)
+        fetchContasCorrente(token),
+        fetchEstatisticas(token)
       ]);
       
       setIsNovaContaModalOpen(false);
-      toast.success("Conta corrente criada/atualizada com sucesso!");
+      setContaSelecionada(null);
+      toast.success(`Conta corrente ${isEditing ? 'atualizada' : 'criada'} com sucesso!`);
     } catch (error) {
-      console.error("Erro ao criar/editar conta corrente:", error);
-      toast.error(error instanceof Error ? error.message : "Erro ao criar/editar conta corrente");
+      console.error("Erro ao processar conta corrente:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao processar conta corrente");
     } finally {
       setLoadingAction(false);
     }
   };
 
-  // Adicionar novo lançamento
   const handleAddLancamento = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validações básicas
     if (!lancamentoForm.contaCorrenteId) {
       toast.error("Selecione uma conta corrente");
       return;
@@ -538,7 +636,6 @@ export default function ContaCorrenteTodosPage() {
     setLoadingAction(true);
     
     try {
-      // Preparar payload conforme a API espera
       const payload = {
         contaCorrenteId: parseInt(lancamentoForm.contaCorrenteId),
         data: lancamentoForm.data,
@@ -556,19 +653,19 @@ export default function ContaCorrenteTodosPage() {
         },
         body: JSON.stringify(payload)
       });
+
+      const lancamentoResponse = await handleApiResponse(
+        response, 
+        "Erro ao adicionar lançamento"
+      );
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || errorData.message || "Erro ao adicionar lançamento");
-      }
+      console.log("Lançamento adicionado com sucesso:", lancamentoResponse);
       
-      // Recarregar dados
       await Promise.all([
         fetchContasCorrente(token!),
         fetchEstatisticas(token!)
       ]);
       
-      // Resetar formulário
       setLancamentoForm({
         contaCorrenteId: '',
         tipo: 'CREDITO',
@@ -588,12 +685,13 @@ export default function ContaCorrenteTodosPage() {
     }
   };
 
-  // Alternar visibilidade de conta corrente (ocultar/mostrar)
-  const toggleContaVisibility = async (id: number) => {
-    if (!userPermissions.canEdit) {
-      toast.error("Você não tem permissão para realizar esta ação");
-      return;
-    }
+  const handleOcultarConta = (contaId: number) => {
+    setContaParaOcultar(contaId);
+    setIsConfirmOcultarModalOpen(true);
+  };
+
+  const confirmarOcultarConta = async () => {
+    if (!contaParaOcultar) return;
     
     setLoadingAction(true);
     
@@ -604,25 +702,27 @@ export default function ContaCorrenteTodosPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ id })
+        body: JSON.stringify({ id: contaParaOcultar })
       });
+
+      const visibilityResponse = await handleApiResponse(
+        response, 
+        "Erro ao excluir conta corrente"
+      );
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || errorData.message || "Erro ao alterar visibilidade");
-      }
+      console.log("Visibilidade alterada com sucesso:", visibilityResponse);
       
-      const data = await response.json();
-      
-      // Recarregar dados
       await fetchContasCorrente(token!);
+      await fetchEstatisticas(token!);
       
-      toast.success(data.message || "Visibilidade alterada com sucesso!");
+      toast.success("Conta corrente excluída com sucesso!");
     } catch (error) {
-      console.error("Erro ao alterar visibilidade:", error);
-      toast.error(error instanceof Error ? error.message : "Erro ao alterar visibilidade");
+      console.error("Erro ao excluir conta:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao excluir conta");
     } finally {
       setLoadingAction(false);
+      setIsConfirmOcultarModalOpen(false);
+      setContaParaOcultar(null);
     }
   };
 
@@ -632,13 +732,30 @@ export default function ContaCorrenteTodosPage() {
     setIsDetalhesModalOpen(true);
   };
 
-  // Editar uma conta
-  const handleEditarConta = () => {
+  // Editar uma conta após visualização de detalhes
+  const handleEditarConta = (conta: ContaCorrente) => {
+    console.log("Editando conta corrente:", conta);
+    
+    // Garantir que temos os dados necessários para abrir o modal
+    const contaCompleta = {
+      ...conta,
+      // Garantir que os campos essenciais estejam presentes
+      data: conta.data || getLocalISODate(),
+      tipo: conta.tipo || 'EXTRA_CAIXA',
+      // Garantir que os lançamentos sejam um array válido
+      lancamentos: Array.isArray(conta.lancamentos) 
+        ? conta.lancamentos 
+        : []
+    };
+    
+    // Fechar o modal de detalhes se estiver aberto
     setIsDetalhesModalOpen(false);
+    
+    // Definir a conta selecionada e abrir o modal de edição
+    setContaSelecionada(contaCompleta);
     setIsNovaContaModalOpen(true);
   };
 
-  // Formatar valor para moeda
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -646,7 +763,6 @@ export default function ContaCorrenteTodosPage() {
     }).format(value);
   };
 
-  // Formatar data
   const formatDate = (dateString: string) => {
     if (!dateString) return "";
     try {
@@ -658,14 +774,12 @@ export default function ContaCorrenteTodosPage() {
     }
   };
 
-  // Verificar se algum filtro está ativo
   const isFilterActive = 
     searchTerm !== "" || 
     filterTipo !== "" || 
     filterUsuario !== "" || 
     filterEmpresa !== "";
 
-  // Exportar dados para Excel
   const exportToExcel = () => {
     try {
       // Preparar dados para exportação
@@ -673,7 +787,6 @@ export default function ContaCorrenteTodosPage() {
         'ID': conta.id,
         'Usuário': `${conta.user?.nome || ''} ${conta.user?.sobrenome || ''}`,
         'Tipo': conta.tipo || '',
-        'Descrição': conta.descricao || '',
         'Fornecedor/Cliente': conta.fornecedorCliente || '',
         'Empresa': conta.empresa?.nome || '',
         'Setor': conta.setor || '',
@@ -685,12 +798,10 @@ export default function ContaCorrenteTodosPage() {
         'Status': conta.oculto ? 'Oculto' : 'Visível'
       }));
       
-      // Criar planilha
       const worksheet = XLSX.utils.json_to_sheet(dataToExport);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Contas Corrente");
       
-      // Converter para binário e salvar
       const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
       const data = new Blob([excelBuffer], { type: 'application/octet-stream' });
       
@@ -702,15 +813,18 @@ export default function ContaCorrenteTodosPage() {
     }
   };
 
-  // Limpar todos os filtros
   const handleClearFilters = () => {
     setSearchTerm("");
     setFilterTipo("");
     setFilterUsuario("");
     setFilterEmpresa("");
+    
+    toast.info("Filtros limpos com sucesso", {
+      icon: <X size={18} className="text-blue-500" />,
+      position: "bottom-right"
+    });
   };
 
-  // Filtrar contas corrente
   const filteredContas = useMemo(() => {
     if (!Array.isArray(contasCorrente)) {
       console.warn("contasCorrente não é um array:", contasCorrente);
@@ -718,21 +832,17 @@ export default function ContaCorrenteTodosPage() {
     }
     
     return contasCorrente.filter(conta => {
-      // Filtro por termo de busca (nome, fornecedor/cliente, descrição)
       const matchesSearch = 
         (conta.user?.nome?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
         (conta.fornecedorCliente?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
-        (conta.descricao?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+        (conta.observacao?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
         (conta.setor?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
         (formatCurrency(conta.saldo).includes(searchTerm.toLowerCase()));
       
-      // Filtro por tipo
       const matchesTipo = filterTipo === "" ? true : conta.tipo === filterTipo;
       
-      // Filtro por usuário
       const matchesUsuario = filterUsuario === "" ? true : conta.userId === filterUsuario;
       
-      // Filtro por empresa
       const matchesEmpresa = filterEmpresa === "" ? 
         true : 
         (filterEmpresa === "null" ? !conta.empresaId : conta.empresaId?.toString() === filterEmpresa);
@@ -745,7 +855,6 @@ export default function ContaCorrenteTodosPage() {
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Header />
       <main className="flex-grow p-4 md:p-6 lg:p-8 mt-20 max-w-7xl mx-auto w-full">
-        {/* Cabeçalho da página */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -767,7 +876,7 @@ export default function ContaCorrenteTodosPage() {
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => {
-                    setContaSelecionada(null); // Reset para criar nova
+                    setContaSelecionada(null);
                     setIsNovaContaModalOpen(true);
                   }}
                   className="inline-flex items-center justify-center px-4 py-2 bg-[#344893] text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
@@ -777,99 +886,80 @@ export default function ContaCorrenteTodosPage() {
                   Nova Conta
                 </motion.button>
               )}
-              
-              {userPermissions.canCreate && (
-                <motion.button
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => setIsLancamentoModalOpen(true)}
-                  className="inline-flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
-                  disabled={loadingAction}
-                >
-                  <DollarSign size={18} className="mr-2" />
-                  Novo Lançamento
-                </motion.button>
-              )}
             </div>
           </div>
 
-          {/* Cards com estatísticas */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {/* Total de Contas */}
             <motion.div 
               whileHover={{ y: -5, boxShadow: '0 10px 15px -5px rgba(0, 0, 0, 0.1)' }}
               className="bg-white rounded-lg shadow-sm p-4"
             >
-              <div className="flex items-start">
-                <div className="rounded-full p-2 bg-blue-100 text-blue-600">
-                  <Users size={18} />
-                </div>
-                <div className="ml-3">
+              <div className="flex items-start justify-between">
+                <div>
                   <p className="text-xs text-gray-500">Total de Contas</p>
                   <p className="text-lg font-bold text-gray-900">
                     {loading ? "..." : estatisticas?.totalContas || 0}
                   </p>
                 </div>
+                <div className="rounded-full p-2 bg-blue-100 text-blue-600">
+                  <Users size={20} />
+                </div>
               </div>
             </motion.div>
-            
-            {/* Saldo Geral */}
+
             <motion.div 
               whileHover={{ y: -5, boxShadow: '0 10px 15px -5px rgba(0, 0, 0, 0.1)' }}
               className="bg-white rounded-lg shadow-sm p-4"
             >
-              <div className="flex items-start">
-                <div className={`rounded-full p-2 ${estatisticas?.saldoGeral && estatisticas.saldoGeral >= 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                  <DollarSign size={18} />
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs text-gray-500">Saídas do Mês</p>
+                  <p className="text-lg font-bold text-red-600">
+                    {loading ? "..." : formatCurrency(estatisticas?.debitosMes || 0)}
+                  </p>
                 </div>
-                <div className="ml-3">
+                <div className="rounded-full p-2 bg-red-100 text-red-600">
+                  <ArrowDownCircle size={20} />
+                </div>
+              </div>
+            </motion.div>
+            
+            <motion.div 
+              whileHover={{ y: -5, boxShadow: '0 10px 15px -5px rgba(0, 0, 0, 0.1)' }}
+              className="bg-white rounded-lg shadow-sm p-4"
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs text-gray-500">Entradas do Mês</p>
+                  <p className="text-lg font-bold text-green-600">
+                    {loading ? "..." : formatCurrency(estatisticas?.creditosMes || 0)}
+                  </p>
+                </div>
+                <div className="rounded-full p-2 bg-green-100 text-green-600">
+                  <ArrowUpCircle size={20} />
+                </div>
+              </div>
+            </motion.div>
+            
+            <motion.div 
+              whileHover={{ y: -5, boxShadow: '0 10px 15px -5px rgba(0, 0, 0, 0.1)' }}
+              className="bg-white rounded-lg shadow-sm p-4"
+            >
+              <div className="flex items-start justify-between">
+                <div>
                   <p className="text-xs text-gray-500">Saldo Geral</p>
                   <p className={`text-lg font-bold ${estatisticas?.saldoGeral && estatisticas.saldoGeral >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {loading ? "..." : formatCurrency(estatisticas?.saldoGeral || 0)}
                   </p>
                 </div>
-              </div>
-            </motion.div>
-            
-            {/* Créditos do Mês */}
-            <motion.div 
-              whileHover={{ y: -5, boxShadow: '0 10px 15px -5px rgba(0, 0, 0, 0.1)' }}
-              className="bg-white rounded-lg shadow-sm p-4"
-            >
-              <div className="flex items-start">
-                <div className="rounded-full p-2 bg-green-100 text-green-600">
-                  <ArrowDownCircle size={18} />
-                </div>
-                <div className="ml-3">
-                  <p className="text-xs text-gray-500">Créditos do Mês</p>
-                  <p className="text-lg font-bold text-green-600">
-                    {loading ? "..." : formatCurrency(estatisticas?.creditosMes || 0)}
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-            
-            {/* Débitos do Mês */}
-            <motion.div 
-              whileHover={{ y: -5, boxShadow: '0 10px 15px -5px rgba(0, 0, 0, 0.1)' }}
-              className="bg-white rounded-lg shadow-sm p-4"
-            >
-              <div className="flex items-start">
-                <div className="rounded-full p-2 bg-red-100 text-red-600">
-                  <ArrowUpCircle size={18} />
-                </div>
-                <div className="ml-3">
-                  <p className="text-xs text-gray-500">Débitos do Mês</p>
-                  <p className="text-lg font-bold text-red-600">
-                    {loading ? "..." : formatCurrency(estatisticas?.debitosMes || 0)}
-                  </p>
+                <div className={`rounded-full p-2 ${estatisticas?.saldoGeral && estatisticas.saldoGeral >= 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                  <DollarSign size={20} />
                 </div>
               </div>
             </motion.div>
           </div>
         </motion.div>
 
-        {/* Barra de pesquisa e filtros */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -885,7 +975,7 @@ export default function ContaCorrenteTodosPage() {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar por nome, fornecedor, descrição..."
+                placeholder="Buscar por nome, fornecedor, observação..."
                 className="pl-10 pr-3 py-2 block w-full rounded-md border-gray-300 border focus:ring-[#344893] focus:border-[#344893]"
               />
             </div>
@@ -906,28 +996,6 @@ export default function ContaCorrenteTodosPage() {
                   <span className="ml-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full px-2 py-0.5">
                     {(searchTerm ? 1 : 0) + (filterTipo ? 1 : 0) + (filterUsuario ? 1 : 0) + (filterEmpresa ? 1 : 0)}
                   </span>
-                )}
-              </button>
-              
-              <button
-                onClick={() => setShowHidden(!showHidden)}
-                className={`inline-flex items-center px-3 py-2 border rounded-md text-sm font-medium ${
-                  showHidden ? 
-                  'bg-purple-50 text-purple-700 border-purple-200' : 
-                  'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                }`}
-                title={showHidden ? "Ocultar contas inativas" : "Mostrar contas ocultas"}
-              >
-                {showHidden ? (
-                  <>
-                    <EyeOff size={16} className="mr-1" />
-                    Mostrar Ocultos
-                  </>
-                ) : (
-                  <>
-                    <Eye size={16} className="mr-1" />
-                    Apenas Visíveis
-                  </>
                 )}
               </button>
               
@@ -970,7 +1038,6 @@ export default function ContaCorrenteTodosPage() {
             </div>
           </div>
 
-          {/* Área de filtros expandida */}
           {showFilters && (
             <div className="mt-4 pt-4 border-t border-gray-200">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -984,10 +1051,9 @@ export default function ContaCorrenteTodosPage() {
                     className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-[#344893] focus:border-[#344893] sm:text-sm rounded-md"
                   >
                     <option value="">Todos os tipos</option>
-                    <option value="PESSOAL">Pessoal</option>
-                    <option value="EMPRESA">Empresa</option>
-                    <option value="COLABORADOR">Colaborador</option>
-                    <option value="OUTRO">Outro</option>
+                    <option value="EXTRA_CAIXA">Extra Caixa</option>
+                    <option value="PERMUTA">Permuta</option>
+                    <option value="DEVOLUCAO">Devolução</option>
                   </select>
                 </div>
                 
@@ -1043,7 +1109,6 @@ export default function ContaCorrenteTodosPage() {
             </div>
           )}
           
-          {/* Chips de filtros aplicados */}
           {isFilterActive && (
             <div className="flex flex-wrap gap-2 mt-3">
               {searchTerm && (
@@ -1097,7 +1162,6 @@ export default function ContaCorrenteTodosPage() {
           )}
         </motion.div>
 
-        {/* Lista de contas corrente */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1157,13 +1221,13 @@ export default function ContaCorrenteTodosPage() {
                   key={conta.id}
                   conta={conta}
                   onViewDetails={() => handleVerDetalhes(conta)}
-                  onToggleVisibility={() => toggleContaVisibility(conta.id)}
+                  onEdit={() => handleEditarConta(conta)}
+                  onToggleVisibility={() => handleOcultarConta(conta.id)}
                   canEdit={userPermissions.canEdit}
                 />
               ))}
             </div>
           ) : (
-            // Visualização em tabela
             <div className="bg-white rounded-lg shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -1173,7 +1237,7 @@ export default function ContaCorrenteTodosPage() {
                         Usuário
                       </th>
                       <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Descrição
+                        Fornecedor/Cliente
                       </th>
                       <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Tipo
@@ -1214,7 +1278,7 @@ export default function ContaCorrenteTodosPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {conta.descricao || `Conta #${conta.id}`}
+                          {conta.fornecedorCliente || conta.observacao || `Conta #${conta.id}`}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                           {conta.tipo || '-'}
@@ -1252,15 +1316,26 @@ export default function ContaCorrenteTodosPage() {
                             >
                               <Eye size={18} />
                             </button>
-                            
+
                             {userPermissions.canEdit && (
                               <button
-                                onClick={() => toggleContaVisibility(conta.id)}
-                                className="text-gray-500 hover:text-gray-700"
-                                title={conta.oculto ? "Mostrar conta" : "Ocultar conta"}
-                                disabled={loadingAction}
+                                onClick={() => handleEditarConta(conta)}
+                                className="text-orange-600 hover:text-orange-800"
+                                title="Editar"
                               >
-                                {conta.oculto ? <Eye size={18} /> : <EyeOff size={18} />}
+                                <Edit size={18} />
+                              </button>
+                            )}
+                            
+                            {userPermissions.canDelete && (
+                              <button
+                                onClick={() => {
+                                  handleOcultarConta(conta.id);
+                                }}
+                                className="text-red-600 hover:text-red-800"
+                                title="Excluir"
+                              >
+                                <Trash size={18} />
                               </button>
                             )}
                           </div>
@@ -1275,33 +1350,36 @@ export default function ContaCorrenteTodosPage() {
         </motion.div>
       </main>
 
-      {/* Modal para criar nova conta corrente - Usando o componente */}
       {isNovaContaModalOpen && (
-        <ContaCorrenteModal
+        <ContaCorrenteModalAdmin
           isOpen={isNovaContaModalOpen}
-          onClose={() => setIsNovaContaModalOpen(false)}
+          onClose={() => {
+            setIsNovaContaModalOpen(false);
+            setContaSelecionada(null);
+          }}
           onSave={handleCreateConta}
-          initialData={contaSelecionada}
           empresas={empresas}
           colaboradores={colaboradores}
           usuarios={usuarios}
           setores={setores}
           isLoading={loadingAction}
-          isAdminMode={userPermissions.isAdmin} // Modo admin conforme permissões
-          currentUserId={currentUserId} // ID do usuário atual
+          isEditMode={!!contaSelecionada}
+          contaSelecionada={contaSelecionada && {
+            ...contaSelecionada,
+            data: contaSelecionada.data || getLocalISODate(),
+            tipo: contaSelecionada.tipo || 'PESSOAL'
+          }}
         />
       )}
 
-      {/* Modal para Detalhes da Conta Corrente - Usando o componente */}
       {isDetalhesModalOpen && contaSelecionada && (
         <ContaCorrenteDetalhesModal
           conta={contaSelecionada}
           onClose={() => setIsDetalhesModalOpen(false)}
-          onEdit={handleEditarConta}
+          onEdit={() => handleEditarConta(contaSelecionada)}
         />
       )}
 
-      {/* Manter o Modal para Lançamentos como estava, pois não criamos um componente específico para ele */}
       {isLancamentoModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <motion.div
@@ -1322,7 +1400,6 @@ export default function ContaCorrenteTodosPage() {
             
             <div className="p-4">
               <form onSubmit={handleAddLancamento}>
-                {/* Conta Corrente */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Conta Corrente <span className="text-red-500">*</span>
@@ -1336,13 +1413,12 @@ export default function ContaCorrenteTodosPage() {
                     <option value="">Selecione uma conta</option>
                     {contasCorrente.map(conta => (
                       <option key={conta.id} value={conta.id}>
-                        {conta.descricao || `Conta #${conta.id}`}
+                        {conta.fornecedorCliente || conta.observacao || `Conta #${conta.id}`}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                {/* Tipo */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Tipo <span className="text-red-500">*</span>
@@ -1358,7 +1434,6 @@ export default function ContaCorrenteTodosPage() {
                   </select>
                 </div>
 
-                {/* Valor */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Valor <span className="text-red-500">*</span>
@@ -1379,7 +1454,6 @@ export default function ContaCorrenteTodosPage() {
                   </div>
                 </div>
 
-                {/* Data */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Data <span className="text-red-500">*</span>
@@ -1398,7 +1472,6 @@ export default function ContaCorrenteTodosPage() {
                   </div>
                 </div>
 
-                {/* Número do Documento */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Número do Documento
@@ -1412,7 +1485,6 @@ export default function ContaCorrenteTodosPage() {
                   />
                 </div>
 
-                {/* Observação */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Observação
@@ -1445,6 +1517,53 @@ export default function ContaCorrenteTodosPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {isConfirmOcultarModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-lg shadow-xl max-w-md w-full"
+          >
+            <div className="p-6">
+              <div className="flex flex-col items-center text-center mb-6">
+                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                  <Trash size={24} className="text-red-600" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Excluir conta corrente
+                </h3>
+                <p className="text-gray-500">
+                  Tem certeza que deseja excluir esta conta corrente? 
+                  Esta ação não poderá ser desfeita facilmente.
+                </p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setIsConfirmOcultarModalOpen(false)}
+                  className="px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmarOcultarConta}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                  disabled={loadingAction}
+                >
+                  {loadingAction ? (
+                    <span className="flex items-center">
+                      <Loader2 size={16} className="animate-spin mr-2" />
+                      Processando...
+                    </span>
+                  ) : (
+                    "Excluir Conta"
+                  )}
+                </button>
+              </div>
             </div>
           </motion.div>
         </div>
