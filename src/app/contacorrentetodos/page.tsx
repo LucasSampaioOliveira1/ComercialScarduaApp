@@ -347,8 +347,8 @@ export default function ContaCorrenteTodosPage() {
       const estatisticasCompletas = {
         ...data,
         resultadoPeriodo,
-        // Garantir que totalContas reflita apenas o número de contas visíveis
-        totalContas: showHidden ? data.totalContas : data.totalContasVisiveis || data.totalContas
+        // Usar o número correto de contas de acordo com a visibilidade
+        totalContas: showHidden ? (data.totalContasGeral || data.totalContas) : (data.totalContasVisiveis || data.totalContas)
       };
       
       setEstatisticas(estatisticasCompletas);
@@ -458,21 +458,7 @@ export default function ContaCorrenteTodosPage() {
       Promise.all([
         fetchContasCorrente(token),
         fetchEstatisticas(token)
-      ]).then(([contasResult, statsResult]) => {
-        // Após obter ambos os resultados, atualizar estatísticas com o total correto
-        if (Array.isArray(contasResult) && statsResult) {
-          // Usar o comprimento do array de contas para refletir o número real de contas visíveis
-          const totalContasVisiveis = contasResult.length;
-          
-          setEstatisticas(prevStats => {
-            if (!prevStats) return statsResult;
-            return {
-              ...prevStats,
-              totalContas: totalContasVisiveis
-            };
-          });
-        }
-      }).catch(error => {
+      ]).catch(error => {
         console.error("Erro ao atualizar dados:", error);
       });
     }
@@ -712,8 +698,11 @@ export default function ContaCorrenteTodosPage() {
       
       console.log("Visibilidade alterada com sucesso:", visibilityResponse);
       
-      await fetchContasCorrente(token!);
-      await fetchEstatisticas(token!);
+      // Buscar dados atualizados após alteração de visibilidade
+      await Promise.all([
+        fetchContasCorrente(token!),
+        fetchEstatisticas(token!)
+      ]);
       
       toast.success("Conta corrente excluída com sucesso!");
     } catch (error) {

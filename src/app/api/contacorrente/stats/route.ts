@@ -19,9 +19,18 @@ export async function GET(req: NextRequest) {
     const user = authenticateToken(req);
     const userId = user.id;
     const isAdmin = user.role === "ADMIN";
+    
+    // Verificar parâmetro showHidden
+    const url = new URL(req.url);
+    const showHidden = url.searchParams.get("showHidden") === "true";
 
     // Determinar permissões
     let whereClause: any = {};
+    
+    // Filtrar por visibilidade se não estiver mostrando ocultos
+    if (!showHidden) {
+      whereClause.oculto = false;
+    }
     
     // Se não é admin, verificar se tem permissão para ver todas as contas
     if (!isAdmin) {
@@ -39,7 +48,23 @@ export async function GET(req: NextRequest) {
       }
     }
     
-    // Buscar contas
+    // Buscar todas as contas (para total geral, independente de visibilidade)
+    const todasContas = await prisma.contaCorrente.count({
+      where: {
+        ...whereClause,
+        oculto: undefined // Remover filtro de oculto para contar total absoluto
+      }
+    });
+    
+    // Buscar apenas contas visíveis para o total de contas visíveis
+    const contasVisiveis = await prisma.contaCorrente.count({
+      where: {
+        ...whereClause,
+        oculto: false
+      }
+    });
+    
+    // Buscar contas com filtro de visibilidade aplicado
     const contas = await prisma.contaCorrente.findMany({
       where: whereClause,
       include: {
@@ -82,7 +107,9 @@ export async function GET(req: NextRequest) {
     const saldoMes = creditosMes - debitosMes;
     
     return NextResponse.json({
-      totalContas: contas.length,
+      totalContas: contas.length, // Total de contas após aplicar filtros
+      totalContasGeral: todasContas, // Total geral sem considerar visibilidade
+      totalContasVisiveis: contasVisiveis, // Total de contas visíveis
       totalCreditos,
       totalDebitos,
       creditosMes,
