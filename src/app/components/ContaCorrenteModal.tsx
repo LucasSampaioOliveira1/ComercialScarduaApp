@@ -432,11 +432,23 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
 
   // Substitua a função atualizarLinha pelo código abaixo:
   const atualizarLinha = (index: number, campo: string, valor: string) => {
-    console.log(`Atualizando campo ${campo} do lançamento ${index} para: ${valor}`);
+    // Log para depuração
+    console.log(`Atualizando campo ${campo} do lançamento ${index} para: "${valor}"`);
     
+    // Criar nova cópia do array para garantir a atualização do estado
     const novasLinhas = [...lancamentos];
-    novasLinhas[index] = { ...novasLinhas[index], [campo]: valor };
+    
+    // Atualizar o valor do campo específico
+    novasLinhas[index] = {
+      ...novasLinhas[index],
+      [campo]: valor
+    };
+    
+    // Atualizar o estado com o novo array
     setLancamentos(novasLinhas);
+    
+    // Log após atualização
+    console.log("Novo estado de lançamentos:", novasLinhas);
   };
 
   // Adicione esta nova função para formatar após perder o foco
@@ -496,7 +508,7 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
     }, 0);
   };
 
-  // Modifique a função handleSubmit para não exigir um ID válido ao criar nova conta
+  // Substitua a função handleSubmit atual por esta versão corrigida:
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -514,6 +526,7 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
     
     // Processar lançamentos
     const lancamentosFormatados = lancamentosValidos.map(l => {
+      // IMPORTANTE: preservar o ID exatamente como está para manter a referência aos lançamentos existentes
       return {
         id: l.id,
         data: l.data,
@@ -524,46 +537,30 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
       };
     });
     
-    // Dados da conta corrente
-    const dadosContaCorrente = {
-      id: formData.id || undefined,
-      userId: formData.userId || currentUserId,
-      empresaId: formData.empresaId ? parseInt(formData.empresaId) : null,
-      colaboradorId: formData.colaboradorId ? parseInt(formData.colaboradorId) : null,
-      data: formData.data,
-      tipo: formData.tipo,
-      fornecedorCliente: formData.fornecedorCliente || '',
-      observacao: formData.observacao || '',
-      setor: formData.setor || '',
-      oculto: formData.oculto || false
+    // PONTO-CHAVE: Garantir que estruturamos os dados corretamente
+    const payload = {
+      contaCorrente: {
+        id: formData.id || undefined,
+        userId: formData.userId || currentUserId,
+        empresaId: formData.empresaId ? parseInt(formData.empresaId) : null,
+        colaboradorId: formData.colaboradorId ? parseInt(formData.colaboradorId) : null,
+        data: formData.data,
+        tipo: formData.tipo,
+        fornecedorCliente: formData.fornecedorCliente || '',
+        observacao: formData.observacao || '',
+        setor: formData.setor || '',
+        oculto: formData.oculto || false
+      },
+      lancamentos: lancamentosFormatados,
+      preserveExistingEntries: false, // Forçar substituição dos lançamentos existentes
+      modificacoesContaCorrente: true // Forçar reconhecimento de que houve alterações
     };
     
-    // MODIFICAÇÃO AQUI: Verificar se é uma edição ou uma nova conta
-    if (isEditMode) {
-      // Garantir que o contaCorrenteId é um número e é válido apenas em modo de edição
-      const contaCorrenteId = Number(dadosContaCorrente.id);
-      
-      if (isNaN(contaCorrenteId)) {
-        console.error("ID de conta corrente inválido:", dadosContaCorrente.id);
-        alert("Erro: ID de conta corrente inválido");
-        return;
-      }
-    }
-    
     // Log para depuração
-    console.log("Enviando dados para salvar:", {
-      contaCorrente: dadosContaCorrente,
-      lancamentos: lancamentosFormatados,
-      clearExisting: !preserveExistingEntries
-    });
+    console.log("Enviando dados para API:", payload);
     
-    // Chamar função de salvamento com informação sobre modificações
-    onSave({
-      contaCorrente: dadosContaCorrente,
-      lancamentos: lancamentosFormatados,
-      preserveExistingEntries: isEditMode && preserveExistingEntries,
-      modificacoesContaCorrente: contaModificada
-    });
+    // Chamar a função de salvamento
+    onSave(payload);
   };
 
   const formatCurrency = (value: number) => {
@@ -755,12 +752,12 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                 <input
                   type="checkbox"
                   id="preserveExisting"
-                  checked={preserveExistingEntries}
-                  onChange={(e) => setPreserveExistingEntries(e.target.checked)}
+                  checked={false} // Forçar sempre como false
+                  disabled={true} // Desabilitar a opção
                   className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 rounded"
                 />
                 <label htmlFor="preserveExisting" className="text-sm text-gray-700">
-                  Preservar lançamentos existentes (adicionar apenas novos lançamentos)
+                  Os lançamentos existentes serão substituídos pelos novos
                 </label>
               </div>
             )}
