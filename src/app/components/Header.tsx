@@ -169,27 +169,32 @@ function HeaderContent() {
   const toggleProfile = () => setProfileOpen(!profileOpen);
   
   // Função de logout melhorada
-
   const handleLogout = async () => {
     try {
       // Limpar localStorage completamente
       localStorage.clear();
       
-      // Fazer requisição para invalidar sessão no servidor (se aplicável)
+      // Limpar cookies relacionados a autenticação
+      document.cookie.split(';').forEach(cookie => {
+        const [name] = cookie.split('=');
+        document.cookie = `${name.trim()}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+      });
+      
+      // Fazer requisição para invalidar sessão no servidor
       await fetch('/api/auth/logout', { 
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json'
-        }
+        },
+        cache: 'no-store'
       });
       
-      // Redirecionar para a página inicial (/) em vez de /login
-      router.replace('/');
+      // Redirecionar para a página inicial com um timestamp para evitar cache
+      router.push(`/?logout=${Date.now()}`);
     } catch (error) {
       console.error("Erro ao fazer logout:", error);
-      // Mesmo com erro, limpar localStorage e redirecionar
-      localStorage.clear();
-      router.replace('/');
+      // Forçar redirecionamento mesmo em caso de erro
+      window.location.href = '/';
     }
   };
 

@@ -23,7 +23,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<boolean>;
   checkPermission: (page: string, permission: 'canAccess' | 'canEdit' | 'canDelete') => boolean;
   // ... outros métodos existentes
 }
@@ -108,9 +108,32 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
   };
 
   // Função de logout
-  const logout = () => {
-    localStorage.removeItem('token');
-    setUser(null);
+  const logout = async () => {
+    try {
+      // Limpar localStorage
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      // Outras limpezas
+      sessionStorage.clear();
+      
+      // Limpar estado
+      setUser(null);
+      
+      // Chamar API de logout (opcional, se já estiver fazendo isso no Header)
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        cache: 'no-store'
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+      return false;
+    }
   };
   
   // Verifica o token ao inicializar

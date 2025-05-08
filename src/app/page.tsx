@@ -36,10 +36,14 @@ export default function Login() {
       setLoading(false);
 
       if (res.ok) {
+        // Limpar qualquer dado antigo de autenticação
+        localStorage.clear();
+
+        // Definir novo token e dados do usuário
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
-        
-        // Animação antes de redirecionar
+
+        // Pequeno atraso para garantir que o armazenamento foi atualizado
         setTimeout(() => {
           router.push("/home");
         }, 300);

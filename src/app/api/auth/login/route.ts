@@ -43,23 +43,25 @@ export async function POST(req: NextRequest) {
     });
 
     // Criar a resposta e configurar o cookie
-    const response = NextResponse.json({
-      token,
-      sessionId: session.sessionId,
+    const response = NextResponse.json({ 
+      token: token,
       user: {
         id: user.id,
+        nome: user.nome,
         email: user.email,
-        nome: user.nome,  // Adicionando o nome
-        foto: user.foto   // Adicionando a foto
-      },
+        role: user.role,
+        // Adicione outras propriedades necessárias
+      }
     });
 
-    // Configurar o cookie para manter a sessão
-    response.cookies.set("sessionId", session.sessionId, {
-      httpOnly: true, // A cookie será acessível apenas no lado do servidor
-      secure: process.env.NODE_ENV === "production", // Usar cookies seguros em produção
+    // Configurar o cookie do token
+    response.cookies.set({
+      name: 'token',
+      value: token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 24, // 1 dia
-      path: "/", // O cookie estará disponível para toda a aplicação
+      path: '/'
     });
 
     return response;
