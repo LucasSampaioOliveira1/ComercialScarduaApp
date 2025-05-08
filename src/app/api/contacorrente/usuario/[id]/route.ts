@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 const prisma = new PrismaClient();
 
+// Versão corrigida para o Next.js 15.3.1
 export async function GET(
-  req: NextRequest,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -48,8 +49,9 @@ export async function GET(
   }
 }
 
+// Versão corrigida para o Next.js 15.3.1
 export async function POST(
-  req: NextRequest,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -74,13 +76,11 @@ export async function POST(
       );
     }
     
-    const body = await req.json();
+    const body = await request.json();
     
-    // LÓGICA: Se tem ID, atualiza; se não tem, cria
+    // Resto do código permanece igual...
     if (body.id) {
       // Atualizar conta existente
-      
-      // Verificar se a conta existe
       const contaCorrente = await prisma.contaCorrente.findUnique({
         where: { id: Number(body.id) }
       });
@@ -92,7 +92,6 @@ export async function POST(
         );
       }
       
-      // Verificar permissões (proprietário ou admin)
       const isAdmin = user.role === "ADMIN";
       const isOwner = contaCorrente.userId === userId;
       
@@ -103,7 +102,6 @@ export async function POST(
         );
       }
       
-      // Atualizar a conta
       const updatedConta = await prisma.contaCorrente.update({
         where: { id: Number(body.id) },
         data: {

@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 const prisma = new PrismaClient();
 
+// Versão corrigida para o Next.js 15.3.1
 export async function POST(
-  req: NextRequest,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -19,7 +20,7 @@ export async function POST(
     
     console.log("Processando requisição de lançamentos para usuário:", userId);
     
-    const body = await req.json();
+    const body = await request.json();
     
     if (!body.contaCorrenteId) {
       return NextResponse.json(
@@ -63,13 +64,12 @@ export async function POST(
     const resultados = [];
     
     if (body.clearExisting === true) {
-      // Limpar todos os lançamentos existentes
+      // Limpando lançamentos existentes
       console.log("Limpando lançamentos existentes para conta:", contaCorrenteId);
       await prisma.lancamento.deleteMany({
         where: { contaCorrenteId }
       });
       
-      // Processar todos como novos
       for (const lancamento of body.lancamentos) {
         try {
           const novoLancamento = await criarLancamento(lancamento, contaCorrenteId);
@@ -79,30 +79,27 @@ export async function POST(
         }
       }
     } else {
-      // AQUI É A PRINCIPAL MUDANÇA: Precisamos identificar lançamentos mantidos e removidos
-
-      // 1. Obter todos os lançamentos existentes dessa conta
+      // Processamento de lançamentos mantidos ou novos
       const lancamentosExistentes = await prisma.lancamento.findMany({
         where: { contaCorrenteId }
       });
       
       console.log(`Conta tem ${lancamentosExistentes.length} lançamentos existentes`);
       
-      // 2. Identificar quais IDs foram mantidos no formulário
+      // Identificar quais IDs foram mantidos
       const idsManutencao = body.lancamentos
         .filter((l: any) => l.id && typeof l.id === 'number')
         .map((l: any) => l.id);
       
       console.log(`IDs mantidos no formulário: ${idsManutencao.length}`);
       
-      // 3. Identificar IDs que precisam ser excluídos (existiam mas não foram mantidos)
+      // Identificar IDs a remover
       const idsParaRemover = lancamentosExistentes
         .filter(l => !idsManutencao.includes(l.id))
         .map(l => l.id);
       
       console.log(`Removendo ${idsParaRemover.length} lançamentos`);
       
-      // 4. Remover lançamentos que não foram mantidos
       if (idsParaRemover.length > 0) {
         await prisma.lancamento.deleteMany({
           where: {
@@ -111,7 +108,7 @@ export async function POST(
         });
       }
       
-      // 5. Processar apenas lançamentos novos (sem ID)
+      // Processar lançamentos novos
       const lancamentosNovos = body.lancamentos.filter((l: any) => !l.id);
       
       console.log(`Adicionando ${lancamentosNovos.length} novos lançamentos`);
@@ -142,24 +139,20 @@ export async function POST(
   }
 }
 
-// Função auxiliar para criar um lançamento
+// Função auxiliar para criar um lançamento - não precisa mudar
 async function criarLancamento(lancamento: any, contaCorrenteId: number) {
-  // Garantir formato correto para os valores
   const data = lancamento.data ? new Date(lancamento.data) : new Date();
   const numeroDocumento = lancamento.numeroDocumento || "";
   const observacao = lancamento.observacao || "";
   
-  // Processar valores
   const credito = lancamento.credito ? String(lancamento.credito).replace(/[^\d.,]/g, '').replace(',', '.') : null;
   const debito = lancamento.debito ? String(lancamento.debito).replace(/[^\d.,]/g, '').replace(',', '.') : null;
   
-  // Validar que os valores são números
   if ((credito && isNaN(Number(credito))) || (debito && isNaN(Number(debito)))) {
     console.warn("Valor inválido encontrado, pulando:", { credito, debito });
     return null;
   }
   
-  // Criar lançamento
   return await prisma.lancamento.create({
     data: {
       contaCorrenteId,
