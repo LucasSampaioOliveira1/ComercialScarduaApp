@@ -625,13 +625,24 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                   disabled={isLoading}
                 >
                   <option value="">Selecione...</option>
-                  {Array.isArray(colaboradores) && colaboradores.map(col => (
-                    col && (
-                      <option key={col.id} value={col.id}>
-                        {col.nome} {col.sobrenome || ''}
-                      </option>
-                    )
-                  ))}
+                  {Array.isArray(colaboradores) && 
+                    // Clonar o array para não modificar o original e ordenar ignorando espaços
+                    [...colaboradores]
+                      .sort((a, b) => {
+                        // Remover espaços iniciais para comparação correta
+                        const nomeA = (a.nome || '').trim().toLowerCase();
+                        const nomeB = (b.nome || '').trim().toLowerCase();
+                        return nomeA.localeCompare(nomeB);
+                      })
+                      .map(col => (
+                        col && (
+                          <option key={col.id} value={col.id}>
+                            {/* Usar o nome original para exibição, não o sem espaços */}
+                            {col.nome} {col.sobrenome || ''}
+                          </option>
+                        )
+                      ))
+                  }
                 </select>
               </div>
             </div>

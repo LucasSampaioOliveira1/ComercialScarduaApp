@@ -614,13 +614,23 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
                   disabled={isLoading}
                 >
                   <option value="">Selecione...</option>
-                  {Array.isArray(colaboradores) && colaboradores.map(col => (
-                    col && (
-                      <option key={col.id} value={col.id}>
-                        {col.nome} {col.sobrenome || ''}
-                      </option>
-                    )
-                  ))}
+                  {Array.isArray(colaboradores) && 
+                    // Ordenar ignorando espaços no início dos nomes
+                    [...colaboradores]
+                      .sort((a, b) => {
+                        // Remover espaços iniciais para comparação
+                        const nomeA = (a.nome || '').trim().toLowerCase();
+                        const nomeB = (b.nome || '').trim().toLowerCase();
+                        return nomeA.localeCompare(nomeB);
+                      })
+                      .map(col => (
+                        col && (
+                          <option key={col.id} value={col.id}>
+                            {col.nome} {col.sobrenome || ''}
+                          </option>
+                        )
+                      ))
+                  }
                 </select>
               </div>
             </div>
