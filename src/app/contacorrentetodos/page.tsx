@@ -253,6 +253,7 @@ export default function ContaCorrenteTodosPage() {
     fetchPermissions(token);
   }, [router]);
 
+  // Ajustar a função fetchPermissions para atribuir corretamente as permissões
   const fetchPermissions = async (authToken: string) => {
     try {
       setLoading(true);
@@ -275,14 +276,12 @@ export default function ContaCorrenteTodosPage() {
         throw new Error(statusData.message || "Erro na autenticação");
       }
 
-      // CORREÇÃO: O ID do usuário está em statusData.user.id
       const userId = statusData.user?.id;
       setCurrentUserId(userId);
       
       const isAdmin = statusData.isAdmin;
 
       if (!isAdmin) {
-        // CORREÇÃO: Modificar para incluir o userId do usuário atual
         const permissionsResponse = await fetch(`/api/usuarios/permissions?userId=${userId}&page=contacorrentetodos`, {
           headers: { 
             Authorization: `Bearer ${authToken}`
@@ -296,35 +295,17 @@ export default function ContaCorrenteTodosPage() {
         const permissionsData = await permissionsResponse.json();
         console.log("Permissões recebidas:", permissionsData);
         
-        // DEBUG: Verificar estrutura exata das permissões
-        console.log("Estrutura de permissões:", JSON.stringify(permissionsData, null, 2));
-        
-        // CORREÇÃO: Verificação mais flexível de permissão
-        const temAcesso = 
-          // Verificar várias possíveis estruturas de permissão
-          permissionsData.permissions?.contacorrentetodos?.canAccess === true || 
-          permissionsData.canAccess === true ||
-          (permissionsData.permissions && Object.values(permissionsData.permissions).some((p: any) => p?.canAccess === true));
-        
-        if (!temAcesso) {
-          console.error("Acesso negado: permissões não encontradas");
-          toast.error("Você não tem permissão para acessar esta página");
-          router.push("/dashboard");
-          return;
-        }
-        
-        console.log("Permissão concedida para usuário comum");
-        
+        // Configurar as permissões do usuário
         setUserPermissions({
           isAdmin: false,
-          canAccess: true,
+          canAccess: true, // Se chegou aqui, já tem acesso à página
           canCreate: permissionsData.permissions?.contacorrentetodos?.canCreate || false,
           canEdit: permissionsData.permissions?.contacorrentetodos?.canEdit || false,
           canDelete: permissionsData.permissions?.contacorrentetodos?.canDelete || false,
-          hasAllDataAccess: true  // Esta página sempre precisa de acesso a todos os dados
+          hasAllDataAccess: false
         });
       } else {
-        console.log("Permissão de admin detectada");
+        // Configurar permissões de admin
         setUserPermissions({
           isAdmin: true,
           canAccess: true,
@@ -334,12 +315,12 @@ export default function ContaCorrenteTodosPage() {
           hasAllDataAccess: true
         });
       }
-      
+
       fetchInitialData(authToken);
     } catch (error) {
       console.error("Erro ao verificar permissões:", error);
-      toast.error("Erro ao verificar suas permissões");
-      router.push("/dashboard");
+      toast.error("Erro ao verificar permissões");
+      router.push("/");
     } finally {
       setLoading(false);
     }
@@ -754,6 +735,12 @@ export default function ContaCorrenteTodosPage() {
   };
 
   const handleOcultarConta = (contaId: number) => {
+    // Verificação mais rígida das permissões - Somente com permissão explícita
+    if (!userPermissions.canDelete) {
+      toast.error("Você não tem permissão para excluir contas correntes.");
+      return;
+    }
+
     setContaParaOcultar(contaId);
     setIsConfirmOcultarModalOpen(true);
   };
@@ -797,7 +784,27 @@ export default function ContaCorrenteTodosPage() {
     }
   };
 
-  // Ver detalhes de uma conta
+  const handleEditarConta = (conta: ContaCorrente) => {
+    // Verificação mais rígida das permissões - Somente com permissão explícita
+    if (!userPermissions.canEdit) {
+      toast.error("Você não tem permissão para editar esta conta corrente.");
+      return;
+    }
+
+    console.log("Editando conta corrente:", conta);
+    
+    // Resto do código continua igual...
+    const contaCompleta = {
+      ...conta,
+      data: conta.data ? formatarData(conta.data) : getLocalISODate(),
+      // resto do código...
+    };
+    
+    setIsDetalhesModalOpen(false);
+    setContaSelecionada(contaCompleta);
+    setIsNovaContaModalOpen(true);
+  };
+
   const handleVerDetalhes = (conta: ContaCorrente) => {
     // CORREÇÃO: Não tentar converter a data, apenas passá-la como está
     const contaFormatada = {
@@ -810,39 +817,6 @@ export default function ContaCorrenteTodosPage() {
     
     setContaSelecionada(contaFormatada);
     setIsDetalhesModalOpen(true);
-  };
-
-  // Ao abrir o modal para edição, garantir que todos os dados estejam presentes
-  const handleEditarConta = (conta: ContaCorrente) => {
-    console.log("Editando conta corrente:", conta);
-    
-    // Garantir que temos os dados necessários para abrir o modal
-    const contaCompleta = {
-      ...conta,
-      // Garantir que a data está no formato ISO YYYY-MM-DD
-      data: conta.data ? formatarData(conta.data) : getLocalISODate(),
-      tipo: conta.tipo || 'EXTRA_CAIXA',
-      fornecedorCliente: conta.fornecedorCliente || '',
-      observacao: conta.observacao || '',
-      setor: conta.setor || '',
-      // Garantir formatação correta dos lançamentos
-      lancamentos: Array.isArray(conta.lancamentos) ? conta.lancamentos.map(l => ({
-        ...l,
-        // Formatar a data de cada lançamento
-        data: l.data ? formatarData(l.data) : getLocalISODate(),
-        credito: l.credito || '',
-        debito: l.debito || ''
-      })) : []
-    };
-    
-    console.log("Dados formatados para edição:", contaCompleta);
-    
-    // Fechar o modal de detalhes se estiver aberto
-    setIsDetalhesModalOpen(false);
-    
-    // Definir a conta selecionada e abrir o modal de edição
-    setContaSelecionada(contaCompleta);
-    setIsNovaContaModalOpen(true);
   };
 
   const formatCurrency = (value: number) => {
@@ -1313,6 +1287,7 @@ export default function ContaCorrenteTodosPage() {
                   onEdit={() => handleEditarConta(conta)}
                   onToggleVisibility={() => handleOcultarConta(conta.id)}
                   canEdit={userPermissions.canEdit}
+                  canDelete={userPermissions.canDelete}
                 />
               ))}
             </div>
@@ -1406,6 +1381,7 @@ export default function ContaCorrenteTodosPage() {
                               <Eye size={18} />
                             </button>
 
+                            {/* Mostrar botão de editar APENAS se tiver permissão (independente de ser o próprio usuário) */}
                             {userPermissions.canEdit && (
                               <button
                                 onClick={() => handleEditarConta(conta)}
@@ -1416,11 +1392,10 @@ export default function ContaCorrenteTodosPage() {
                               </button>
                             )}
                             
+                            {/* Mostrar botão de excluir APENAS se tiver permissão (independente de ser o próprio usuário) */}
                             {userPermissions.canDelete && (
                               <button
-                                onClick={() => {
-                                  handleOcultarConta(conta.id);
-                                }}
+                                onClick={() => handleOcultarConta(conta.id)}
                                 className="text-red-600 hover:text-red-800"
                                 title="Excluir"
                               >
@@ -1458,6 +1433,7 @@ export default function ContaCorrenteTodosPage() {
             data: contaSelecionada.data || getLocalISODate(),
             tipo: contaSelecionada.tipo || 'PESSOAL'
           }}
+          userPermissions={userPermissions}
         />
       )}
 
@@ -1466,6 +1442,7 @@ export default function ContaCorrenteTodosPage() {
           conta={contaSelecionada}
           onClose={() => setIsDetalhesModalOpen(false)}
           onEdit={() => handleEditarConta(contaSelecionada)}
+          canEdit={userPermissions.isAdmin || userPermissions.canEdit || contaSelecionada.userId === currentUserId}
         />
       )}
 

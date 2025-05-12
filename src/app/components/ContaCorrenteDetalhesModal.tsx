@@ -10,9 +10,10 @@ interface ContaCorrenteDetalhesModalProps {
   conta: any;
   onClose: () => void;
   onEdit: () => void;
+  canEdit?: boolean;
 }
 
-export default function ContaCorrenteDetalhesModal({ conta, onClose, onEdit }: ContaCorrenteDetalhesModalProps) {
+export default function ContaCorrenteDetalhesModal({ conta, onClose, onEdit, canEdit }: ContaCorrenteDetalhesModalProps) {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -417,13 +418,15 @@ export default function ContaCorrenteDetalhesModal({ conta, onClose, onEdit }: C
               Fechar
             </button>
             
-            <button
-              onClick={onEdit}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center font-medium"
-            >
-              <Edit size={16} className="mr-2" />
-              Editar
-            </button>
+            {canEdit && (
+              <button
+                onClick={onEdit}
+                className="px-4 py-2 bg-[#344893] text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Edit size={18} className="mr-2" />
+                Editar Conta
+              </button>
+            )}
             
             <button
               onClick={exportToExcel}

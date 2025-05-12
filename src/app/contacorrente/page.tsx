@@ -217,52 +217,114 @@ export default function ContaCorrentePage() {
   const [balancoGeral, setBalancoGeral] = useState<number>(0);
   const [resumoFinanceiro, setResumoFinanceiro] = useState<any>(null);
 
+  const [userPermissions, setUserPermissions] = useState({
+    isAdmin: false,
+    canAccess: false,
+    canCreate: false,
+    canEdit: false,
+    canDelete: false,
+    hasAllDataAccess: false
+  });
+
   const router = useRouter();
   const viewModalRef = useRef<HTMLDivElement>(null);
 
-  // Verificar autenticação e carregar dados
+  // Modifique a função fetchPermissions para buscar e configurar as permissões corretamente
+  const fetchPermissions = async (authToken: string) => {
+    try {
+      setLoading(true);
+      
+      const statusResponse = await fetch("/api/status", {
+        headers: { 
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+      });
+
+      if (!statusResponse.ok) {
+        throw new Error("Falha ao verificar autenticação");
+      }
+
+      const statusData = await statusResponse.json();
+      
+      if (!statusData.success) {
+        throw new Error(statusData.message || "Erro na autenticação");
+      }
+
+      const userId = statusData.user?.id;
+      setUserId(userId);
+      
+      const isAdmin = statusData.isAdmin;
+      setIsAdmin(isAdmin);
+
+      // Configurar permissões com base na resposta da API
+      if (isAdmin) {
+        // Admins têm todas as permissões
+        setUserPermissions({
+          isAdmin: true,
+          canAccess: true,
+          canCreate: true,
+          canEdit: true,
+          canDelete: true,
+          hasAllDataAccess: true
+        });
+      } else {
+        // Para usuários normais, verificar permissões específicas
+        const permissionsResponse = await fetch(`/api/usuarios/permissions?userId=${userId}&page=contacorrente`, {
+          headers: { 
+            Authorization: `Bearer ${authToken}`
+          }
+        });
+        
+        if (!permissionsResponse.ok) {
+          throw new Error("Falha ao verificar permissões");
+        }
+        
+        const permissionsData = await permissionsResponse.json();
+        
+        setUserPermissions({
+          isAdmin: false,
+          canAccess: true, // Se chegou aqui, já tem acesso
+          canCreate: permissionsData.permissions?.contacorrente?.canCreate || false,
+          canEdit: permissionsData.permissions?.contacorrente?.canEdit || false,
+          canDelete: permissionsData.permissions?.contacorrente?.canDelete || false,
+          hasAllDataAccess: false
+        });
+      }
+      
+      // Buscar dados após configurar permissões
+      buscarContasDoUsuario(userId);
+      calcularResumoFinanceiro(userId);
+      fetchDadosAuxiliares();
+    } catch (error) {
+      console.error("Erro ao verificar permissões:", error);
+      router.push("/");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // No useEffect principal, substituir pelo fetchPermissions
   useEffect(() => {
     // Verificar se o localStorage está disponível no cliente
     if (typeof window === 'undefined') return;
     
     try {
-      // Obter dados do usuário do localStorage
-      const userStr = localStorage.getItem("user");
+      const token = localStorage.getItem("token");
       
-      if (!userStr) {
-        console.error("Dados do usuário não encontrados");
+      if (!token) {
+        console.error("Token não encontrado");
         router.push('/');
         return;
       }
       
-      // Processar dados do usuário
-      const userData = JSON.parse(userStr);
-      
-      if (!userData || !userData.id) {
-        console.error("Dados do usuário inválidos");
-        router.push('/');
-        return;
-      }
-      
-      // Salvar no estado
-      setUserId(userData.id);
-      setIsAdmin(userData.role === "ADMIN");
-      
-      // Debug
-      console.log("ID do usuário:", userData.id);
-      console.log("É admin:", userData.role === "ADMIN");
-      
-      // Buscar contas correntes e dados auxiliares
-      // Aqui não chamamos diretamente fetchMinhasContas, pois o estado pode não estar atualizado ainda
-      buscarContasDoUsuario(userData.id);
-      calcularResumoFinanceiro(userData.id);
-      fetchDadosAuxiliares();
+      fetchPermissions(token);
     } catch (error) {
       console.error("Erro ao processar dados:", error);
       router.push('/');
     }
-  }, [router, userId]);
-  
+  }, [router]);
+
   // Adicione esta função para buscar contas diretamente com o ID do usuário
   const buscarContasDoUsuario = async (id: string) => {
     try {
@@ -450,6 +512,12 @@ export default function ContaCorrentePage() {
   };
 
   const handleOpenEditModal = (conta: ContaCorrente) => {
+    // Verificação mais rígida - somente com permissão explícita
+    if (!userPermissions.canEdit) {
+      toast.error("Você não tem permissão para editar esta conta.");
+      return;
+    }
+    
     setSelectedConta(conta);
     setIsEditMode(true);
     setIsContaModalOpen(true);
@@ -476,6 +544,12 @@ export default function ContaCorrentePage() {
   };
 
   const handleToggleVisibility = (conta: ContaCorrente) => {
+    // Verificação mais rígida - somente com permissão explícita  
+    if (!userPermissions.canDelete) {
+      toast.error("Você não tem permissão para excluir esta conta.");
+      return;
+    }
+    
     setContaToDelete(conta);
     setIsConfirmDeleteModalOpen(true);
   };
@@ -1428,7 +1502,8 @@ export default function ContaCorrentePage() {
                   onViewDetails={() => handleViewDetails(conta)}
                   onEdit={() => handleOpenEditModal(conta)}
                   onToggleVisibility={() => handleToggleVisibility(conta)}
-                  canEdit={isAdmin || conta.userId === userId}
+                  canEdit={userPermissions.canEdit}
+                  canDelete={userPermissions.canDelete}
                 />
               ))}
             </div>
@@ -1533,24 +1608,26 @@ export default function ContaCorrentePage() {
                               <Eye size={16} />
                             </button>
                             
-                            {(isAdmin || conta.userId === userId) && (
-                              <>
-                                <button
-                                  onClick={() => handleOpenEditModal(conta)}
-                                  className="text-orange-600 hover:text-orange-800"
-                                  title="Editar"
-                                >
-                                  <Edit size={16} />
-                                </button>
-                                
-                                <button
-                                  onClick={() => handleToggleVisibility(conta)}
-                                  className="text-red-600 hover:text-red-800"
-                                  title="Excluir"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </>
+                            {/* Mostrar botão de editar APENAS se tiver permissão explícita - independente de ser o dono */}
+                            {userPermissions.canEdit && (
+                              <button
+                                onClick={() => handleOpenEditModal(conta)}
+                                className="text-orange-600 hover:text-orange-800"
+                                title="Editar"
+                              >
+                                <Edit size={16} />
+                              </button>
+                            )}
+                            
+                            {/* Mostrar botão de excluir APENAS se tiver permissão explícita - independente de ser o dono */}
+                            {userPermissions.canDelete && (
+                              <button
+                                onClick={() => handleToggleVisibility(conta)}
+                                className="text-red-600 hover:text-red-800"
+                                title="Excluir"
+                              >
+                                <Trash2 size={16} />
+                              </button>
                             )}
                           </div>
                         </td>
@@ -1609,10 +1686,11 @@ export default function ContaCorrentePage() {
           empresas={empresas}
           colaboradores={colaboradores}
           usuarios={usuarios}
-          setores={setores} // Garantir que esta linha existe
+          setores={setores}
           isLoading={loadingAction}
           isAdminMode={isAdmin}
           currentUserId={userId || ''}
+          userPermissions={userPermissions}
         />
 
         <AnimatePresence>
@@ -1693,6 +1771,7 @@ export default function ContaCorrentePage() {
               setIsViewModalOpen(false);
               handleOpenEditModal(selectedConta);
             }}
+            canEdit={userPermissions.isAdmin || userPermissions.canEdit || selectedConta.userId === userId}
           />
         )}
 

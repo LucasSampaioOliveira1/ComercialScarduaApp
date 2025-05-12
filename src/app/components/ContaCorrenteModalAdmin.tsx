@@ -126,6 +126,7 @@ interface ContaCorrenteModalAdminProps {
   isLoading: boolean;
   isEditMode?: boolean;
   contaSelecionada?: ContaCorrente | null;
+  userPermissions?: { canEdit: boolean };
 }
 
 const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
@@ -138,7 +139,8 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
   setores: setoresProp = [],
   isLoading = false,
   isEditMode = false,
-  contaSelecionada = null
+  contaSelecionada = null,
+  userPermissions = { canEdit: true }
 }) => {
   // Estado para o formulário principal - sem a descrição e tipo padrão EXTRA_CAIXA
   const [formData, setFormData] = useState({
@@ -326,22 +328,21 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
     setFormData({ ...formData, [field]: value });
   };
 
-  // Adicionar nova linha de lançamento
+  // Verificar permissão para adicionar linha
   const adicionarLinha = () => {
-    // Usar a data atual para o novo lançamento, garantindo formato YYYY-MM-DD
-    const dataAtual = new Date().toISOString().split('T')[0];
+    // Se estiver editando, verificar permissão
+    if (isEditMode && !userPermissions?.canEdit) {
+      toast.error("Você não tem permissão para adicionar lançamentos.");
+      return;
+    }
     
-    setLancamentos([
-      ...lancamentos,
-      {
-        id: 0,
-        data: dataAtual,
-        numeroDocumento: '',
-        observacao: '',
-        credito: '',
-        debito: ''
-      }
-    ]);
+    setLancamentos([...lancamentos, {
+      data: new Date().toISOString().split('T')[0],
+      numeroDocumento: '',
+      observacao: '',
+      credito: '',
+      debito: '',
+    }]);
   };
 
   // Remover linha da tabela
@@ -353,11 +354,16 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
     setLancamentos(novasLinhas);
   };
 
-  // Função segura para remover lançamento
+  // Verificar permissão para remover lançamento
   const removerLancamento = (index: number, e: React.MouseEvent) => {
-    // Importante: Impedir a propagação do evento
     e.preventDefault();
     e.stopPropagation();
+    
+    // Se estiver editando, verificar permissão
+    if (isEditMode && !userPermissions?.canEdit) {
+      toast.error("Você não tem permissão para remover lançamentos.");
+      return;
+    }
     
     // Criar uma cópia do array de lançamentos
     const novosLancamentos = [...lancamentos];
@@ -826,15 +832,18 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right text-sm font-medium">
-                      <button 
-                        onClick={(e) => removerLancamento(index, e)}
-                        type="button"
-                        className="p-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-full transition-colors"
-                        title="Remover lançamento"
-                        disabled={isLoading}
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {/* Mostrar botão de remover apenas se tiver permissão para editar */}
+                      {(!isEditMode || userPermissions?.canEdit) && (
+                        <button 
+                          onClick={(e) => removerLancamento(index, e)}
+                          type="button"
+                          className="p-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-full transition-colors"
+                          title="Remover lançamento"
+                          disabled={isLoading}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

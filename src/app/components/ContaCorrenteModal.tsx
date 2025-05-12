@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { X, Check, Trash2, PlusCircle, Calendar, DollarSign, Clock, User, Building } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { toast } from 'react-toastify';
 
 // Adicione esta interface no início do arquivo:
 interface ContaCorrenteSaveData {
@@ -82,6 +83,7 @@ interface ContaCorrenteModalProps {
   isLoading?: boolean;
   isAdminMode?: boolean;
   currentUserId?: string;
+  userPermissions?: { canEdit: boolean };
 }
 
 const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
@@ -96,7 +98,8 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
   setores: setoresProp = [], // Renomeie para setoresProp para evitar conflito
   isLoading = false,
   isAdminMode = false,
-  currentUserId = ''
+  currentUserId = '',
+  userPermissions = { canEdit: false }
 }) => {
   // Estado para o formulário principal
   const [formData, setFormData] = useState({
@@ -307,6 +310,12 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
 
   // Adicionar nova linha à tabela
   const adicionarLinha = () => {
+    // Independente de quem é o dono, verificar permissão explícita
+    if (isEditMode && !userPermissions?.canEdit) {
+      toast.error("Você não tem permissão para adicionar lançamentos.");
+      return;
+    }
+    
     setLancamentos([...lancamentos, {
       data: new Date().toISOString().split('T')[0],
       numeroDocumento: '',
@@ -342,17 +351,17 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
 
   // Substitua a função removerLancamento atual por esta versão corrigida:
   const removerLancamento = (index: number, e: React.MouseEvent) => {
-    // IMPORTANTE: Impedir a propagação do evento
     e.preventDefault();
     e.stopPropagation();
     
-    // Criar uma cópia do array de lançamentos
+    // Independente de quem é o dono, verificar permissão explícita
+    if (isEditMode && !userPermissions?.canEdit) {
+      toast.error("Você não tem permissão para remover lançamentos.");
+      return;
+    }
+    
+    // Resto do código continua igual...
     const novosLancamentos = [...lancamentos];
-    
-    // Log para verificar se estamos removendo um lançamento com ID (existente) ou sem ID (novo)
-    console.log("Removendo lançamento:", lancamentos[index]);
-    
-    // Remover o lançamento
     novosLancamentos.splice(index, 1);
     setLancamentos(novosLancamentos);
     
@@ -366,8 +375,6 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
         debito: '',
       }]);
     }
-    
-    // Importante: não fazer nada mais aqui que possa afetar o fechamento do modal
   };
 
   // Corrija a função de formatação de valores para a API
@@ -863,14 +870,17 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right text-sm font-medium">
-                      <button 
-                        onClick={(e) => removerLancamento(index, e)}
-                        type="button" // Importante adicionar type="button"
-                        className="p-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-full transition-colors"
-                        title="Remover lançamento"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {/* Mostrar botão de remover apenas se tiver permissão para editar */}
+                      {(!isEditMode || userPermissions?.canEdit) && (
+                        <button 
+                          onClick={(e) => removerLancamento(index, e)}
+                          type="button" // Importante adicionar type="button"
+                          className="p-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-full transition-colors"
+                          title="Remover lançamento"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

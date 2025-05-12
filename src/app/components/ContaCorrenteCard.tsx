@@ -10,6 +10,7 @@ interface ContaCorrenteCardProps {
   onEdit: (conta: any) => void;
   onToggleVisibility: (conta: any) => void;
   canEdit: boolean;
+  canDelete: boolean;
 }
 
 const formatCurrency = (value: any): string => {
@@ -79,7 +80,7 @@ const calcularValoresSeguros = (conta: any) => {
   return { creditos, debitos, saldo };
 };
 
-export default function ContaCorrenteCard({ conta, onViewDetails, onEdit, onToggleVisibility, canEdit }: ContaCorrenteCardProps) {
+export default function ContaCorrenteCard({ conta, onViewDetails, onEdit, onToggleVisibility, canEdit, canDelete }: ContaCorrenteCardProps) {
   // Debugging para verificar a estrutura
   console.log("Conta recebida no card:", {
     id: conta.id,
@@ -181,33 +182,37 @@ export default function ContaCorrenteCard({ conta, onViewDetails, onEdit, onTogg
         </div>
         
         <div className="mt-4 pt-4 border-t border-gray-200 flex justify-end space-x-2">
-          <button
-            onClick={() => onViewDetails(conta)}
-            className="text-[#344893] hover:text-blue-700 text-sm font-medium flex items-center"
-          >
-            <Eye size={16} className="mr-1" />
-            Detalhes
-          </button>
-          
-          {canEdit && (
-            <>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => onViewDetails(conta)}
+              className="text-blue-600 hover:text-blue-800"
+              title="Ver detalhes"
+            >
+              <Eye size={18} />
+            </button>
+            
+            {/* Botão de editar - só aparece com permissão */}
+            {canEdit && (
               <button
-                onClick={() => onEdit(conta)}
-                className="text-orange-500 hover:text-orange-700 text-sm font-medium flex items-center"
+                onClick={onEdit}
+                className="text-orange-600 hover:text-orange-800"
+                title="Editar"
               >
-                <Edit size={16} className="mr-1" />
-                Editar
+                <Edit size={18} />
               </button>
-              
+            )}
+            
+            {/* Botão de excluir - só aparece com permissão */}
+            {canDelete && (
               <button
-                onClick={() => onToggleVisibility(conta)}
-                className="text-red-500 hover:text-red-700 text-sm font-medium flex items-center"
+                onClick={onToggleVisibility}
+                className="text-red-600 hover:text-red-800"
+                title="Excluir"
               >
-                <Trash2 size={16} className="mr-1" />
-                Excluir
+                <Trash2 size={18} />
               </button>
-            </>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </motion.div>
