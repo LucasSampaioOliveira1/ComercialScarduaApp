@@ -380,6 +380,9 @@ export default function ContaCorrentePage() {
       // Resetar para o valor inicial quando as contas mudam
       setVisibleItems(itemsPerLoad);
       
+      // Filtrar apenas contas não ocultas antes de calcular estatísticas
+      const contasVisiveis = contasCorrente.filter(conta => !conta.oculto);
+      
       // Calcular estatísticas gerais
       let totalPositivo = 0;
       let totalNegativo = 0;
@@ -388,7 +391,7 @@ export default function ContaCorrentePage() {
       const porEmpresa: Record<string, number> = {};
       const porFornecedor: Record<string, number> = {}; // Adicionar contador de fornecedores
       
-      contasCorrente.forEach(conta => {
+      contasVisiveis.forEach(conta => {
         // Garantir que lancamentos é um array
         const lancamentos = Array.isArray(conta.lancamentos) ? conta.lancamentos : [];
         
@@ -426,18 +429,18 @@ export default function ContaCorrentePage() {
       
       // Atualizar estatísticas
       setStats({
-        total: contasCorrente.length,
+        total: contasVisiveis.length, // Usar o contador de contas visíveis
         totalPositivo,
         totalNegativo,
         totalCredito,
         totalDebito,
         porEmpresa,
-        porFornecedor // Adicionar ao objeto de estatísticas
+        porFornecedor
       });
       
-      // Extrair setores únicos
+      // Extrair setores únicos apenas das contas visíveis
       const uniqueSetores = Array.from(
-        new Set(contasCorrente.filter(c => c.setor).map(c => c.setor as string))
+        new Set(contasVisiveis.filter(c => c.setor).map(c => c.setor as string))
       );
       
       setSetores(['Todos', ...uniqueSetores.sort()]);
@@ -1110,9 +1113,6 @@ export default function ContaCorrentePage() {
                 <Info size={20} className="mr-2 text-[#344893]" />
                 Resumo Financeiro
               </h2>
-              <div className="text-xs bg-blue-50 text-blue-700 py-1 px-2 rounded-full">
-                {filteredContas.length} de {contasCorrente.length} contas
-              </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1163,7 +1163,7 @@ export default function ContaCorrentePage() {
                     .slice(0, 3)
                     .map(([fornecedor, count], idx) => (
                       <div key={idx} className="flex justify-between text-sm truncate">
-                        <span className="truncate">{fornecedor}:</span>
+                        <span className="truncate max-w-[70%]" title={fornecedor}>{fornecedor}</span>
                         <span className="font-medium">{count}</span>
                       </div>
                     ))
