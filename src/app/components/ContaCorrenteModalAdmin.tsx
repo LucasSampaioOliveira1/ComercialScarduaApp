@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, Check, Trash2, PlusCircle, Calendar, DollarSign, Clock, User, Building } from 'lucide-react';
+import { X, Check, Trash2, PlusCircle, Calendar, DollarSign, Clock, User, Building, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'react-toastify';
@@ -13,49 +13,35 @@ const getLocalISODate = () => {
     .split('T')[0];
 };
 
-// Substituir a função formatarDataISO atual por esta:
-const formatarDataISO = (dataString?: string) => {
-  if (!dataString) return getLocalISODate();
+// Adicione esta função preserveLocalDate para substituir a formatarDataISO atual
+const preserveLocalDate = (dateString?: string): string => {
+  if (!dateString) return new Date().toISOString().split('T')[0];
+  
+  // Se já estiver no formato YYYY-MM-DD, retornar como está
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    return dateString;
+  }
   
   try {
-    // Se já estiver no formato ISO, retornar como está
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dataString)) {
-      return dataString;
-    }
+    // Importante: Não usar o construtor de Date diretamente para evitar problemas de timezone
+    // Em vez disso, extrair os componentes da data e construir manualmente
     
-    // Processamento seguro para datas com timestamp
-    if (dataString.includes('T')) {
-      const [datePart] = dataString.split('T');
+    // Se for um ISO string com timestamp (formato que vem do banco)
+    if (dateString.includes('T')) {
+      const [datePart] = dateString.split('T');
       return datePart;
     }
     
-    // Para lidar com formato dd/mm/aaaa
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataString)) {
-      const [dia, mes, ano] = dataString.split('/');
-      return `${ano}-${mes}-${dia}`;
-    }
+    // Para outros formatos, vamos tentar converter usando uma data local
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
     
-    // Processamento seguro para outros formatos
-    const parts = dataString.split(/[-\/.]/);
-    if (parts.length >= 3) {
-      // Tentar descobrir qual é qual baseado no formato mais comum
-      let year, month, day;
-      
-      if (parts[0].length === 4) { // Se começa com ano (yyyy-mm-dd)
-        [year, month, day] = parts;
-      } else if (parts[2].length === 4) { // Se termina com ano (dd/mm/yyyy)
-        [day, month, year] = parts;
-      } else { // Padrão americano (mm/dd/yyyy)
-        [month, day, year] = parts;
-      }
-      
-      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    }
-    
-    return getLocalISODate();
-  } catch (error) {
-    console.error("Erro ao formatar data:", error);
-    return getLocalISODate();
+    return `${year}-${month}-${day}`;
+  } catch (e) {
+    console.error("Erro ao preservar data local:", e);
+    return new Date().toISOString().split('T')[0];
   }
 };
 
@@ -177,6 +163,10 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
   // Estado para os setores
   const [setores, setSetores] = useState<string[]>(setoresProp);
 
+  // Estado para o modal de confirmação
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [lancamentoParaExcluir, setLancamentoParaExcluir] = useState<number | null>(null);
+
   // Carregar dados iniciais e setores
   useEffect(() => {
     const carregarDadosIniciais = async () => {
@@ -232,7 +222,7 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
         userId: contaSelecionada.userId || contaSelecionada.user?.id || '',
         empresaId: contaSelecionada.empresaId?.toString() || '',
         colaboradorId: contaSelecionada.colaboradorId?.toString() || '',
-        data: contaSelecionada.data || getLocalISODate(),
+        data: preserveLocalDate(contaSelecionada.data), // Usar nova função aqui
         tipo: contaSelecionada.tipo || 'EXTRA_CAIXA',
         fornecedorCliente: contaSelecionada.fornecedorCliente || '',
         observacao: contaSelecionada.observacao || '',
@@ -246,7 +236,7 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
       if (contaSelecionada.lancamentos && contaSelecionada.lancamentos.length > 0) {
         const lancamentosFormatados = contaSelecionada.lancamentos.map(l => ({
           id: l.id,
-          data: formatarDataISO(l.data), // Formatar data para ISO
+          data: preserveLocalDate(l.data), // Usar nova função aqui
           numeroDocumento: l.numeroDocumento || '',
           observacao: l.observacao || '',
           credito: l.credito ? String(l.credito) : '', // Usar string vazia em vez de null
@@ -288,7 +278,7 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
         userId: contaSelecionada.userId || contaSelecionada.user?.id || '',
         empresaId: contaSelecionada.empresaId?.toString() || '',
         colaboradorId: contaSelecionada.colaboradorId?.toString() || '',
-        data: contaSelecionada.data || getLocalISODate(),
+        data: preserveLocalDate(contaSelecionada.data), // Usar nova função aqui
         tipo: contaSelecionada.tipo || 'EXTRA_CAIXA',
         fornecedorCliente: contaSelecionada.fornecedorCliente || '',
         observacao: contaSelecionada.observacao || '',
@@ -305,10 +295,13 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
           const creditoFormatado = l.credito !== null && l.credito !== undefined ? String(l.credito) : '';
           const debitoFormatado = l.debito !== null && l.debito !== undefined ? String(l.debito) : '';
           
+          // Formatando a data do lançamento usando a nova função
+          const dataLancamentoFormatada = preserveLocalDate(l.data);
+          console.log(`Formatando data do lançamento: ${l.data} => ${dataLancamentoFormatada}`);
+          
           return {
             id: l.id,
-            // Garantir que a data está no formato correto para input date
-            data: l.data || getLocalISODate(),
+            data: dataLancamentoFormatada,
             numeroDocumento: l.numeroDocumento || '',
             observacao: l.observacao || '',
             credito: creditoFormatado,
@@ -337,7 +330,7 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
     }
     
     setLancamentos([...lancamentos, {
-      data: new Date().toISOString().split('T')[0],
+      data: new Date().toISOString().split('T')[0], // Formato ISO sem timezone
       numeroDocumento: '',
       observacao: '',
       credito: '',
@@ -365,7 +358,16 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
       return;
     }
     
-    // Criar uma cópia do array de lançamentos
+    // Em vez de remover diretamente, abrir modal de confirmação
+    setLancamentoParaExcluir(index);
+    setIsDeleteModalOpen(true);
+  };
+
+  // Função que realmente exclui o lançamento após confirmação
+  const confirmarExclusaoLancamento = () => {
+    if (lancamentoParaExcluir === null) return;
+    
+    const index = lancamentoParaExcluir;
     const novosLancamentos = [...lancamentos];
     
     // Log para verificar se estamos removendo um lançamento com ID (existente) ou sem ID (novo)
@@ -386,6 +388,8 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
     }
     
     setLancamentos(novosLancamentos);
+    setIsDeleteModalOpen(false);
+    setLancamentoParaExcluir(null);
   };
 
   // Formatar valor para a API
@@ -432,18 +436,23 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
 
   // Atualizar uma linha de lançamento
   const atualizarLinha = (index: number, campo: string, valor: string) => {
+    // Log para depuração
+    console.log(`Atualizando campo ${campo} do lançamento ${index} para: "${valor}"`);
+    
+    // Criar nova cópia do array para garantir a atualização do estado
     const novasLinhas = [...lancamentos];
     
-    if (campo === 'data') {
-      // Preservar o formato da data exatamente como foi inserido
-      novasLinhas[index] = { ...novasLinhas[index], [campo]: valor };
-      console.log(`Data atualizada para: ${valor}`); // Log para debug
-    }
-    else {
-      novasLinhas[index] = { ...novasLinhas[index], [campo]: valor };
-    }
+    // Atualizar o valor do campo específico
+    novasLinhas[index] = {
+      ...novasLinhas[index],
+      [campo]: valor
+    };
     
+    // Atualizar o estado com o novo array
     setLancamentos(novasLinhas);
+    
+    // Log após atualização
+    console.log("Novo estado de lançamentos:", novasLinhas);
   };
 
   // Calcular total de créditos
@@ -777,6 +786,7 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
                         onChange={(e) => atualizarLinha(index, 'data', e.target.value)}
                         className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                         disabled={isLoading}
+                        required
                       />
                     </td>
                     <td className="px-4 py-3">
@@ -891,6 +901,46 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
             </div>
           </div>
         </form>
+
+        {/* Adicione o modal de confirmação */}
+        {isDeleteModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4"
+            >
+              <div className="flex items-center text-amber-600 mb-4">
+                <AlertTriangle className="mr-2" size={24} />
+                <h3 className="text-lg font-semibold">Confirmar exclusão</h3>
+              </div>
+              
+              <p className="text-gray-600 mb-6">
+                Tem certeza que deseja excluir este lançamento? Esta ação não pode ser desfeita.
+              </p>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDeleteModalOpen(false);
+                    setLancamentoParaExcluir(null);
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmarExclusaoLancamento}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                >
+                  Excluir
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </motion.div>
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, Check, Trash2, PlusCircle, Calendar, DollarSign, Clock, User, Building } from 'lucide-react';
+import { X, Check, Trash2, PlusCircle, Calendar, DollarSign, Clock, User, Building, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'react-toastify';
@@ -144,6 +144,10 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
 
   // Estado para os setores - usar setoresProp como valor inicial
   const [setores, setSetores] = useState<string[]>(setoresProp);
+
+  // Adicione estes estados para o modal de confirmação
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [lancamentoParaExcluir, setLancamentoParaExcluir] = useState<number | null>(null);
 
   // Substituir a função preserveLocalDate atual por esta:
   const preserveLocalDate = (dateString?: string): string => {
@@ -340,16 +344,7 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
     setLancamentos([...lancamentos, novoLancamento]);
   };
 
-  // Remover linha da tabela
-  const removerLinha = (index: number) => {
-    if (lancamentos.length <= 1) return; // Mantém pelo menos uma linha
-    
-    const novasLinhas = [...lancamentos];
-    novasLinhas.splice(index, 1);
-    setLancamentos(novasLinhas);
-  };
-
-  // Substitua a função removerLancamento atual por esta versão corrigida:
+  // Substituir a função removerLancamento atual
   const removerLancamento = (index: number, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -360,10 +355,18 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
       return;
     }
     
-    // Resto do código continua igual...
+    // Em vez de remover diretamente, abrir modal de confirmação
+    setLancamentoParaExcluir(index);
+    setIsDeleteModalOpen(true);
+  };
+
+  // Função que realmente exclui o lançamento após confirmação
+  const confirmarExclusaoLancamento = () => {
+    if (lancamentoParaExcluir === null) return;
+    
+    const index = lancamentoParaExcluir;
     const novosLancamentos = [...lancamentos];
     novosLancamentos.splice(index, 1);
-    setLancamentos(novosLancamentos);
     
     // Se não houver lançamentos após a remoção, adicione um em branco
     if (novosLancamentos.length === 0) {
@@ -374,7 +377,12 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
         credito: '',
         debito: '',
       }]);
+    } else {
+      setLancamentos(novosLancamentos);
     }
+    
+    setIsDeleteModalOpen(false);
+    setLancamentoParaExcluir(null);
   };
 
   // Corrija a função de formatação de valores para a API
@@ -815,6 +823,7 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                         onChange={(e) => atualizarLinha(index, 'data', e.target.value)}
                         className="block w-full px-3 py-1.5 text-base text-gray-700 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                         disabled={isLoading}
+                        required
                       />
                     </td>
                     <td className="px-4 py-3">
@@ -928,6 +937,46 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
             </div>
           </div>
         </form>
+
+        {/* Adicione o modal de confirmação */}
+        {isDeleteModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4"
+            >
+              <div className="flex items-center text-amber-600 mb-4">
+                <AlertTriangle className="mr-2" size={24} />
+                <h3 className="text-lg font-semibold">Confirmar exclusão</h3>
+              </div>
+              
+              <p className="text-gray-600 mb-6">
+                Tem certeza que deseja excluir este lançamento? Esta ação não pode ser desfeita.
+              </p>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDeleteModalOpen(false);
+                    setLancamentoParaExcluir(null);
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmarExclusaoLancamento}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                >
+                  Excluir
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </motion.div>
     </div>
   );
