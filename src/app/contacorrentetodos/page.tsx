@@ -218,6 +218,9 @@ export default function ContaCorrenteTodosPage() {
   const [isConfirmOcultarModalOpen, setIsConfirmOcultarModalOpen] = useState(false);
   const [contaParaOcultar, setContaParaOcultar] = useState<number | null>(null);
 
+  // Adicione este estado para o filtro de saldo
+  const [filterSaldoTipo, setFilterSaldoTipo] = useState<string>("");
+
   // Formulário para nova conta
   const [contaForm, setContaForm] = useState({
     userId: '',
@@ -841,7 +844,8 @@ export default function ContaCorrenteTodosPage() {
     searchTerm !== "" || 
     filterTipo !== "" || 
     filterUsuario !== "" || 
-    filterEmpresa !== "";
+    filterEmpresa !== "" ||
+    filterSaldoTipo !== "";
 
   const exportToExcel = () => {
     try {
@@ -881,6 +885,7 @@ export default function ContaCorrenteTodosPage() {
     setFilterTipo("");
     setFilterUsuario("");
     setFilterEmpresa("");
+    setFilterSaldoTipo("");
     
     toast.info("Filtros limpos com sucesso", {
       icon: <X size={18} className="text-blue-500" />,
@@ -910,9 +915,19 @@ export default function ContaCorrenteTodosPage() {
         true : 
         (filterEmpresa === "null" ? !conta.empresaId : conta.empresaId?.toString() === filterEmpresa);
       
-      return matchesSearch && matchesTipo && matchesUsuario && matchesEmpresa;
+      // Novo filtro de saldo
+      const matchesSaldoTipo = filterSaldoTipo === "" ? true : 
+        (filterSaldoTipo === "positivo" ? conta.saldo > 0 : 
+         filterSaldoTipo === "negativo" ? conta.saldo < 0 : 
+         filterSaldoTipo === "neutro" ? conta.saldo === 0 : true);
+      
+      return matchesSearch && 
+             matchesTipo && 
+             matchesUsuario && 
+             matchesEmpresa && 
+             matchesSaldoTipo;
     });
-  }, [contasCorrente, searchTerm, filterTipo, filterUsuario, filterEmpresa]);
+  }, [contasCorrente, searchTerm, filterTipo, filterUsuario, filterEmpresa, filterSaldoTipo]);
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -1156,6 +1171,22 @@ export default function ContaCorrenteTodosPage() {
                     ))}
                   </select>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Saldo
+                  </label>
+                  <select
+                    value={filterSaldoTipo}
+                    onChange={(e) => setFilterSaldoTipo(e.target.value)}
+                    className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-[#344893] focus:border-[#344893] sm:text-sm rounded-md"
+                  >
+                    <option value="">Todos os saldos</option>
+                    <option value="positivo">Saldo Positivo</option>
+                    <option value="negativo">Saldo Negativo</option>
+                    <option value="neutro">Saldo Neutro</option>
+                  </select>
+                </div>
               </div>
               
               {isFilterActive && (
@@ -1216,6 +1247,20 @@ export default function ContaCorrenteTodosPage() {
                   <button 
                     onClick={() => setFilterEmpresa('')}
                     className="ml-1 text-green-500 hover:text-green-700"
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              )}
+
+              {filterSaldoTipo && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                  Saldo: {filterSaldoTipo === "positivo" ? "Positivo" : 
+                         filterSaldoTipo === "negativo" ? "Negativo" : 
+                         filterSaldoTipo === "neutro" ? "Neutro" : filterSaldoTipo}
+                  <button 
+                    onClick={() => setFilterSaldoTipo('')}
+                    className="ml-1 text-amber-500 hover:text-amber-700"
                   >
                     <X size={12} />
                   </button>
