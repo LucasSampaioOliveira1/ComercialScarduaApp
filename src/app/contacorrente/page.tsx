@@ -112,6 +112,7 @@ interface Empresa {
   id: number;
   nome: string;
   numero: string;
+  nomeEmpresa?: string;  // Add optional nomeEmpresa property
 }
 
 interface Colaborador {
@@ -132,10 +133,11 @@ interface Stats {
   total: number;
   totalPositivo: number;
   totalNegativo: number;
+  totalNeutro: number; // Nova propriedade para contas com saldo zero
   totalCredito: number;
   totalDebito: number;
   porEmpresa: Record<string, number>;
-  porFornecedor: Record<string, number>; // Adicionar esta propriedade
+  porFornecedor: Record<string, number>;
 }
 
 const calculateStats = (contas: ContaCorrente[]) => {
@@ -144,6 +146,7 @@ const calculateStats = (contas: ContaCorrente[]) => {
     totalDebito: 0,
     totalPositivo: 0,
     totalNegativo: 0,
+    totalNeutro: 0, // Inicializar nova categoria
     total: 0,
     porTipo: {
       EXTRA_CAIXA: 0,
@@ -193,6 +196,7 @@ export default function ContaCorrentePage() {
   const [filterEmpresa, setFilterEmpresa] = useState(0);
   const [filterDateRange, setFilterDateRange] = useState<{start: string, end: string}>({start: '', end: ''});
   const [filterPositiveSaldo, setFilterPositiveSaldo] = useState<boolean | null>(null);
+  const [filterSaldo, setFilterSaldo] = useState<string>(''); // Novo estado para saldo neutro
   const [showDashboard, setShowDashboard] = useState(false);
   const [showExportOptions, setShowExportOptions] = useState(false);
   
@@ -201,10 +205,11 @@ export default function ContaCorrentePage() {
     total: 0,
     totalPositivo: 0,
     totalNegativo: 0,
+    totalNeutro: 0, // Inicializar como 0
     totalCredito: 0,
     totalDebito: 0,
     porEmpresa: {},
-    porFornecedor: {} // Inicializar como objeto vazio
+    porFornecedor: {}
   });
   
   // Paginação
@@ -386,10 +391,11 @@ export default function ContaCorrentePage() {
       // Calcular estatísticas gerais
       let totalPositivo = 0;
       let totalNegativo = 0;
+      let totalNeutro = 0; // Nova categoria para saldo zero
       let totalCredito = 0;
       let totalDebito = 0;
       const porEmpresa: Record<string, number> = {};
-      const porFornecedor: Record<string, number> = {}; // Adicionar contador de fornecedores
+      const porFornecedor: Record<string, number> = {};
       
       contasVisiveis.forEach(conta => {
         // Garantir que lancamentos é um array
@@ -411,27 +417,30 @@ export default function ContaCorrentePage() {
         totalCredito += creditos;
         totalDebito += debitos;
         
-        if (saldo >= 0) {
+        // Classificar por saldo com a nova categoria "neutro"
+        if (saldo > 0) {
           totalPositivo++;
-        } else {
+        } else if (saldo < 0) {
           totalNegativo++;
+        } else {
+          totalNeutro++; // Incrementar contador de saldo zero
         }
         
-        // Contar por empresa
+        // Contar por empresa e fornecedor
         if (conta.empresa?.nome) {
           porEmpresa[conta.empresa.nome] = (porEmpresa[conta.empresa.nome] || 0) + 1;
         }
         
-        // Contar por fornecedor/cliente
         const fornecedor = conta.fornecedorCliente || `Conta #${conta.id}`;
         porFornecedor[fornecedor] = (porFornecedor[fornecedor] || 0) + 1;
       });
       
-      // Atualizar estatísticas
+      // Atualizar estatísticas incluindo a nova categoria
       setStats({
-        total: contasVisiveis.length, // Usar o contador de contas visíveis
+        total: contasVisiveis.length,
         totalPositivo,
         totalNegativo,
+        totalNeutro, // Adicionar à interface Stats
         totalCredito,
         totalDebito,
         porEmpresa,
@@ -450,7 +459,7 @@ export default function ContaCorrentePage() {
   // Resetar itens visíveis quando os filtros mudam
   useEffect(() => {
     setVisibleItems(itemsPerLoad);
-  }, [searchTerm, filterTipo, filterSetor, filterEmpresa, filterDateRange, filterPositiveSaldo, itemsPerLoad]);
+  }, [searchTerm, filterTipo, filterSetor, filterEmpresa, filterDateRange, filterPositiveSaldo, filterSaldo, itemsPerLoad]);
 
   const fetchDadosAuxiliares = async () => {
     try {
@@ -823,6 +832,7 @@ export default function ContaCorrentePage() {
     setFilterEmpresa(0);
     setFilterDateRange({start: '', end: ''});
     setFilterPositiveSaldo(null);
+    setFilterSaldo('');
     setIsFilterOpen(false);
     
     toast.info(
@@ -848,7 +858,7 @@ export default function ContaCorrentePage() {
   // Função para verificar se há filtros ativos
   const isFilterActive = searchTerm || filterTipo || filterSetor || filterEmpresa > 0 || 
                         filterDateRange.start || filterDateRange.end || 
-                        filterPositiveSaldo !== null;
+                        filterPositiveSaldo !== null || filterSaldo;
 
   // Função aprimorada para exportar para Excel
   const exportToExcel = async (advanced = false) => {
@@ -956,6 +966,7 @@ export default function ContaCorrentePage() {
       if (filterDateRange.start) fileNameParts.push(`de-${filterDateRange.start}`);
       if (filterDateRange.end) fileNameParts.push(`ate-${filterDateRange.end}`);
       if (filterPositiveSaldo !== null) fileNameParts.push(filterPositiveSaldo ? 'saldo-positivo' : 'saldo-negativo');
+      if (filterSaldo) fileNameParts.push(`saldo-${filterSaldo}`);
       if (searchTerm) fileNameParts.push(`busca-${searchTerm.replace(/[\/\\:*?"<>|]/g, '_')}`);
       if (advanced) fileNameParts.push('detalhado');
       
@@ -999,6 +1010,23 @@ export default function ContaCorrentePage() {
     // Primeiro, filtrar contas ocultadas
     if (conta.oculto) return false;
     
+    // Calcular o saldo para aplicar o filtro
+    const lancamentos = Array.isArray(conta.lancamentos) ? conta.lancamentos : [];
+    const creditos = lancamentos
+      .filter(l => l?.credito && !isNaN(parseFloat(String(l.credito))))
+      .reduce((sum, item) => sum + parseFloat(String(item.credito || "0")), 0);
+    
+    const debitos = lancamentos
+      .filter(l => l?.debito && !isNaN(parseFloat(String(l.debito))))
+      .reduce((sum, item) => sum + parseFloat(String(item.debito || "0")), 0);
+    
+    const saldo = creditos - debitos;
+
+    // Aplicar filtro de saldo
+    if (filterSaldo === 'positivo' && saldo <= 0) return false;
+    if (filterSaldo === 'negativo' && saldo >= 0) return false;
+    if (filterSaldo === 'neutro' && saldo !== 0) return false;
+
     // Busca por termo
     const search = searchTerm.toLowerCase();
     const matchesSearch = 
@@ -1032,7 +1060,6 @@ export default function ContaCorrentePage() {
     }
     
     if (filterPositiveSaldo !== null) {
-      const saldo = conta.saldo || 0;
       if (filterPositiveSaldo && saldo < 0) return false;
       if (!filterPositiveSaldo && saldo >= 0) return false;
     }
@@ -1148,6 +1175,10 @@ export default function ContaCorrentePage() {
                     <span className="font-medium text-red-600">{stats.totalNegativo}</span>
                   </div>
                   <div className="flex justify-between text-sm">
+                    <span>Neutro:</span>
+                    <span className="font-medium text-blue-600">{stats.totalNeutro}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
                     <span>Total:</span>
                     <span className="font-medium">{stats.total}</span>
                   </div>
@@ -1188,9 +1219,15 @@ export default function ContaCorrentePage() {
                   </div>
                   <div className="flex justify-between text-sm font-medium">
                     <span>Balanço:</span>
-                    <span className={stats.totalCredito - stats.totalDebito >= 0 ? "text-green-600" : "text-red-600"}>
+                    <div className={`text-sm font-medium ${
+                      stats.totalCredito - stats.totalDebito > 0 
+                        ? 'text-green-600' 
+                        : stats.totalCredito - stats.totalDebito < 0 
+                          ? 'text-red-600' 
+                          : 'text-blue-600'
+                    }`}>
                       {formatCurrency(stats.totalCredito - stats.totalDebito)}
-                    </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1230,7 +1267,7 @@ export default function ContaCorrentePage() {
                     }`}
                   >
                     <Filter size={16} className="mr-1.5" />
-                    {isFilterActive ? `${Object.values({filterTipo, filterSetor, filterEmpresa, filterDateRange, filterPositiveSaldo}).filter(Boolean).length} filtros` : "Filtrar"}
+                    {isFilterActive ? `${Object.values({filterTipo, filterSetor, filterEmpresa, filterDateRange, filterPositiveSaldo, filterSaldo}).filter(Boolean).length} filtros` : "Filtrar"}
                     <ChevronDown size={16} className="ml-1.5" />
                   </button>
                 </div>
@@ -1417,13 +1454,14 @@ export default function ContaCorrentePage() {
                       <div className="space-y-1.5">
                         <label className="text-sm font-medium text-gray-700">Saldo</label>
                         <select
-                          value={filterPositiveSaldo === null ? '' : filterPositiveSaldo ? 'positivo' : 'negativo'}
-                          onChange={(e) => setFilterPositiveSaldo(e.target.value === 'positivo' ? true : e.target.value === 'negativo' ? false : null)}
+                          value={filterSaldo}
+                          onChange={(e) => setFilterSaldo(e.target.value)}
                           className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#344893]"
                         >
                           <option value="">Todos os saldos</option>
                           <option value="positivo">Saldo Positivo</option>
                           <option value="negativo">Saldo Negativo</option>
+                          <option value="neutro">Saldo Neutro</option>
                         </select>
                       </div>
                     </div>
@@ -1493,25 +1531,11 @@ export default function ContaCorrentePage() {
             </div>
           )}
 
-          {viewMode === "grid" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {sortedContas.slice(0, visibleItems).map((conta) => (
-                <ContaCorrenteCard
-                  key={conta.id}
-                  conta={conta}
-                  onViewDetails={() => handleViewDetails(conta)}
-                  onEdit={() => handleOpenEditModal(conta)}
-                  onToggleVisibility={() => handleToggleVisibility(conta)}
-                  canEdit={userPermissions.canEdit}
-                  canDelete={userPermissions.canDelete}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
+          {viewMode === "table" ? (
+            <div className="overflow-x-auto bg-white rounded-lg shadow">
+              <table className="min-w-full">
                 <thead>
-                  <tr className="bg-gray-100 border-b border-gray-200">
+                  <tr className="bg-gray-50 border-b">
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Conta
                     </th>
@@ -1520,6 +1544,9 @@ export default function ContaCorrentePage() {
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Tipo
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Setor
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Empresa
@@ -1533,12 +1560,12 @@ export default function ContaCorrentePage() {
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Saldo
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Ações
                     </th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="bg-white divide-y divide-gray-200">
                   {sortedContas.slice(0, visibleItems).map((conta) => {
                     const lancamentos = Array.isArray(conta.lancamentos) ? conta.lancamentos : [];
                     const creditos = lancamentos
@@ -1550,37 +1577,49 @@ export default function ContaCorrentePage() {
                     const saldo = creditos - debitos;
 
                     return (
-                      <tr key={conta.id} className="border-b border-gray-200 hover:bg-gray-50">
+                      <tr key={conta.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className={`mr-2 flex-shrink-0 h-4 w-4 rounded-full ${conta.oculto ? 'bg-gray-300' : 'bg-blue-500'}`}></div>
-                            <div className="text-sm font-medium text-gray-900">
-                              {conta.fornecedorCliente || `Conta #${conta.id}`}
-                            </div>
+                          <div className="font-medium text-gray-900">
+                            {conta.fornecedorCliente || `Conta #${conta.id}`}
                           </div>
                           <div className="text-xs text-gray-500">
-                            ID: {conta.id}
+                            {lancamentos.length} lançamento(s)
                           </div>
                         </td>
-
+                        
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">{formatDate(conta.data)}</div>
-                          <div className="text-xs text-gray-500">
-                            {new Date(conta.createdAt).toLocaleDateString('pt-BR')}
+                        </td>
+                        
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {conta.tipo === 'EXTRA_CAIXA' ? 'Extra Caixa' : 
+                             conta.tipo === 'PERMUTA' ? 'Permuta' : 
+                             conta.tipo === 'DEVOLUCAO' ? 'Devolução' : conta.tipo}
                           </div>
                         </td>
 
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{conta.tipo}</div>
-                          <div className="text-xs text-gray-500">
-                            Setor: {conta.setor || '-'}
-                          </div>
+                          <div className="text-sm text-gray-900">{conta.setor || '-'}</div>
                         </td>
-
+                        
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{conta.empresa?.nome || '-'}</div>
-                          <div className="text-xs text-gray-500">
-                            {conta.empresa?.numero || ''}
+                          <div className="text-sm text-gray-900">
+                            {(() => {
+                              // Tentar obter o nome da empresa de todas as formas possíveis
+                              const empresaNome = conta.empresa?.nome || 
+                                                 conta.empresa?.nomeEmpresa || 
+                                                 (conta.empresaId ? `Empresa #${conta.empresaId}` : '-');
+                              
+                              // Adicionar log para depuração apenas durante o desenvolvimento
+                              console.log(`Empresa para conta ${conta.id}:`, {
+                                empresaObj: conta.empresa,
+                                empresaId: conta.empresaId,
+                                empresaNome
+                              });
+                              
+                              return empresaNome;
+                            })()}
                           </div>
                         </td>
 
@@ -1593,40 +1632,44 @@ export default function ContaCorrentePage() {
                         </td>
 
                         <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className={`text-sm font-medium ${saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <div className={`text-sm font-medium ${
+                            saldo > 0 
+                              ? 'text-green-600' 
+                              : saldo < 0 
+                                ? 'text-red-600' 
+                                : 'text-blue-600' // Azul para saldo zero
+                          }`}>
                             {formatCurrency(saldo)}
                           </div>
                         </td>
 
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex items-center justify-end space-x-2">
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <div className="flex items-center justify-center space-x-3">
                             <button
                               onClick={() => handleViewDetails(conta)}
                               className="text-blue-600 hover:text-blue-800"
                               title="Ver detalhes"
                             >
-                              <Eye size={16} />
+                              <Eye size={18} />
                             </button>
                             
-                            {/* Mostrar botão de editar APENAS se tiver permissão explícita - independente de ser o dono */}
                             {userPermissions.canEdit && (
                               <button
                                 onClick={() => handleOpenEditModal(conta)}
                                 className="text-orange-600 hover:text-orange-800"
                                 title="Editar"
                               >
-                                <Edit size={16} />
+                                <Edit size={18} />
                               </button>
                             )}
                             
-                            {/* Mostrar botão de excluir APENAS se tiver permissão explícita - independente de ser o dono */}
                             {userPermissions.canDelete && (
                               <button
                                 onClick={() => handleToggleVisibility(conta)}
                                 className="text-red-600 hover:text-red-800"
                                 title="Excluir"
                               >
-                                <Trash2 size={16} />
+                                <Trash2 size={18} />
                               </button>
                             )}
                           </div>
@@ -1636,6 +1679,20 @@ export default function ContaCorrentePage() {
                   })}
                 </tbody>
               </table>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {sortedContas.slice(0, visibleItems).map((conta) => (
+                <ContaCorrenteCard
+                  key={conta.id}
+                  conta={conta}
+                  onViewDetails={() => handleViewDetails(conta)}
+                  onEdit={() => handleOpenEditModal(conta)}
+                  onToggleVisibility={() => handleToggleVisibility(conta)}
+                  canEdit={userPermissions.canEdit}
+                  canDelete={userPermissions.canDelete}
+                />
+              ))}
             </div>
           )}
 

@@ -1351,7 +1351,13 @@ export default function ContaCorrenteTodosPage() {
                           {conta.empresa?.nome || conta.fornecedorCliente || '-'}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-medium">
-                          <span className={conta.saldo >= 0 ? 'text-green-600' : 'text-red-600'}>
+                          <span className={
+                            conta.saldo > 0 
+                              ? 'text-green-600' 
+                              : conta.saldo < 0 
+                                ? 'text-red-600' 
+                                : 'text-blue-600'  // Cor azul para saldo zero (neutro)
+                          }>
                             {formatCurrency(conta.saldo)}
                           </span>
                         </td>

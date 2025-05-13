@@ -80,29 +80,47 @@ const calcularValoresSeguros = (conta: any) => {
   return { creditos, debitos, saldo };
 };
 
-export default function ContaCorrenteCard({ conta, onViewDetails, onEdit, onToggleVisibility, canEdit, canDelete }: ContaCorrenteCardProps) {
-  // Debugging para verificar a estrutura
-  console.log("Conta recebida no card:", {
-    id: conta.id,
-    fornecedorCliente: conta.fornecedorCliente,
-    empresa: conta.empresa,
-    empresaId: conta.empresaId
-  });
+const ContaCorrenteCard: React.FC<ContaCorrenteCardProps> = ({
+  conta,
+  onViewDetails,
+  onEdit,
+  onToggleVisibility,
+  canEdit,
+  canDelete
+}) => {
+  // Calcular o saldo
+  const lancamentos = Array.isArray(conta.lancamentos) ? conta.lancamentos : [];
+  interface Lancamento {
+    credito?: string | number;
+    debito?: string | number;
+  }
 
-  // Garantir acesso correto aos dados da empresa
-  const empresaNome = conta.empresa?.nome || 
-                     conta.empresa?.nomeEmpresa || // Possível variação no nome da propriedade
-                     (typeof conta.empresa === 'string' ? conta.empresa : '-');
+  const creditos: number = lancamentos
+    .filter((l: Lancamento) => l?.credito && !isNaN(parseFloat(String(l.credito))))
+    .reduce((sum: number, item: Lancamento) => sum + parseFloat(String(item.credito || "0")), 0);
   
-  // Calcular valores de forma segura
-  const { creditos, debitos, saldo } = calcularValoresSeguros(conta);
+  const debitos: number = lancamentos
+    .filter((l: Lancamento) => l?.debito && !isNaN(parseFloat(String(l.debito))))
+    .reduce((sum: number, item: Lancamento) => sum + parseFloat(String(item.debito || "0")), 0);
+  
+  const saldo = creditos - debitos;
+  
+  // Determinar a classe de borda baseada no saldo
+  const borderColorClass = saldo > 0 
+    ? 'border-t-green-500' 
+    : saldo < 0 
+      ? 'border-t-red-500' 
+      : 'border-t-blue-500'; // Azul para saldo zero
 
+  // Adicionando lógica para determinar o nome da empresa
+  const empresaNome = conta.empresa?.nome || 
+                      conta.empresa?.nomeEmpresa || 
+                      (conta.empresaId ? `Empresa #${conta.empresaId}` : '-');
+  
   return (
-    <motion.div
-      whileHover={{ y: -5, boxShadow: '0 10px 15px -5px rgba(0, 0, 0, 0.1)' }}
-      className={`bg-white rounded-lg shadow-sm overflow-hidden ${conta.oculto ? 'border border-dashed border-gray-300 bg-gray-50' : ''}`}
+    <div 
+      className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-all border border-gray-100 ${borderColorClass} border-t-4 overflow-hidden`}
     >
-      <div className={`h-2 ${saldo >= 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
       <div className="p-5">
         <div className="flex justify-between items-start">
           <div className="flex items-center">
@@ -128,7 +146,13 @@ export default function ContaCorrenteCard({ conta, onViewDetails, onEdit, onTogg
         <div className="mt-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium text-gray-600">Saldo:</span>
-            <div className={`font-semibold text-xl ${saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div className={`font-semibold text-xl ${
+              saldo > 0 
+                ? 'text-green-600' 
+                : saldo < 0 
+                  ? 'text-red-600' 
+                  : 'text-blue-600'
+            }`}>
               {formatCurrency(saldo)}
             </div>
           </div>
@@ -161,23 +185,25 @@ export default function ContaCorrenteCard({ conta, onViewDetails, onEdit, onTogg
           
           {/* Mais detalhes */}
           <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-gray-600">Tipo:</span>
-            <span className="text-sm text-gray-800">{conta.tipo}</span>
-          </div>
-          
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-medium text-gray-600">Setor:</span>
-            <span className="text-sm text-gray-800">{conta.setor || '-'}</span>
+            <span className="text-sm font-medium text-gray-700">Tipo:</span>
+            <span className="text-sm text-gray-600">{conta.tipo}</span>
           </div>
           
           <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-gray-600">Empresa:</span>
-            <span className="text-sm text-gray-800">{empresaNome}</span>
+            <span className="text-sm font-medium text-gray-700">Setor:</span>
+            <span className="text-sm text-gray-600">{conta.setor || '-'}</span>
           </div>
           
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-medium text-gray-600">Lançamentos:</span>
-            <span className="text-sm text-gray-800">{Array.isArray(conta.lancamentos) ? conta.lancamentos.length : 0}</span>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-gray-700">Empresa:</span>
+            <span className="text-sm text-gray-600 truncate max-w-[60%] text-right" title={empresaNome}>
+              {empresaNome}
+            </span>
+          </div>
+          
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm font-medium text-gray-700">Lançamentos:</span>
+            <span className="text-sm text-gray-600">{Array.isArray(conta.lancamentos) ? conta.lancamentos.length : 0}</span>
           </div>
         </div>
         
@@ -215,9 +241,11 @@ export default function ContaCorrenteCard({ conta, onViewDetails, onEdit, onTogg
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
-}
+};
+
+export default ContaCorrenteCard;
 
 // Se ainda não aparecer, verifique na chamada da API o retorno da empresa
 const fetchMinhasContas = async () => {
