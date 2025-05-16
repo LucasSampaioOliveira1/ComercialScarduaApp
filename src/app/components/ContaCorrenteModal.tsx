@@ -588,36 +588,36 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-start justify-center z-50 overflow-auto py-5">
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-start justify-center z-50 overflow-auto py-3">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-xl shadow-2xl w-full max-w-5xl mx-4 my-auto"
+        className="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-3 my-auto"
       >
         <form onSubmit={handleSubmit}>
           {/* Cabeçalho do modal com cores claras */}
-          <div className="bg-gradient-to-r from-gray-100 to-blue-50 p-6 rounded-t-xl">
+          <div className="bg-gradient-to-r from-gray-100 to-blue-50 p-3 rounded-t-xl">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-800">
+              <h2 className="text-xl font-bold text-gray-800">
                 {isEditMode ? 'Editar Conta Corrente' : 'Nova Conta Corrente'}
               </h2>
               <button
                 type="button"
                 onClick={onClose}
-                className="text-gray-500 hover:text-gray-800 hover:bg-gray-200 p-2 rounded-full transition-colors"
+                className="text-gray-500 hover:text-gray-800 hover:bg-gray-200 p-1 rounded-full transition-colors"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
             
             {/* Primeira linha de campos - Removido campo responsável, renomeado Funcionário para Colaborador */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+              <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
                 <label className="block text-xs text-gray-700 mb-2 font-medium">EMPRESA</label>
                 <select 
                   value={formData.empresaId} 
                   onChange={(e) => handleFormChange('empresaId', e.target.value)}
-                  className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                  className="w-full px-2 py-1 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
                   disabled={isLoading}
                 >
                   <option value="">Selecione...</option>
@@ -631,12 +631,12 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                 </select>
               </div>
               
-              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+              <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
                 <label className="block text-xs text-gray-700 mb-2 font-medium">COLABORADOR</label>
                 <select 
                   value={formData.colaboradorId}
                   onChange={(e) => handleFormChange('colaboradorId', e.target.value)}
-                  className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                  className="w-full px-2 py-1 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
                   disabled={isLoading}
                 >
                   <option value="">Selecione...</option>
@@ -663,13 +663,13 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
             </div>
             
             {/* Segunda linha - Tipo, Setor e Data - reorganizados em 3 colunas */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-5">
-              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-5">
+              <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
                 <label className="block text-xs text-gray-700 mb-2 font-medium">TIPO</label>
                 <select
                   value={formData.tipo}
                   onChange={(e) => handleFormChange('tipo', e.target.value)}
-                  className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                  className="w-full px-2 py-1 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
                   disabled={isLoading}
                 >
                   <option value="EXTRA_CAIXA">Extra Caixa</option>
@@ -678,12 +678,12 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                 </select>
               </div>
               
-              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+              <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
                 <label className="block text-xs text-gray-700 mb-2 font-medium">SETOR</label>
                 <select 
                   value={formData.setor || ''}
                   onChange={(e) => handleFormChange('setor', e.target.value)}
-                  className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                  className="w-full px-2 py-1 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
                   disabled={isLoading}
                 >
                   <option value="">Selecione um setor...</option>
@@ -700,13 +700,13 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
               </div>
               
               {/* Data movida para esta linha */}
-              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+              <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
                 <label className="block text-xs text-gray-700 mb-2 font-medium">DATA</label>
                 <input 
                   type="date" 
                   value={formData.data}
                   onChange={(e) => handleFormChange('data', e.target.value)}
-                  className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                  className="w-full px-2 py-1 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
                   disabled={isLoading}
                 />
               </div>
@@ -734,16 +734,16 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                 value={formData.observacao || ''}
                 onChange={(e) => handleFormChange('observacao', e.target.value)}
                 placeholder="Observações adicionais"
-                className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md h-20 focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                className="w-full px-2 py-1 bg-white text-gray-800 border border-gray-300 rounded-md h-14 focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
                 disabled={isLoading}
               />
             </div>
 
             {/* Informações de Saldo - com cores mais suaves */}
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <span className="block text-sm font-medium text-blue-500">TOTAL ENTRADAS</span>
-                <span className="text-xl font-bold text-green-600">
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
+              <div className="text-center p-1.5 bg-blue-50 rounded-lg">
+                <span className="block text-xs font-medium text-blue-500">TOTAL ENTRADAS</span>
+                <span className="text-base font-bold text-green-600">
                   R$ {calcularTotalCreditos().toLocaleString('pt-BR', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
@@ -751,9 +751,9 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                   })}
                 </span>
               </div>
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <span className="block text-sm font-medium text-blue-500">TOTAL SAÍDAS</span>
-                <span className="text-xl font-bold text-red-600">
+              <div className="text-center p-1.5 bg-blue-50 rounded-lg">
+                <span className="block text-xs font-medium text-blue-500">TOTAL SAÍDAS</span>
+                <span className="text-base font-bold text-red-600">
                   R$ {calcularTotalDebitos().toLocaleString('pt-BR', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
@@ -762,9 +762,9 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                 </span>
               </div>
               {/* No bloco de exibição do saldo final */}
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <span className="block text-sm font-medium text-blue-500">SALDO FINAL</span>
-                <span className={`text-xl font-bold ${calcularSaldo() >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <div className="text-center p-1.5 bg-blue-50 rounded-lg">
+                <span className="block text-xs font-medium text-blue-500">SALDO FINAL</span>
+                <span className={`text-lg font-bold ${calcularSaldo() >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {formatCurrency(calcularSaldo())}
                 </span>
               </div>
@@ -772,7 +772,7 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
           </div>
 
           {/* Tabela de Lançamentos - redesenhada com visual mais clean */}
-          <div className="p-6 overflow-x-auto">
+          <div className="p-4 overflow-x-auto">
             {isEditMode && (
               <div className="flex items-center mb-4 p-2 bg-blue-50 rounded-lg">
                 <input
@@ -799,54 +799,54 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
               </button>
             </div>
             
-            <table className="w-full border-collapse">
+            <table className="w-full border-collapse text-xs">
               <thead>
                 <tr>
-                  <th className="border-b-2 border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-                  <th className="border-b-2 border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
-                  <th className="border-b-2 border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Documento</th>
-                  <th className="border-b-2 border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Observação</th>
-                  <th className="border-b-2 border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Crédito</th>
-                  <th className="border-b-2 border-gray-200 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Débito</th>
-                  <th className="border-b-2 border-gray-200 px-4 py-3"></th>
+                  <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                  <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                  <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Documento</th>
+                  <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Observação</th>
+                  <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Crédito</th>
+                  <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Débito</th>
+                  <th className="border-b border-gray-200 px-2 py-2"></th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {lancamentos.map((lancamento, index) => (
                   // Adicione feedback visual para campos de valor vazios
                   <tr key={index} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                    <td className="px-4 py-3 text-sm text-gray-900">{index + 1}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-2 text-sm text-gray-900">{index + 1}</td>
+                    <td className="px-2 py-2">
                       <input
                         type="date"
                         value={lancamento.data}
                         onChange={(e) => atualizarLinha(index, 'data', e.target.value)}
-                        className="block w-full px-3 py-1.5 text-base text-gray-700 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        className="block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                         disabled={isLoading}
                         required
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-2">
                       <input
                         type="text"
                         value={lancamento.numeroDocumento}
                         onChange={(e) => atualizarLinha(index, 'numeroDocumento', e.target.value)}
-                        className="block w-full px-3 py-1.5 text-base text-gray-700 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        className="block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                         placeholder="Nº Doc"
                         disabled={isLoading}
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-2">
                       <input
                         type="text"
                         value={lancamento.observacao}
                         onChange={(e) => atualizarLinha(index, 'observacao', e.target.value)}
-                        className="block w-full px-3 py-1.5 text-base text-gray-700 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        className="block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                         placeholder="Descrição do lançamento"
                         disabled={isLoading}
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-2">
                       <div className="relative">
                         <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">R$</span>
                         <input
@@ -862,7 +862,7 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                         />
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-2 py-2">
                       <div className="relative">
                         <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">R$</span>
                         <input
@@ -878,7 +878,7 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                         />
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right text-sm font-medium">
+                    <td className="px-2 py-2 text-right text-sm font-medium">
                       {/* Mostrar botão de remover apenas se tiver permissão para editar */}
                       {(!isEditMode || userPermissions?.canEdit) && (
                         <button 
@@ -906,12 +906,12 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
           </div>
 
           {/* Botões de ação - redesenhados */}
-          <div className="border-t border-gray-200 p-6 flex justify-end bg-gray-50 rounded-b-xl">
-            <div className="flex space-x-3">
+          <div className="border-t border-gray-200 p-3 flex justify-end bg-gray-50 rounded-b-xl">
+            <div className="flex space-x-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-6 py-2.5 bg-gray-200 text-gray-700 font-medium text-sm rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
+                className="px-4 py-1.5 bg-gray-200 text-gray-700 font-medium text-xs rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
                 disabled={isLoading}
               >
                 Cancelar
@@ -920,7 +920,7 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
               <button
                 type="submit"
                 disabled={isLoading}
-                className="px-6 py-2.5 bg-blue-600 text-white font-medium text-sm rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-1.5 bg-blue-600 text-white font-medium text-xs rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <div className="flex items-center">
