@@ -29,8 +29,10 @@ model User {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   sessions    Session[] @relation("UserSessions")
-  empresasCriadas Empresa[] // relacionamento inverso
+  empresasCriadas Empresa[]
   contasCorrentes   ContaCorrente[]
+
+  colaborador Colaborador? @relation("UserColaborador") // <-- Adicione esta linha
 
   @@map("users")
 }
@@ -140,7 +142,6 @@ model Colaborador {
   agenciaNumero     String?
   tipoVale          String?
   vt1Valor          Float?
-  // Campos removidos: empresaAcess, empresaRegistro, empresaTrabalho
   tipo              String?
   comissao          Float?
   admissao          DateTime? // Permitir valores nulos
@@ -148,11 +149,14 @@ model Colaborador {
   oculto            Boolean   @default(false)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
-  
-  // Adicionar este campo
+
   numeroEmpresa     String?
-  
-  // Relações
+
+  // RELACIONAMENTO COM USER
+  userId            String?   @unique // <-- Alterado para ser único
+  user              User?     @relation("UserColaborador", fields: [userId], references: [id]) // <-- E esta
+
+  // Relações existentes
   empresaId         Int?      
   empresa           Empresa?  @relation(fields: [empresaId], references: [id])
   patrimonios                          Patrimonio[]
@@ -162,7 +166,8 @@ model Colaborador {
   contasCorrentes                      ContaCorrente[]
 
   @@map("colaboradores")
-  @@index([empresaId]) // Adiciona índice para melhorar performance de consultas
+  @@index([empresaId])
+  @@index([userId]) // (opcional, mas recomendado para performance)
 }
 
 model Session {
@@ -227,7 +232,7 @@ model ContaCorrente {
   empresa           Empresa?        @relation(fields: [empresaId], references: [id])
   colaboradorId     Int?
   colaborador       Colaborador?    @relation(fields: [colaboradorId], references: [id])
-  userId            String?         // Adicionando relação com User
+  userId            String?         // Chave estrangeira para User
   user              User?           @relation(fields: [userId], references: [id])
   data              DateTime
   tipo              String          

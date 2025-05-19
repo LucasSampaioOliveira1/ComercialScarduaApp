@@ -126,6 +126,7 @@ interface User {
   nome: string;
   sobrenome: string;
   email: string;
+  cpf: string; // <-- Adicione isso!
 }
 
 // Atualizar a interface Stats
@@ -461,16 +462,12 @@ export default function ContaCorrentePage() {
     setVisibleItems(itemsPerLoad);
   }, [searchTerm, filterTipo, filterSetor, filterEmpresa, filterDateRange, filterPositiveSaldo, filterSaldo, itemsPerLoad]);
 
+  // No fetchDadosAuxiliares, sempre busque o usuário logado (não só para admin)
   const fetchDadosAuxiliares = async () => {
     try {
-      // Obter token do localStorage
       const token = localStorage.getItem("token");
-      
-      if (!token) {
-        console.error("Token não encontrado");
-        return;
-      }
-      
+      if (!token) return;
+
       // Fetch empresas
       console.log("Buscando lista de empresas...");
       const empresasResponse = await fetch('/api/empresas/list', {
@@ -501,14 +498,14 @@ export default function ContaCorrentePage() {
         setColaboradores(colaboradoresData);
       }
       
-      // Fetch usuários (somente para admins)
-      if (isAdmin) {
-        const usuariosResponse = await fetch('/api/users', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (usuariosResponse.ok) {
-          const usuariosData = await usuariosResponse.json();
-          setUsuarios(usuariosData);
+      // Buscar usuário logado
+      const statusResponse = await fetch("/api/status", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        if (statusData.user) {
+          setUsuarios([statusData.user]); // Array com apenas o usuário logado
         }
       }
     } catch (error) {

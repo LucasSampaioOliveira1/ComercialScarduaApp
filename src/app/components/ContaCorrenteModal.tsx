@@ -38,6 +38,8 @@ interface Colaborador {
   sobrenome?: string;
   cargo?: string;
   setor?: string;
+  cpf?: string;
+  userId?: string; // <-- Adicione esta linha!
 }
 
 interface User {
@@ -45,6 +47,7 @@ interface User {
   nome: string;
   sobrenome?: string;
   email: string;
+  cpf?: string; // <-- Adicione isso
   role?: string;
 }
 
@@ -585,6 +588,43 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
     }).format(value);
   };
 
+  // Função utilitária para limpar o CPF
+  function limparCPF(cpf?: string) {
+    return cpf ? cpf.replace(/[^\d]/g, '') : '';
+  }
+
+  // Encontrar o usuário logado
+  const usuarioAtual = usuarios.find(u => String(u.id) === String(currentUserId));
+  console.log("Usuário atual:", usuarioAtual);
+
+  console.log(
+    "CPFs para comparação:",
+    "Usuário:", limparCPF(usuarioAtual?.cpf),
+    "Colaboradores:", colaboradores.map(c => limparCPF(c.cpf))
+  );
+
+  // Encontrar o colaborador correspondente pelo relacionamento userId
+  const colaboradorAtual = usuarioAtual?.cpf
+    ? colaboradores.find(c => limparCPF(c.cpf) === limparCPF(usuarioAtual.cpf))
+    : undefined;
+
+  console.log("Colaborador encontrado:", colaboradorAtual);
+
+  const listaColaboradorUnico = colaboradorAtual ? [colaboradorAtual] : [];
+
+  useEffect(() => {
+    if (!isEditMode && listaColaboradorUnico.length > 0 && isOpen) {
+      setFormData((prev) => ({
+        ...prev,
+        colaboradorId: listaColaboradorUnico[0].id.toString()
+      }));
+    }
+    // eslint-disable-next-line
+  }, [isEditMode, isOpen, listaColaboradorUnico.length]);
+
+  const nenhumColaboradorEncontrado = !isEditMode && listaColaboradorUnico.length === 0 && isOpen;
+
+  // O if (!isOpen) deve vir DEPOIS de tudo acima!
   if (!isOpen) return null;
 
   return (
@@ -594,6 +634,15 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
         animate={{ opacity: 1, y: 0 }}
         className="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-3 my-auto"
       >
+        {/* AVISO DE NENHUM COLABORADOR ENCONTRADO */}
+        {nenhumColaboradorEncontrado && (
+          <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 mb-4 rounded flex items-center">
+            <AlertTriangle className="mr-2" size={20} />
+            Nenhum colaborador correspondente ao seu CPF foi encontrado. 
+            Por favor, entre em contato com administrador do sistema.
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           {/* Cabeçalho do modal com cores claras */}
           <div className="bg-gradient-to-r from-gray-100 to-blue-50 p-3 rounded-t-xl">
@@ -640,24 +689,11 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
                   disabled={isLoading}
                 >
                   <option value="">Selecione...</option>
-                  {Array.isArray(colaboradores) && 
-                    // Clonar o array para não modificar o original e ordenar ignorando espaços
-                    [...colaboradores]
-                      .sort((a, b) => {
-                        // Remover espaços iniciais para comparação correta
-                        const nomeA = (a.nome || '').trim().toLowerCase();
-                        const nomeB = (b.nome || '').trim().toLowerCase();
-                        return nomeA.localeCompare(nomeB);
-                      })
-                      .map(col => (
-                        col && (
-                          <option key={col.id} value={col.id}>
-                            {/* Usar o nome original para exibição, não o sem espaços */}
-                            {col.nome} {col.sobrenome || ''}
-                          </option>
-                        )
-                      ))
-                  }
+                  {listaColaboradorUnico.length > 0 && (
+                    <option value={listaColaboradorUnico[0].id}>
+                      {listaColaboradorUnico[0].nome} {listaColaboradorUnico[0].sobrenome || ''}
+                    </option>
+                  )}
                 </select>
               </div>
             </div>

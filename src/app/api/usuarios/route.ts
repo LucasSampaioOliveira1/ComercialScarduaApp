@@ -128,15 +128,16 @@ export async function GET(req: NextRequest) {
     const usuarios = await prisma.user.findMany({
       where: showHidden ? {} : { oculto: false },
       select: {
-      id: true,
-      nome: true,
-      sobrenome: true,
-      email: true,
-      role: true,
-      foto: true,
-      oculto: true,
-      createdAt: true,
-      updatedAt: true
+        id: true,
+        nome: true,
+        sobrenome: true,
+        email: true,
+        role: true,
+        foto: true,
+        oculto: true,
+        createdAt: true,
+        updatedAt: true,
+        cpf: true // <-- ADICIONE ESTA LINHA
       },
       orderBy: { createdAt: 'desc' }
     });

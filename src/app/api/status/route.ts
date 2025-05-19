@@ -67,7 +67,8 @@ export async function GET(req: NextRequest) {
         role: true,
         oculto: true,
         createdAt: true,
-        updatedAt: true
+        updatedAt: true,
+        cpf: true // <-- ESSENCIAL PARA O FILTRO FUNCIONAR
       }
     });
 
@@ -93,7 +94,8 @@ export async function GET(req: NextRequest) {
         role: user.role,
         oculto: user.oculto,
         createdAt: user.createdAt,
-        updatedAt: user.updatedAt
+        updatedAt: user.updatedAt,
+        cpf: user.cpf // <-- FALTA AQUI!
       }
     });
 
