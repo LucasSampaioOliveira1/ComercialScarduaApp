@@ -31,8 +31,9 @@ model User {
   sessions    Session[] @relation("UserSessions")
   empresasCriadas Empresa[]
   contasCorrentes   ContaCorrente[]
+  caixasViagem      CaixaViagem[]  // <-- Adicionando relacionamento inverso
 
-  colaborador Colaborador? @relation("UserColaborador") // <-- Adicione esta linha
+  colaborador Colaborador? @relation("UserColaborador")
 
   @@map("users")
 }
@@ -164,6 +165,7 @@ model Colaborador {
   movimentacoesComoResponsavelAnterior Movimentacao[] @relation("MovimentacaoResponsavelAnterior")
   movimentacoesComoResponsavelNovo     Movimentacao[] @relation("MovimentacaoResponsavelNovo")
   contasCorrentes                      ContaCorrente[]
+  caixasViagem                         CaixaViagem[]
 
   @@map("colaboradores")
   @@index([empresaId])
@@ -208,6 +210,7 @@ model Empresa {
   // Relacionamento com Colaborador
   colaboradores Colaborador[]
   contasCorrentes ContaCorrente[]
+  caixasViagem CaixaViagem[]
 
   @@map("empresas")
   @@index([criadoPorId])
@@ -267,5 +270,42 @@ model Lancamento {
 
   @@map("lancamentos")
   @@index([contaCorrenteId])
+}
+model CaixaViagem {
+  id            Int               @id @default(autoincrement())
+  empresaId     Int?              
+  empresa       Empresa?          @relation(fields: [empresaId], references: [id])
+  funcionarioId Int?              
+  funcionario   Colaborador?      @relation(fields: [funcionarioId], references: [id])
+  userId        String?           // <-- Adicionando chave estrangeira para User
+  user          User?             @relation(fields: [userId], references: [id]) // <-- Relacionamento com User
+  destino       String
+  data          DateTime
+  oculto        Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  lancamentos   ViagemLancamento[]
+  
+  @@index([empresaId])
+  @@index([funcionarioId])
+  @@index([userId])              // <-- Adicionando índice para userId
+}
+
+model ViagemLancamento {
+  id               Int          @id @default(autoincrement())
+  caixaViagemId    Int?         // <-- Adicione '?' aqui
+  caixaViagem      CaixaViagem? @relation(fields: [caixaViagemId], references: [id], onDelete: Cascade)
+  data             DateTime
+  custo            String
+  clienteFornecedor String
+  entrada          String?
+  saida            String?
+  numeroDocumento  String?
+  historicoDoc     String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([caixaViagemId]) // <-- Adicione esta linha
 }
 
