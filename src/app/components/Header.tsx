@@ -6,7 +6,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Home, Package, Users, Menu, X, ChevronDown,
-  Camera, LogOut, AlertTriangle, Building, Settings, ChevronRight, UserCog, DollarSign
+  Camera, LogOut, AlertTriangle, Building, Settings, ChevronRight, UserCog, DollarSign, Plane
 } from "lucide-react";
 import React from "react";
 import { useAuth } from './AuthProviderWrapper';
@@ -337,8 +337,28 @@ function HeaderContent() {
           pageName: 'contacorrentetodos' 
         }
       ]
+    },
+    // Novo item para Caixas de Viagem
+    {
+      key: 'viagens',
+      name: 'Caixas de Viagem',
+      icon: <Plane size={18} />,
+      type: 'dropdown',
+      children: [
+        { 
+          name: 'Minhas Caixas', 
+          path: '/caixaviagem', 
+          icon: <Plane size={16} />, 
+          pageName: 'caixaviagem' 
+        },
+        { 
+          name: 'Todas Caixas', 
+          path: '/caixaviagemtodos', 
+          icon: <Plane size={16} />, 
+          pageName: 'caixaviagemtodos' 
+        }
+      ]
     }
-    // Item de Relatórios removido aqui
   ];
 
   // Renderização dos itens de menu
