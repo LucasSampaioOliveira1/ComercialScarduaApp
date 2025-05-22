@@ -493,7 +493,7 @@ function HeaderContent() {
               className="flex items-center cursor-pointer"
             >
               <img src="/logo.png" alt="Logo" className="h-10 w-10" />
-              <span className="ml-2 text-lg font-semibold">Gestão de Patrimônio</span>
+              <span className="ml-2 text-lg font-semibold">Comercial Scardua</span>
             </button>
           </div>
           

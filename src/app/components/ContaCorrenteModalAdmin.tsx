@@ -699,8 +699,8 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
               </div>
             </div>
 
-            {/* Fornecedor/Cliente */}
-            <div className="mt-3">
+            {/* Terceira linha - Fornecedor/Cliente e Observações lado a lado */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
               <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
                 <label className="block text-xs text-gray-700 mb-2 font-medium">FORNECEDOR/CLIENTE</label>
                 <input 
@@ -712,18 +712,18 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
                   disabled={isLoading}
                 />
               </div>
-            </div>
 
-            {/* Observações */}
-            <div className="mt-3 bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
-              <label className="block text-xs text-gray-700 mb-2 font-medium">OBSERVAÇÕES</label>
-              <textarea 
-                value={formData.observacao || ''}
-                onChange={(e) => handleFormChange('observacao', e.target.value)}
-                placeholder="Observações adicionais"
-                className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded-md h-16 focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
-                disabled={isLoading}
-              />
+              <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
+                <label className="block text-xs text-gray-700 mb-2 font-medium">OBSERVAÇÕES</label>
+                <textarea 
+                  value={formData.observacao || ''}
+                  onChange={(e) => handleFormChange('observacao', e.target.value)}
+                  placeholder="Observações adicionais"
+                  rows={1}
+                  className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded-md h-fit focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
+                  disabled={isLoading}
+                />
+              </div>
             </div>
 
             {/* Informações de Saldo */}
@@ -769,122 +769,125 @@ const ContaCorrenteModalAdmin: React.FC<ContaCorrenteModalAdminProps> = ({
               </button>
             </div>
             
-            <table className="w-full border-collapse text-xs">
-              <thead>
-                <tr>
-                  <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    #
-                  </th>
-                  <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Data
-                  </th>
-                  <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Documento
-                  </th>
-                  <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Observação
-                  </th>
-                  <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Crédito
-                  </th>
-                  <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Débito
-                  </th>
-                  <th className="border-b-2 border-gray-200 px-2 py-2"></th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {lancamentos.map((lancamento, index) => (
-                  <tr key={index} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                    <td className="px-3 py-2 text-sm text-gray-900">{index + 1}</td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="date"
-                        value={lancamento.data || getLocalISODate()}
-                        onChange={(e) => atualizarLinha(index, 'data', e.target.value)}
-                        className="block w-full px-2 py-1 text-xs border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                        disabled={isLoading}
-                        required
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="text"
-                        value={lancamento.numeroDocumento}
-                        onChange={(e) => atualizarLinha(index, 'numeroDocumento', e.target.value)}
-                        className="block w-full px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Nº Doc"
-                        disabled={isLoading}
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="text"
-                        value={lancamento.observacao}
-                        onChange={(e) => atualizarLinha(index, 'observacao', e.target.value)}
-                        className="block w-full px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Descrição do lançamento"
-                        disabled={isLoading}
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="relative">
-                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">R$</span>
-                        <input
-                          type="text"
-                          value={lancamento.credito}
-                          onChange={(e) => atualizarLinha(index, 'credito', e.target.value)}
-                          className={`block w-full pl-8 pr-2 py-1 text-xs border rounded-md focus:ring-2 focus:outline-none
-                            ${!lancamento.credito && !lancamento.debito 
-                              ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                              : 'border-gray-300 focus:ring-blue-400 focus:border-blue-400'}`}
-                          placeholder="0,00"
-                          disabled={isLoading}
-                        />
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="relative">
-                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">R$</span>
-                        <input
-                          type="text"
-                          value={lancamento.debito}
-                          onChange={(e) => atualizarLinha(index, 'debito', e.target.value)}
-                          className={`block w-full pl-8 pr-2 py-1 text-xs border rounded-md focus:ring-2 focus:outline-none
-                            ${!lancamento.credito && !lancamento.debito 
-                              ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                              : 'border-gray-300 focus:ring-blue-400 focus:border-blue-400'}`}
-                          placeholder="0,00"
-                          disabled={isLoading}
-                        />
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-right text-sm font-medium">
-                      {/* Mostrar botão de remover apenas se tiver permissão para editar */}
-                      {(!isEditMode || userPermissions?.canEdit) && (
-                        <button 
-                          onClick={(e) => removerLancamento(index, e)}
-                          type="button"
-                          className="p-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-full transition-colors"
-                          title="Remover lançamento"
-                          disabled={isLoading}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </td>
+            {/* Tabela de lançamentos com campos mais largos, mas não excessivamente */}
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-xs min-w-[1050px]">
+                <thead>
+                  <tr>
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[3%]">
+                      #
+                    </th>
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
+                      Data
+                    </th>
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">
+                      Documento
+                    </th>
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">
+                      Observação
+                    </th>
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[13%]">
+                      Crédito
+                    </th>
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[13%]">
+                      Débito
+                    </th>
+                    <th className="border-b-2 border-gray-200 px-2 py-2 w-[4%]"></th>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-gray-50">
-                  <td colSpan={4} className="px-4 py-3 text-right font-medium">Totais:</td>
-                  <td className="px-4 py-3 text-right font-medium text-green-600">{formatCurrency(calcularTotalCreditos())}</td>
-                  <td className="px-4 py-3 text-right font-medium text-red-600">{formatCurrency(calcularTotalDebitos())}</td>
-                  <td></td>
-                </tr>
-              </tfoot>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {lancamentos.map((lancamento, index) => (
+                    <tr key={index} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                      <td className="px-3 py-2 text-sm text-gray-900">{index + 1}</td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="date"
+                          value={lancamento.data || getLocalISODate()}
+                          onChange={(e) => atualizarLinha(index, 'data', e.target.value)}
+                          className="block w-full px-2 py-1 text-xs border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                          disabled={isLoading}
+                          required
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          value={lancamento.numeroDocumento}
+                          onChange={(e) => atualizarLinha(index, 'numeroDocumento', e.target.value)}
+                          className="block w-full px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Nº Doc"
+                          disabled={isLoading}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          value={lancamento.observacao}
+                          onChange={(e) => atualizarLinha(index, 'observacao', e.target.value)}
+                          className="block w-full px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Descrição do lançamento"
+                          disabled={isLoading}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">R$</span>
+                          <input
+                            type="text"
+                            value={lancamento.credito}
+                            onChange={(e) => atualizarLinha(index, 'credito', e.target.value)}
+                            className={`block w-full pl-8 pr-2 py-1 text-xs border rounded-md focus:ring-2 focus:outline-none
+                              ${!lancamento.credito && !lancamento.debito 
+                                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                                : 'border-gray-300 focus:ring-blue-400 focus:border-blue-400'}`}
+                            placeholder="0,00"
+                            disabled={isLoading}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">R$</span>
+                          <input
+                            type="text"
+                            value={lancamento.debito}
+                            onChange={(e) => atualizarLinha(index, 'debito', e.target.value)}
+                            className={`block w-full pl-8 pr-2 py-1 text-xs border rounded-md focus:ring-2 focus:outline-none
+                              ${!lancamento.credito && !lancamento.debito 
+                                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                                : 'border-gray-300 focus:ring-blue-400 focus:border-blue-400'}`}
+                            placeholder="0,00"
+                            disabled={isLoading}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-right text-sm font-medium">
+                        {/* Mostrar botão de remover apenas se tiver permissão para editar */}
+                        {(!isEditMode || userPermissions?.canEdit) && (
+                          <button 
+                            onClick={(e) => removerLancamento(index, e)}
+                            type="button"
+                            className="p-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-full transition-colors"
+                            title="Remover lançamento"
+                            disabled={isLoading}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-gray-50">
+                    <td colSpan={4} className="px-4 py-3 text-right font-medium">Totais:</td>
+                    <td className="px-4 py-3 text-right font-medium text-green-600">{formatCurrency(calcularTotalCreditos())}</td>
+                    <td className="px-4 py-3 text-right font-medium text-red-600">{formatCurrency(calcularTotalDebitos())}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
 
           {/* Botões de ação */}

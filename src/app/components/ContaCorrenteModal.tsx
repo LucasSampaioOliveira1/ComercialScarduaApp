@@ -699,7 +699,7 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
             </div>
             
             {/* Segunda linha - Tipo, Setor e Data - reorganizados em 3 colunas */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
               <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
                 <label className="block text-xs text-gray-700 mb-2 font-medium">TIPO</label>
                 <select
@@ -748,31 +748,31 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
               </div>
             </div>
 
-            {/* Terceira linha - Agora com Fornecedor/Cliente ocupando toda a largura para dar destaque */}
-            <div className="mt-5">
-              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+            {/* Terceira linha - Fornecedor/Cliente e Observações lado a lado */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+              <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
                 <label className="block text-xs text-gray-700 mb-2 font-medium">FORNECEDOR/CLIENTE</label>
                 <input 
                   type="text" 
                   value={formData.fornecedorCliente || ''}
                   onChange={(e) => handleFormChange('fornecedorCliente', e.target.value)}
                   placeholder="Nome do fornecedor ou cliente"
-                  className="w-full px-3 py-2 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                  className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
                   disabled={isLoading}
                 />
               </div>
-            </div>
 
-            {/* Observações - permanece full width como estava */}
-            <div className="mt-5 bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-              <label className="block text-xs text-gray-700 mb-2 font-medium">OBSERVAÇÕES</label>
-              <textarea 
-                value={formData.observacao || ''}
-                onChange={(e) => handleFormChange('observacao', e.target.value)}
-                placeholder="Observações adicionais"
-                className="w-full px-2 py-1 bg-white text-gray-800 border border-gray-300 rounded-md h-14 focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
-                disabled={isLoading}
-              />
+              <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
+                <label className="block text-xs text-gray-700 mb-2 font-medium">OBSERVAÇÕES</label>
+                <textarea 
+                  value={formData.observacao || ''}
+                  onChange={(e) => handleFormChange('observacao', e.target.value)}
+                  placeholder="Observações adicionais"
+                  rows={1}
+                  className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
+                  disabled={isLoading}
+                />
+              </div>
             </div>
 
             {/* Informações de Saldo - com cores mais suaves */}
@@ -835,110 +835,125 @@ const ContaCorrenteModal: React.FC<ContaCorrenteModalProps> = ({
               </button>
             </div>
             
-            <table className="w-full border-collapse text-xs">
-              <thead>
-                <tr>
-                  <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-                  <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
-                  <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Documento</th>
-                  <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Observação</th>
-                  <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Crédito</th>
-                  <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Débito</th>
-                  <th className="border-b border-gray-200 px-2 py-2"></th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {lancamentos.map((lancamento, index) => (
-                  // Adicione feedback visual para campos de valor vazios
-                  <tr key={index} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                    <td className="px-2 py-2 text-sm text-gray-900">{index + 1}</td>
-                    <td className="px-2 py-2">
-                      <input
-                        type="date"
-                        value={lancamento.data}
-                        onChange={(e) => atualizarLinha(index, 'data', e.target.value)}
-                        className="block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        disabled={isLoading}
-                        required
-                      />
-                    </td>
-                    <td className="px-2 py-2">
-                      <input
-                        type="text"
-                        value={lancamento.numeroDocumento}
-                        onChange={(e) => atualizarLinha(index, 'numeroDocumento', e.target.value)}
-                        className="block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Nº Doc"
-                        disabled={isLoading}
-                      />
-                    </td>
-                    <td className="px-2 py-2">
-                      <input
-                        type="text"
-                        value={lancamento.observacao}
-                        onChange={(e) => atualizarLinha(index, 'observacao', e.target.value)}
-                        className="block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Descrição do lançamento"
-                        disabled={isLoading}
-                      />
-                    </td>
-                    <td className="px-2 py-2">
-                      <div className="relative">
-                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">R$</span>
-                        <input
-                          type="text"
-                          value={lancamento.credito || ''} // Garantir que nunca é null ou undefined
-                          onChange={(e) => atualizarLinha(index, 'credito', e.target.value)}
-                          className={`block w-full pl-10 pr-3 py-1.5 text-base border rounded-md focus:ring-2 focus:outline-none
-                            ${!lancamento.credito && !lancamento.debito 
-                              ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                              : 'border-gray-300 focus:ring-blue-400 focus:border-blue-400'}`}
-                          placeholder="0,00"
-                          disabled={isLoading}
-                        />
-                      </div>
-                    </td>
-                    <td className="px-2 py-2">
-                      <div className="relative">
-                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">R$</span>
-                        <input
-                          type="text"
-                          value={lancamento.debito || ''} // Garantir que nunca é null ou undefined
-                          onChange={(e) => atualizarLinha(index, 'debito', e.target.value)}
-                          className={`block w-full pl-10 pr-3 py-1.5 text-base border rounded-md focus:ring-2 focus:outline-none
-                            ${!lancamento.credito && !lancamento.debito 
-                              ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                              : 'border-gray-300 focus:ring-blue-400 focus:border-blue-400'}`}
-                          placeholder="0,00"
-                          disabled={isLoading}
-                        />
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 text-right text-sm font-medium">
-                      {/* Mostrar botão de remover apenas se tiver permissão para editar */}
-                      {(!isEditMode || userPermissions?.canEdit) && (
-                        <button 
-                          onClick={(e) => removerLancamento(index, e)}
-                          type="button" // Importante adicionar type="button"
-                          className="p-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-full transition-colors"
-                          title="Remover lançamento"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </td>
+            {/* Tabela de lançamentos com campos mais largos, mas não excessivamente */}
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-xs min-w-[1050px]">
+                <thead>
+                  <tr>
+                    <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[3%]">
+                      #
+                    </th>
+                    <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
+                      Data
+                    </th>
+                    <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">
+                      Documento
+                    </th>
+                    <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">
+                      Observação
+                    </th>
+                    <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[13%]">
+                      Crédito
+                    </th>
+                    <th className="border-b border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[13%]">
+                      Débito
+                    </th>
+                    <th className="border-b border-gray-200 px-2 py-2 w-[4%]"></th>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-gray-50">
-                  <td colSpan={4} className="px-4 py-3 text-right font-medium">Totais:</td>
-                  <td className="px-4 py-3 text-right font-medium text-green-600">{formatCurrency(calcularTotalCreditos())}</td>
-                  <td className="px-4 py-3 text-right font-medium text-red-600">{formatCurrency(calcularTotalDebitos())}</td>
-                  <td></td>
-                </tr>
-              </tfoot>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {lancamentos.map((lancamento, index) => (
+                    // Adicione feedback visual para campos de valor vazios
+                    <tr key={index} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                      <td className="px-2 py-2 text-sm text-gray-900">{index + 1}</td>
+                      <td className="px-2 py-2">
+                        <input
+                          type="date"
+                          value={lancamento.data}
+                          onChange={(e) => atualizarLinha(index, 'data', e.target.value)}
+                          className="block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          disabled={isLoading}
+                          required
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        <input
+                          type="text"
+                          value={lancamento.numeroDocumento}
+                          onChange={(e) => atualizarLinha(index, 'numeroDocumento', e.target.value)}
+                          className="block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Nº Doc"
+                          disabled={isLoading}
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        <input
+                          type="text"
+                          value={lancamento.observacao}
+                          onChange={(e) => atualizarLinha(index, 'observacao', e.target.value)}
+                          className="block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Descrição do lançamento"
+                          disabled={isLoading}
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">R$</span>
+                          <input
+                            type="text"
+                            value={lancamento.credito || ''} // Garantir que nunca é null ou undefined
+                            onChange={(e) => atualizarLinha(index, 'credito', e.target.value)}
+                            className={`block w-full pl-10 pr-3 py-1.5 text-base border rounded-md focus:ring-2 focus:outline-none
+                              ${!lancamento.credito && !lancamento.debito 
+                                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                                : 'border-gray-300 focus:ring-blue-400 focus:border-blue-400'}`}
+                            placeholder="0,00"
+                            disabled={isLoading}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-2 py-2">
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">R$</span>
+                          <input
+                            type="text"
+                            value={lancamento.debito || ''} // Garantir que nunca é null ou undefined
+                            onChange={(e) => atualizarLinha(index, 'debito', e.target.value)}
+                            className={`block w-full pl-10 pr-3 py-1.5 text-base border rounded-md focus:ring-2 focus:outline-none
+                              ${!lancamento.credito && !lancamento.debito 
+                                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                                : 'border-gray-300 focus:ring-blue-400 focus:border-blue-400'}`}
+                            placeholder="0,00"
+                            disabled={isLoading}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 text-right text-sm font-medium">
+                        {/* Mostrar botão de remover apenas se tiver permissão para editar */}
+                        {(!isEditMode || userPermissions?.canEdit) && (
+                          <button 
+                            onClick={(e) => removerLancamento(index, e)}
+                            type="button" // Importante adicionar type="button"
+                            className="p-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-full transition-colors"
+                            title="Remover lançamento"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-gray-50">
+                    <td colSpan={4} className="px-4 py-3 text-right font-medium">Totais:</td>
+                    <td className="px-4 py-3 text-right font-medium text-green-600">{formatCurrency(calcularTotalCreditos())}</td>
+                    <td className="px-4 py-3 text-right font-medium text-red-600">{formatCurrency(calcularTotalDebitos())}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
 
           {/* Botões de ação - redesenhados */}

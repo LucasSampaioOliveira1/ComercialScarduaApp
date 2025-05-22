@@ -1412,7 +1412,7 @@ export default function CaixaViagemTodosPage() {
           <CaixaViagemModalAdmin
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
-            caixa={selectedCaixa}
+            caixa={selectedCaixa as any}
             isEdit={isEditMode}
             onSave={handleSaveCaixaViagem}
             empresas={empresas}

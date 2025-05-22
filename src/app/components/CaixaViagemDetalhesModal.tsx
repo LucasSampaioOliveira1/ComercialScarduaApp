@@ -36,13 +36,24 @@ const CaixaViagemDetalhesModal = ({
   const lancamentos = Array.isArray(caixa.lancamentos) ? caixa.lancamentos : [];
   
   // Calcular totais
-  const totalEntradas = lancamentos
-    .filter(l => l?.entrada && !isNaN(parseFloat(String(l.entrada))))
-    .reduce((sum, item) => sum + parseFloat(String(item.entrada || "0")), 0);
+  interface Lancamento {
+    id?: string | number;
+    entrada?: string | number;
+    saida?: string | number;
+    data?: string;
+    numeroDocumento?: string;
+    historicoDoc?: string;
+    clienteFornecedor?: string;
+    custo?: string;
+  }
+
+  const totalEntradas: number = lancamentos
+    .filter((l: Lancamento) => l?.entrada && !isNaN(parseFloat(String(l.entrada))))
+    .reduce((sum: number, item: Lancamento) => sum + parseFloat(String(item.entrada || "0")), 0);
   
-  const totalSaidas = lancamentos
-    .filter(l => l?.saida && !isNaN(parseFloat(String(l.saida))))
-    .reduce((sum, item) => sum + parseFloat(String(item.saida || "0")), 0);
+  const totalSaidas: number = lancamentos
+    .filter((l: Lancamento) => l?.saida && !isNaN(parseFloat(String(l.saida))))
+    .reduce((sum: number, item: Lancamento) => sum + parseFloat(String(item.saida || "0")), 0);
   
   const saldo = totalEntradas - totalSaidas;
 

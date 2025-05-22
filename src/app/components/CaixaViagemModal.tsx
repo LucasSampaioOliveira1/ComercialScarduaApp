@@ -1,477 +1,866 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Check, Calendar, DollarSign, Map, Building, User, Loader2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { X, Plus, Trash2, Check, Calendar, DollarSign, Map, Building, User, Loader2, AlertTriangle, Truck } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { toast } from 'react-toastify';
+
+// Função para obter a data atual no formato YYYY-MM-DD
+const getLocalISODate = () => {
+  const now = new Date();
+  return new Date(now.getTime() - (now.getTimezoneOffset() * 60000))
+    .toISOString()
+    .split('T')[0];
+};
+
+// Função para preservar a data local
+const preserveLocalDate = (dateString?: string): string => {
+  if (!dateString) return getLocalISODate();
+  
+  // Se já estiver no formato YYYY-MM-DD, retornar como está
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    return dateString;
+  }
+  
+  try {
+    // Se for um ISO string com timestamp (formato que vem do banco)
+    if (dateString.includes('T')) {
+      const [datePart] = dateString.split('T');
+      return datePart;
+    }
+    
+    // Para outros formatos, converter usando uma data local
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
+  } catch (e) {
+    console.error("Erro ao preservar data local:", e);
+    return getLocalISODate();
+  }
+};
+
+// Tipos e interfaces
+interface LancamentoViagem {
+  id?: number;
+  caixaViagemId?: number;
+  data: string;
+  custo: string; // Campo tipo string para digitar o tipo de custo
+  clienteFornecedor: string;
+  documento: string;
+  historico: string; // Campo para histórico (descrição detalhada)
+  entrada?: string | number | null;
+  saida?: string | number | null;
+}
+
+interface Empresa {
+  id: number;
+  nome?: string;
+  nomeEmpresa?: string;
+}
+
+interface Funcionario {
+  id: number;
+  nome: string;
+  sobrenome?: string;
+}
+
+interface Veiculo {
+  id: number;
+  placa?: string;
+  modelo?: string;
+  descricao?: string;
+}
+
+interface CaixaViagem {
+  id?: number;
+  userId?: string;
+  empresaId?: number | null;
+  funcionarioId?: number | null;
+  veiculoId?: number | null;
+  destino: string;
+  observacao?: string;
+  data: string;
+  lancamentos: LancamentoViagem[];
+}
+
+interface CaixaViagemSaveData {
+  caixaViagem: CaixaViagem;
+  lancamentos: LancamentoViagem[];
+}
 
 interface CaixaViagemModalProps {
   isOpen: boolean;
   onClose: () => void;
-  caixa?: any;
+  caixa?: CaixaViagem | null;
   isEdit?: boolean;
-  onSave: (dados: any) => void;
-  empresas: any[];
-  funcionarios: any[];
+  onSave: (dados: CaixaViagemSaveData) => void;
+  empresas: Empresa[];
+  funcionarios: Funcionario[];
+  veiculos: Veiculo[]; // Adicionado veículos da tabela patrimônio
   isLoading: boolean;
 }
 
-const CaixaViagemModal = ({
+const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
   isOpen,
   onClose,
-  caixa,
+  caixa = null,
   isEdit = false,
   onSave,
-  empresas,
-  funcionarios,
-  isLoading
-}: CaixaViagemModalProps) => {
-  const [caixaData, setCaixaData] = useState<any>({
+  empresas = [],
+  funcionarios = [],
+  veiculos = [], // Nova prop para veículos
+  isLoading = false
+}) => {
+  // Estado para o formulário principal
+  const [caixaData, setCaixaData] = useState<Partial<CaixaViagem>>({
     id: undefined,
-    userId: '',
+    userId: localStorage.getItem('userId') || '',
+    empresaId: null,
+    funcionarioId: null,
+    veiculoId: null, // Novo campo para veículo selecionado
     destino: '',
-    data: new Date().toISOString().split('T')[0],
-    empresaId: '',
-    funcionarioId: '',
-    observacao: ''
+    observacao: '',
+    data: getLocalISODate(),
   });
 
-  const [lancamentos, setLancamentos] = useState<any[]>([
+  // Estado para os lançamentos
+  const [lancamentos, setLancamentos] = useState<LancamentoViagem[]>([
     {
       id: undefined,
-      data: new Date().toISOString().split('T')[0],
-      numeroDocumento: '',
-      historicoDoc: '',
+      data: getLocalISODate(),
       custo: '',
       clienteFornecedor: '',
+      documento: '',
+      historico: '',
       entrada: '',
       saida: ''
     }
   ]);
 
+  // Estado para modal de confirmação de exclusão de lançamento
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [lancamentoParaExcluir, setLancamentoParaExcluir] = useState<number | null>(null);
+
   // Efeito para carregar dados ao abrir para edição
   useEffect(() => {
+    // Se não estiver em modo de edição OU se o modal foi fechado, limpar os dados
+    if (!isEdit || !isOpen) {
+      setCaixaData({
+        id: undefined,
+        userId: localStorage.getItem('userId') || '',
+        empresaId: null,
+        funcionarioId: null,
+        veiculoId: null,
+        destino: '',
+        observacao: '',
+        data: getLocalISODate(),
+      });
+      
+      setLancamentos([{
+        id: undefined,
+        data: getLocalISODate(),
+        custo: '',
+        clienteFornecedor: '',
+        documento: '',
+        historico: '',
+        entrada: '',
+        saida: ''
+      }]);
+      
+      return;
+    }
+    
     if (isEdit && caixa) {
       setCaixaData({
         id: caixa.id,
         userId: caixa.userId || localStorage.getItem('userId') || '',
+        empresaId: caixa.empresaId,
+        funcionarioId: caixa.funcionarioId,
+        veiculoId: caixa.veiculoId,
         destino: caixa.destino || '',
-        data: caixa.data || new Date().toISOString().split('T')[0],
-        empresaId: caixa.empresaId || '',
-        funcionarioId: caixa.funcionarioId || '',
-        observacao: caixa.observacao || ''
+        observacao: caixa.observacao || '',
+        data: preserveLocalDate(caixa.data),
       });
 
-      // Carregar lançamentos se existirem, ou criar um vazio
+      // Carregar lançamentos se existirem
       if (caixa.lancamentos && caixa.lancamentos.length > 0) {
-        setLancamentos(caixa.lancamentos.map((l: any) => ({
+        const lancamentosFormatados = caixa.lancamentos.map((l: LancamentoViagem) => ({
           id: l.id,
-          data: l.data || new Date().toISOString().split('T')[0],
-          numeroDocumento: l.numeroDocumento || '',
-          historicoDoc: l.historicoDoc || '',
+          data: preserveLocalDate(l.data),
           custo: l.custo || '',
           clienteFornecedor: l.clienteFornecedor || '',
-          entrada: l.entrada || '',
-          saida: l.saida || ''
-        })));
+          documento: l.documento || '',
+          historico: l.historico || '',
+          entrada: l.entrada !== null && l.entrada !== undefined ? l.entrada : '',
+          saida: l.saida !== null && l.saida !== undefined ? l.saida : ''
+        }));
+        
+        setLancamentos(lancamentosFormatados);
+      } else {
+        // Se não houver lançamentos, criar um vazio
+        setLancamentos([{
+          id: undefined,
+          data: getLocalISODate(),
+          custo: '',
+          clienteFornecedor: '',
+          documento: '',
+          historico: '',
+          entrada: '',
+          saida: ''
+        }]);
       }
-    } else {
-      // Caso de nova caixa, usar o ID do usuário atual
-      setCaixaData(prev => ({
-        ...prev,
-        userId: localStorage.getItem('userId') || ''
-      }));
     }
   }, [isEdit, caixa, isOpen]);
 
   // Handlers para atualização de campos
   const handleCaixaChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setCaixaData(prev => ({ ...prev, [name]: value }));
+    
+    if (name === 'empresaId' || name === 'funcionarioId' || name === 'veiculoId') {
+      setCaixaData(prev => ({ 
+        ...prev, 
+        [name]: value ? parseInt(value) : null 
+      }));
+    } else {
+      setCaixaData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
-  const handleLancamentoChange = (index: number, e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    const updatedLancamentos = [...lancamentos];
-    updatedLancamentos[index] = { ...updatedLancamentos[index], [name]: value };
-    setLancamentos(updatedLancamentos);
+  // Atualizar um lançamento
+  const atualizarLinha = (index: number, campo: string, valor: string) => {
+    const novasLinhas = [...lancamentos];
+    
+    novasLinhas[index] = {
+      ...novasLinhas[index],
+      [campo]: valor
+    };
+    
+    setLancamentos(novasLinhas);
   };
 
-  const addLancamento = () => {
+  // Formatar campo de valor ao perder foco
+  const formatarAoPerderFoco = (index: number, campo: string) => {
+    if (campo !== 'entrada' && campo !== 'saida') return;
+    
+    const valor = lancamentos[index][campo as keyof LancamentoViagem];
+    
+    if (!valor || typeof valor !== 'string' || valor.trim() === '') return;
+    
+    try {
+      // Limpar formatação
+      let valorLimpo = valor.replace(/[^\d.,]/g, '');
+      valorLimpo = valorLimpo.replace(/\./g, '').replace(',', '.');
+      
+      const numero = parseFloat(valorLimpo);
+      
+      if (isNaN(numero)) return;
+      
+      // Formatar para moeda brasileira
+      const valorFormatado = numero.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+      
+      const novasLinhas = [...lancamentos];
+      novasLinhas[index] = { 
+        ...novasLinhas[index], 
+        [campo]: valorFormatado
+      };
+      
+      setLancamentos(novasLinhas);
+    } catch (error) {
+      console.error('Erro ao formatar valor:', error);
+    }
+  };
+
+  // Adicionar novo lançamento
+  const adicionarLancamento = () => {
     setLancamentos([
       ...lancamentos,
       {
         id: undefined,
-        data: new Date().toISOString().split('T')[0],
-        numeroDocumento: '',
-        historicoDoc: '',
+        data: getLocalISODate(),
         custo: '',
         clienteFornecedor: '',
+        documento: '',
+        historico: '',
         entrada: '',
         saida: ''
       }
     ]);
   };
 
-  const removeLancamento = (index: number) => {
-    if (lancamentos.length <= 1) return;
-    const updatedLancamentos = lancamentos.filter((_, i) => i !== index);
+  // Função para abrir o modal de confirmação de exclusão
+  const removerLancamento = (index: number) => {
+    if (lancamentos.length <= 1) return; // Manter pelo menos um lançamento
+    setLancamentoParaExcluir(index);
+    setIsDeleteModalOpen(true);
+  };
+
+  // Função para confirmar a exclusão do lançamento
+  const confirmarExclusaoLancamento = () => {
+    if (lancamentoParaExcluir === null) return;
+    
+    const updatedLancamentos = lancamentos.filter((_, i) => i !== lancamentoParaExcluir);
+    
+    // Se não sobrou nenhum lançamento, adicionar um vazio
+    if (updatedLancamentos.length === 0) {
+      updatedLancamentos.push({
+        id: undefined,
+        data: getLocalISODate(),
+        custo: '',
+        clienteFornecedor: '',
+        documento: '',
+        historico: '',
+        entrada: '',
+        saida: ''
+      });
+    }
+    
     setLancamentos(updatedLancamentos);
+    setIsDeleteModalOpen(false);
+    setLancamentoParaExcluir(null);
+  };
+
+  // Função para converter valor para API (string para número)
+  const formatarValorParaAPI = (valor: string | number | undefined | null): number | null => {
+    if (valor === null || valor === undefined || valor === '') return null;
+    
+    if (typeof valor === 'number') return valor;
+    
+    // Se for string, limpar formatação
+    let valorLimpo = valor.replace(/[R$\s]/g, '');
+    
+    // Substituir vírgula por ponto
+    valorLimpo = valorLimpo.replace(/\./g, '').replace(',', '.');
+    
+    // Converter para número ou retornar null
+    const numero = parseFloat(valorLimpo);
+    return isNaN(numero) ? null : numero;
+  };
+
+  // Calcular totais
+  const calcularTotalEntradas = () => {
+    return lancamentos.reduce((total, lancamento) => {
+      if (!lancamento.entrada || (typeof lancamento.entrada === 'string' && lancamento.entrada.trim() === '')) {
+        return total;
+      }
+      
+      const valorNumerico = formatarValorParaAPI(lancamento.entrada);
+      return total + (valorNumerico || 0);
+    }, 0);
+  };
+
+  const calcularTotalSaidas = () => {
+    return lancamentos.reduce((total, lancamento) => {
+      if (!lancamento.saida || (typeof lancamento.saida === 'string' && lancamento.saida.trim() === '')) {
+        return total;
+      }
+      
+      const valorNumerico = formatarValorParaAPI(lancamento.saida);
+      return total + (valorNumerico || 0);
+    }, 0);
+  };
+
+  const calcularSaldo = () => {
+    return calcularTotalEntradas() - calcularTotalSaidas();
+  };
+
+  // Formatação de moeda
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
   };
 
   // Handler para salvar os dados
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({
-      caixaViagem: caixaData,
-      lancamentos: lancamentos
+    
+    // Validar campos obrigatórios
+    if (!caixaData.empresaId) {
+      toast.error("Por favor, selecione uma empresa.");
+      return;
+    }
+    
+    if (!caixaData.funcionarioId) {
+      toast.error("Por favor, selecione um funcionário.");
+      return;
+    }
+    
+    if (!caixaData.destino) {
+      toast.error("Por favor, informe o destino.");
+      return;
+    }
+    
+    // Validar se há lançamentos válidos
+    const lancamentosValidos = lancamentos.filter(l => {
+      const temEntrada = l.entrada && 
+        (typeof l.entrada === 'number' || 
+        (typeof l.entrada === 'string' && l.entrada.trim() !== ''));
+        
+      const temSaida = l.saida && 
+        (typeof l.saida === 'number' || 
+        (typeof l.saida === 'string' && l.saida.trim() !== ''));
+        
+      return temEntrada || temSaida;
     });
-  };
-
-  // Formatação de valores
-  const formatCurrency = (value: string): string => {
-    if (!value) return '';
-    // Remover caracteres não numéricos, exceto ponto e vírgula
-    const cleanValue = value.replace(/[^\d.,]/g, '');
-    // Converter para número
-    const number = parseFloat(cleanValue.replace(',', '.'));
-    if (isNaN(number)) return '';
-    // Formatar como moeda
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(number);
+    
+    if (lancamentosValidos.length === 0) {
+      toast.error("É necessário adicionar pelo menos um lançamento com valor de entrada ou saída.");
+      return;
+    }
+    
+    // Processar lançamentos
+    const lancamentosFormatados = lancamentosValidos.map(l => {
+      return {
+        id: l.id,
+        data: l.data,
+        custo: l.custo || '',
+        clienteFornecedor: l.clienteFornecedor || '',
+        documento: l.documento || '',
+        historico: l.historico || '',
+        entrada: typeof l.entrada !== 'undefined' ? formatarValorParaAPI(l.entrada) : null,
+        saida: typeof l.saida !== 'undefined' ? formatarValorParaAPI(l.saida) : null
+      };
+    });
+    
+    // Preparar dados completos
+    const dadosCompletos = {
+      caixaViagem: {
+        id: isEdit && caixa ? caixa.id : undefined,
+        userId: caixaData.userId || localStorage.getItem('userId') || '',
+        empresaId: caixaData.empresaId,
+        funcionarioId: caixaData.funcionarioId,
+        veiculoId: caixaData.veiculoId,
+        destino: caixaData.destino || '',
+        observacao: caixaData.observacao || '',
+        data: caixaData.data || getLocalISODate(),
+        lancamentos: lancamentosFormatados
+      },
+      lancamentos: lancamentosFormatados
+    };
+    
+    // Chamar função de salvamento
+    onSave(dadosCompletos);
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-60">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-3 my-auto"
       >
-        {/* Cabeçalho do modal */}
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-800">
-            {isEdit ? 'Editar Caixa de Viagem' : 'Nova Caixa de Viagem'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-full hover:bg-gray-100 text-gray-500"
-          >
-            <X size={24} />
-          </button>
-        </div>
-
-        {/* Corpo do modal - formulário */}
-        <div className="flex-grow overflow-y-auto p-4 space-y-6">
-          <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              {/* Destino */}
-              <div>
-                <label htmlFor="destino" className="block text-sm font-medium text-gray-700 mb-1">
-                  Destino <span className="text-red-500">*</span>
+        <form onSubmit={handleSubmit}>
+          {/* Cabeçalho do modal */}
+          <div className="bg-gradient-to-r from-gray-100 to-blue-50 p-3 rounded-t-xl">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-800">
+                {isEdit ? 'Editar Caixa de Viagem' : 'Nova Caixa de Viagem'}
+              </h2>
+              <button
+                type="button"
+                onClick={onClose}
+                className="text-gray-500 hover:text-gray-800 hover:bg-gray-200 p-1 rounded-full transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            
+            {/* Primeira linha - Empresa e Funcionário */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+              <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
+                <label htmlFor="empresaId" className="block text-xs text-gray-700 mb-1 font-medium">
+                  EMPRESA <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Map size={16} className="text-gray-400" />
-                  </div>
-                  <input
-                    type="text"
-                    id="destino"
-                    name="destino"
-                    value={caixaData.destino}
-                    onChange={handleCaixaChange}
-                    required
-                    placeholder="Ex: São Paulo, Belo Horizonte, etc."
-                    className="pl-10 pr-3 py-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-[#344893] focus:border-[#344893]"
-                  />
-                </div>
+                <select
+                  id="empresaId"
+                  name="empresaId"
+                  value={caixaData.empresaId || ''}
+                  onChange={handleCaixaChange}
+                  className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
+                  disabled={isLoading}
+                  required
+                >
+                  <option value="">Selecione uma empresa</option>
+                  {empresas.map(empresa => (
+                    <option key={empresa.id} value={empresa.id}>
+                      {empresa.nome || empresa.nomeEmpresa}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
+                <label htmlFor="funcionarioId" className="block text-xs text-gray-700 mb-1 font-medium">
+                  FUNCIONÁRIO <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="funcionarioId"
+                  name="funcionarioId"
+                  value={caixaData.funcionarioId || ''}
+                  onChange={handleCaixaChange}
+                  className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
+                  disabled={isLoading}
+                  required
+                >
+                  <option value="">Selecione um funcionário</option>
+                  {funcionarios.map(funcionario => (
+                    <option key={funcionario.id} value={funcionario.id}>
+                      {funcionario.nome} {funcionario.sobrenome || ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            {/* Segunda linha - Veículo e Destino */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+              <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
+                <label htmlFor="veiculoId" className="block text-xs text-gray-700 mb-1 font-medium">
+                  VEÍCULO
+                </label>
+                <select
+                  id="veiculoId"
+                  name="veiculoId"
+                  value={caixaData.veiculoId || ''}
+                  onChange={handleCaixaChange}
+                  className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
+                  disabled={isLoading}
+                >
+                  <option value="">Selecione um veículo</option>
+                  {veiculos.map(veiculo => (
+                    <option key={veiculo.id} value={veiculo.id}>
+                      {veiculo.modelo} - {veiculo.placa} {veiculo.descricao ? `(${veiculo.descricao})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
+                <label htmlFor="destino" className="block text-xs text-gray-700 mb-1 font-medium">
+                  DESTINO <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="destino"
+                  name="destino"
+                  value={caixaData.destino || ''}
+                  onChange={handleCaixaChange}
+                  required
+                  placeholder="Ex: São Paulo, Belo Horizonte, etc."
+                  className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+            
+            {/* Terceira linha - Data e Observações */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+              <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
+                <label htmlFor="data" className="block text-xs text-gray-700 mb-1 font-medium">
+                  DATA <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  id="data"
+                  name="data"
+                  value={caixaData.data || ''}
+                  onChange={handleCaixaChange}
+                  required
+                  className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
+                  disabled={isLoading}
+                />
               </div>
 
-              {/* Data */}
-              <div>
-                <label htmlFor="data" className="block text-sm font-medium text-gray-700 mb-1">
-                  Data <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Calendar size={16} className="text-gray-400" />
-                  </div>
-                  <input
-                    type="date"
-                    id="data"
-                    name="data"
-                    value={caixaData.data}
-                    onChange={handleCaixaChange}
-                    required
-                    className="pl-10 pr-3 py-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-[#344893] focus:border-[#344893]"
-                  />
-                </div>
-              </div>
-
-              {/* Empresa */}
-              <div>
-                <label htmlFor="empresaId" className="block text-sm font-medium text-gray-700 mb-1">
-                  Empresa
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Building size={16} className="text-gray-400" />
-                  </div>
-                  <select
-                    id="empresaId"
-                    name="empresaId"
-                    value={caixaData.empresaId}
-                    onChange={handleCaixaChange}
-                    className="pl-10 pr-3 py-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-[#344893] focus:border-[#344893]"
-                  >
-                    <option value="">Selecione uma empresa</option>
-                    {empresas.map(empresa => (
-                      <option key={empresa.id} value={empresa.id}>
-                        {empresa.nome || empresa.nomeEmpresa}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Funcionário */}
-              <div>
-                <label htmlFor="funcionarioId" className="block text-sm font-medium text-gray-700 mb-1">
-                  Funcionário
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <User size={16} className="text-gray-400" />
-                  </div>
-                  <select
-                    id="funcionarioId"
-                    name="funcionarioId"
-                    value={caixaData.funcionarioId}
-                    onChange={handleCaixaChange}
-                    className="pl-10 pr-3 py-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-[#344893] focus:border-[#344893]"
-                  >
-                    <option value="">Selecione um funcionário</option>
-                    {funcionarios.map(funcionario => (
-                      <option key={funcionario.id} value={funcionario.id}>
-                        {funcionario.nome} {funcionario.sobrenome || ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Observação */}
-              <div className="md:col-span-2">
-                <label htmlFor="observacao" className="block text-sm font-medium text-gray-700 mb-1">
-                  Observação
+              <div className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
+                <label htmlFor="observacao" className="block text-xs text-gray-700 mb-1 font-medium">
+                  OBSERVAÇÕES
                 </label>
                 <textarea
                   id="observacao"
                   name="observacao"
-                  value={caixaData.observacao}
+                  value={caixaData.observacao || ''}
                   onChange={handleCaixaChange}
-                  placeholder="Observações adicionais sobre esta caixa de viagem"
-                  rows={3}
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:ring-[#344893] focus:border-[#344893]"
+                  placeholder="Observações adicionais sobre esta viagem"
+                  rows={1}
+                  className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
+                  disabled={isLoading}
                 />
               </div>
             </div>
 
-            {/* Seção de lançamentos */}
-            <div className="mt-8">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-800">Lançamentos</h3>
-                <button
-                  type="button"
-                  onClick={addLancamento}
-                  className="flex items-center text-sm font-medium text-[#344893] hover:text-[#2a3b78]"
-                >
-                  <Plus size={16} className="mr-1" />
-                  Adicionar lançamento
-                </button>
+            {/* Informações de Saldo */}
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
+              <div className="text-center p-1.5 bg-blue-50 rounded-lg">
+                <span className="block text-xs font-medium text-blue-500">
+                  TOTAL ENTRADAS
+                </span>
+                <span className="text-base font-bold text-green-600">
+                  {formatCurrency(calcularTotalEntradas())}
+                </span>
               </div>
-
-              <div className="space-y-4">
-                {lancamentos.map((lancamento, index) => (
-                  <div 
-                    key={index} 
-                    className="p-4 border border-gray-200 rounded-lg bg-gray-50"
-                  >
-                    <div className="flex justify-between items-center mb-4">
-                      <h4 className="text-sm font-medium text-gray-700">
-                        Lançamento #{index + 1}
-                      </h4>
-                      <button
-                        type="button"
-                        onClick={() => removeLancamento(index)}
-                        className="p-1 hover:bg-gray-200 rounded-full text-gray-500"
-                        disabled={lancamentos.length <= 1}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Data */}
-                      <div>
-                        <label htmlFor={`lancamentos[${index}].data`} className="block text-xs font-medium text-gray-700 mb-1">
-                          Data
-                        </label>
-                        <input
-                          type="date"
-                          id={`lancamentos[${index}].data`}
-                          name="data"
-                          value={lancamento.data}
-                          onChange={(e) => handleLancamentoChange(index, e)}
-                          className="block w-full rounded-md border-gray-300 shadow-sm focus:ring-[#344893] focus:border-[#344893] text-sm"
-                        />
-                      </div>
-
-                      {/* Número do documento */}
-                      <div>
-                        <label htmlFor={`lancamentos[${index}].numeroDocumento`} className="block text-xs font-medium text-gray-700 mb-1">
-                          Número do documento
-                        </label>
-                        <input
-                          type="text"
-                          id={`lancamentos[${index}].numeroDocumento`}
-                          name="numeroDocumento"
-                          value={lancamento.numeroDocumento}
-                          onChange={(e) => handleLancamentoChange(index, e)}
-                          placeholder="Nº do comprovante, nota fiscal, etc."
-                          className="block w-full rounded-md border-gray-300 shadow-sm focus:ring-[#344893] focus:border-[#344893] text-sm"
-                        />
-                      </div>
-
-                      {/* Custo */}
-                      <div>
-                        <label htmlFor={`lancamentos[${index}].custo`} className="block text-xs font-medium text-gray-700 mb-1">
-                          Custo
-                        </label>
-                        <input
-                          type="text"
-                          id={`lancamentos[${index}].custo`}
-                          name="custo"
-                          value={lancamento.custo}
-                          onChange={(e) => handleLancamentoChange(index, e)}
-                          placeholder="Ex: Combustível, Hotel, Alimentação"
-                          className="block w-full rounded-md border-gray-300 shadow-sm focus:ring-[#344893] focus:border-[#344893] text-sm"
-                        />
-                      </div>
-
-                      {/* Cliente/Fornecedor */}
-                      <div>
-                        <label htmlFor={`lancamentos[${index}].clienteFornecedor`} className="block text-xs font-medium text-gray-700 mb-1">
-                          Cliente/Fornecedor
-                        </label>
-                        <input
-                          type="text"
-                          id={`lancamentos[${index}].clienteFornecedor`}
-                          name="clienteFornecedor"
-                          value={lancamento.clienteFornecedor}
-                          onChange={(e) => handleLancamentoChange(index, e)}
-                          placeholder="Nome do fornecedor ou cliente"
-                          className="block w-full rounded-md border-gray-300 shadow-sm focus:ring-[#344893] focus:border-[#344893] text-sm"
-                        />
-                      </div>
-
-                      {/* Entrada */}
-                      <div>
-                        <label htmlFor={`lancamentos[${index}].entrada`} className="block text-xs font-medium text-gray-700 mb-1">
-                          Entrada
-                        </label>
-                        <div className="relative">
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <DollarSign size={14} className="text-gray-400" />
-                          </div>
-                          <input
-                            type="text"
-                            id={`lancamentos[${index}].entrada`}
-                            name="entrada"
-                            value={lancamento.entrada}
-                            onChange={(e) => handleLancamentoChange(index, e)}
-                            placeholder="0,00"
-                            className="pl-8 block w-full rounded-md border-gray-300 shadow-sm focus:ring-green-500 focus:border-green-500 text-sm"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Saída */}
-                      <div>
-                        <label htmlFor={`lancamentos[${index}].saida`} className="block text-xs font-medium text-gray-700 mb-1">
-                          Saída
-                        </label>
-                        <div className="relative">
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <DollarSign size={14} className="text-gray-400" />
-                          </div>
-                          <input
-                            type="text"
-                            id={`lancamentos[${index}].saida`}
-                            name="saida"
-                            value={lancamento.saida}
-                            onChange={(e) => handleLancamentoChange(index, e)}
-                            placeholder="0,00"
-                            className="pl-8 block w-full rounded-md border-gray-300 shadow-sm focus:ring-red-500 focus:border-red-500 text-sm"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Histórico/Descrição */}
-                      <div className="md:col-span-2">
-                        <label htmlFor={`lancamentos[${index}].historicoDoc`} className="block text-xs font-medium text-gray-700 mb-1">
-                          Histórico/Descrição
-                        </label>
-                        <textarea
-                          id={`lancamentos[${index}].historicoDoc`}
-                          name="historicoDoc"
-                          value={lancamento.historicoDoc}
-                          onChange={(e) => handleLancamentoChange(index, e)}
-                          placeholder="Descreva os detalhes deste lançamento"
-                          rows={2}
-                          className="block w-full rounded-md border-gray-300 shadow-sm focus:ring-[#344893] focus:border-[#344893] text-sm"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="text-center p-1.5 bg-blue-50 rounded-lg">
+                <span className="block text-xs font-medium text-blue-500">
+                  TOTAL SAÍDAS
+                </span>
+                <span className="text-base font-bold text-red-600">
+                  {formatCurrency(calcularTotalSaidas())}
+                </span>
+              </div>
+              <div className="text-center p-1.5 bg-blue-50 rounded-lg">
+                <span className="block text-xs font-medium text-blue-500">
+                  SALDO FINAL
+                </span>
+                <span className={`text-base font-bold ${calcularSaldo() >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(calcularSaldo())}
+                </span>
               </div>
             </div>
-          </form>
-        </div>
+          </div>
 
-        {/* Rodapé do modal */}
-        <div className="p-4 border-t border-gray-200 flex justify-end space-x-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-            disabled={isLoading}
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            className="px-4 py-2 bg-[#344893] text-white rounded-md hover:bg-[#2a3b78] flex items-center disabled:opacity-70 disabled:cursor-not-allowed"
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 size={18} className="animate-spin mr-2" />
-                Salvando...
-              </>
-            ) : (
-              <>
-                <Check size={18} className="mr-2" />
-                Salvar
-              </>
-            )}
-          </button>
-        </div>
+          {/* Tabela de Lançamentos com campos mais largos e sem auto-expansão vertical */}
+          <div className="p-3 overflow-x-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-800">Lançamentos</h3>
+              <button
+                type="button"
+                onClick={adicionarLancamento}
+                className="flex items-center text-sm bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                disabled={isLoading}
+              >
+                <Plus size={16} className="mr-2" /> Adicionar lançamento
+              </button>
+            </div>
+            
+            {/* Tabela com maior largura total para permitir campos maiores */}
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-xs min-w-[1200px]">
+                <thead>
+                  <tr>
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[3%]">
+                      #
+                    </th>
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[8%]">
+                      Data
+                    </th>
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[18%]">
+                      Custo
+                    </th>
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">
+                      Cliente/Fornecedor
+                    </th>
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[12%]">
+                      Documento
+                    </th>
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[25%]">
+                      Histórico
+                    </th>
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[8%]">
+                      Entrada
+                    </th>
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[8%]">
+                      Saída
+                    </th>
+                    <th className="border-b-2 border-gray-200 px-2 py-2 w-[3%]"></th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {lancamentos.map((lancamento, index) => (
+                    <tr key={index} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                      <td className="px-3 py-2 text-sm text-gray-900">{index + 1}</td>
+                      <td className="px-2 py-2">
+                        <input
+                          type="date"
+                          value={lancamento.data}
+                          onChange={(e) => atualizarLinha(index, 'data', e.target.value)}
+                          className="block w-full px-2 py-2 text-xs border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                          disabled={isLoading}
+                          required
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        {/* Campo com maior largura e altura fixa */}
+                        <input
+                          type="text"
+                          value={lancamento.custo}
+                          onChange={(e) => atualizarLinha(index, 'custo', e.target.value)}
+                          className="block w-full px-2 py-2 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Tipo de custo"
+                          disabled={isLoading}
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        {/* Campo com maior largura e altura fixa */}
+                        <input
+                          type="text"
+                          value={lancamento.clienteFornecedor}
+                          onChange={(e) => atualizarLinha(index, 'clienteFornecedor', e.target.value)}
+                          className="block w-full px-2 py-2 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Nome do cliente/fornecedor"
+                          disabled={isLoading}
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        <input
+                          type="text"
+                          value={lancamento.documento}
+                          onChange={(e) => atualizarLinha(index, 'documento', e.target.value)}
+                          className="block w-full px-2 py-2 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Nº Doc"
+                          disabled={isLoading}
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        {/* Campo com maior largura e altura fixa */}
+                        <input
+                          type="text"
+                          value={lancamento.historico}
+                          onChange={(e) => atualizarLinha(index, 'historico', e.target.value)}
+                          className="block w-full px-2 py-2 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Histórico"
+                          disabled={isLoading}
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">R$</span>
+                          <input
+                            type="text"
+                            value={typeof lancamento.entrada === 'string' || typeof lancamento.entrada === 'number' ? lancamento.entrada : ''}
+                            onChange={(e) => atualizarLinha(index, 'entrada', e.target.value)}
+                            onBlur={() => formatarAoPerderFoco(index, 'entrada')}
+                            className={`block w-full pl-8 pr-2 py-2 text-xs border rounded-md focus:ring-2 focus:outline-none
+                              ${(!lancamento.entrada && !lancamento.saida) 
+                                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                                : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}
+                            placeholder="0,00"
+                            disabled={isLoading}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-2 py-2">
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">R$</span>
+                          <input
+                            type="text"
+                            value={typeof lancamento.saida === 'string' || typeof lancamento.saida === 'number' ? lancamento.saida : ''}
+                            onChange={(e) => atualizarLinha(index, 'saida', e.target.value)}
+                            onBlur={() => formatarAoPerderFoco(index, 'saida')}
+                            className={`block w-full pl-8 pr-2 py-2 text-xs border rounded-md focus:ring-2 focus:outline-none
+                              ${(!lancamento.entrada && !lancamento.saida) 
+                                ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                                : 'border-gray-300 focus:ring-red-500 focus:border-red-500'}`}
+                            placeholder="0,00"
+                            disabled={isLoading}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <button 
+                          onClick={() => removerLancamento(index)}
+                          type="button"
+                          className="p-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-full transition-colors"
+                          title="Remover lançamento"
+                          disabled={isLoading || lancamentos.length <= 1}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-gray-50">
+                    <td colSpan={6} className="px-4 py-3 text-right font-medium">Totais:</td>
+                    <td className="px-4 py-3 text-right font-medium text-green-600">{formatCurrency(calcularTotalEntradas())}</td>
+                    <td className="px-4 py-3 text-right font-medium text-red-600">{formatCurrency(calcularTotalSaidas())}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* Botões de ação */}
+          <div className="border-t border-gray-200 p-3 flex justify-end bg-gray-50 rounded-b-xl">
+            <div className="flex space-x-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-1.5 bg-gray-200 text-gray-700 font-medium text-xs rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
+                disabled={isLoading}
+              >
+                Cancelar
+              </button>
+              
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="px-4 py-1.5 bg-blue-600 text-white font-medium text-xs rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <div className="flex items-center">
+                    <Loader2 className="animate-spin mr-2" size={18} />
+                    <span>Salvando...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center">
+                    <Check className="mr-2" size={18} />
+                    <span>Salvar</span>
+                  </div>
+                )}
+              </button>
+            </div>
+          </div>
+        </form>
+
+        {/* Modal de confirmação de exclusão de lançamento */}
+        {isDeleteModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-3"
+            >
+              <div className="flex items-center text-amber-600 mb-4">
+                <AlertTriangle className="mr-2" size={24} />
+                <h3 className="text-lg font-semibold">Confirmar exclusão</h3>
+              </div>
+              
+              <p className="text-gray-600 mb-6">
+                Tem certeza que deseja excluir este lançamento? Esta ação não pode ser desfeita.
+              </p>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDeleteModalOpen(false);
+                    setLancamentoParaExcluir(null);
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmarExclusaoLancamento}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                >
+                  Excluir
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </motion.div>
     </div>
   );

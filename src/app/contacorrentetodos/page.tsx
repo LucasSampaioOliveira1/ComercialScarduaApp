@@ -991,7 +991,7 @@ export default function ContaCorrenteTodosPage() {
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-xs text-gray-500">Saídas do Mês</p>
+                  <p className="text-xs text-gray-500">Total de Saídas</p>
                   <p className="text-lg font-bold text-red-600">
                     {loading ? "..." : formatCurrency(estatisticas?.debitosMes || 0)}
                   </p>
@@ -1008,7 +1008,7 @@ export default function ContaCorrenteTodosPage() {
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-xs text-gray-500">Entradas do Mês</p>
+                  <p className="text-xs text-gray-500">Total de Entradas</p>
                   <p className="text-lg font-bold text-green-600">
                     {loading ? "..." : formatCurrency(estatisticas?.creditosMes || 0)}
                   </p>

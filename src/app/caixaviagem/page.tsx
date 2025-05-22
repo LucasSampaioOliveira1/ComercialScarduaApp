@@ -1266,7 +1266,7 @@ export default function CaixaViagemPage() {
         <CaixaViagemModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          caixa={selectedCaixa}
+          caixa={selectedCaixa as any}
           isEdit={isEditMode}
           onSave={handleSaveCaixaViagem}
           empresas={empresas}
