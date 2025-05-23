@@ -84,6 +84,8 @@ interface CaixaViagem {
   destino: string;
   observacao?: string;
   data: string;
+  numeroCaixa?: number;
+  saldoAnterior?: number;
   lancamentos: LancamentoViagem[];
 }
 
@@ -184,6 +186,8 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
         destino: caixa.destino || '',
         observacao: caixa.observacao || '',
         data: preserveLocalDate(caixa.data),
+        numeroCaixa: caixa.numeroCaixa || 1,
+        saldoAnterior: caixa.saldoAnterior || 0,
       });
 
       // Carregar lançamentos se existirem
@@ -216,15 +220,93 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
     }
   }, [isEdit, caixa, isOpen]);
 
+  // Adicionar função para buscar o último caixa do funcionário
+  const buscarUltimoCaixaFuncionario = async (funcionarioId: number) => {
+    try {
+      if (!funcionarioId) return;
+      
+      // Não buscar se já estamos editando um caixa existente
+      if (isEdit && caixa?.id) return;
+      
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      
+      const response = await fetch(`/api/caixaviagem/ultimo-caixa/${funcionarioId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        console.error(`Erro ${response.status} ao buscar último caixa:`, errorData);
+        return;
+      }
+      
+      const data = await response.json();
+      
+      // Atualizar caixaData com as informações recebidas
+      setCaixaData(prev => ({
+        ...prev,
+        numeroCaixa: data.proximoNumero,
+        saldoAnterior: data.saldoAnterior
+      }));
+      
+      // Se for o primeiro caixa (proximoNumero === 1), mostrar toast informativo
+      if (data.proximoNumero === 1) {
+        toast.info(`Este será o primeiro caixa de ${data.funcionario?.nome || 'este funcionário'}.`);
+      } else {
+        // Mostrar toast com informações do último caixa
+        toast.info(
+          `Caixa anterior: #${data.ultimoCaixa.numeroCaixa} | Saldo: ${new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+          }).format(data.saldoAnterior)}`
+        );
+      }
+    } catch (error) {
+      console.error("Erro ao buscar último caixa:", error);
+      toast.error("Erro ao buscar informações do último caixa");
+    }
+  };
+
+  // Função para ressetar informações de sequência ao mudar o funcionário durante edição
+  const resetSequenceInfo = () => {
+    setCaixaData(prev => ({
+      ...prev,
+      numeroCaixa: undefined,
+      saldoAnterior: 0
+    }));
+  };
+
   // Handlers para atualização de campos
   const handleCaixaChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     
     if (name === 'empresaId' || name === 'funcionarioId' || name === 'veiculoId') {
+      const numeroValor = value ? parseInt(value) : null;
       setCaixaData(prev => ({ 
         ...prev, 
-        [name]: value ? parseInt(value) : null 
+        [name]: numeroValor
       }));
+      
+      // Se o campo for funcionarioId e tiver valor, buscar último caixa
+      if (name === 'funcionarioId' && numeroValor) {
+        if (isEdit && caixa?.funcionarioId !== numeroValor) {
+          // Funcionário mudou durante uma edição, confirmar com o usuário
+          if (window.confirm("Ao mudar o funcionário, as informações de sequência do caixa serão recalculadas. Deseja continuar?")) {
+            resetSequenceInfo();
+            buscarUltimoCaixaFuncionario(numeroValor);
+          } else {
+            // Reverter para o funcionário original
+            return setCaixaData(prev => ({
+              ...prev,
+              funcionarioId: caixa?.funcionarioId || null
+            }));
+          }
+        } else {
+          // Caso normal - buscar último caixa do funcionário selecionado
+          buscarUltimoCaixaFuncionario(numeroValor);
+        }
+      }
     } else {
       setCaixaData(prev => ({ ...prev, [name]: value }));
     }
@@ -367,7 +449,11 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
   };
 
   const calcularSaldo = () => {
-    return calcularTotalEntradas() - calcularTotalSaidas();
+    const saldoAnterior = caixaData.saldoAnterior || 0;
+    const totalEntradas = calcularTotalEntradas();
+    const totalSaidas = calcularTotalSaidas();
+    
+    return saldoAnterior + totalEntradas - totalSaidas;
   };
 
   // Formatação de moeda
@@ -379,7 +465,7 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
   };
 
   // Handler para salvar os dados
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validar campos obrigatórios
@@ -441,10 +527,35 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
         destino: caixaData.destino || '',
         observacao: caixaData.observacao || '',
         data: caixaData.data || getLocalISODate(),
+        numeroCaixa: caixaData.numeroCaixa || 1, // Número sequencial do caixa
+        saldoAnterior: caixaData.saldoAnterior || 0, // Saldo do caixa anterior
         lancamentos: lancamentosFormatados
       },
       lancamentos: lancamentosFormatados
     };
+    
+    // Se por algum motivo não temos o número do caixa, buscar novamente
+    if (!caixaData.numeroCaixa && caixaData.funcionarioId) {
+      try {
+        const token = localStorage.getItem("token");
+        if (token) {
+          const response = await fetch(`/api/caixaviagem/ultimo-caixa/${caixaData.funcionarioId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            setCaixaData(prev => ({
+              ...prev,
+              numeroCaixa: data.proximoNumero,
+              saldoAnterior: data.saldoAnterior
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("Erro ao buscar informações de sequência:", error);
+      }
+    }
     
     // Chamar função de salvamento
     onSave(dadosCompletos);
@@ -625,6 +736,24 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
                 </span>
               </div>
             </div>
+
+            {/* Informações do Caixa de Viagem - Número e Saldo Anterior */}
+            {caixaData.numeroCaixa && caixaData.funcionarioId && (
+              <div className="bg-gray-50 p-3 mb-4 rounded-lg">
+                <div className="text-sm text-gray-600 mb-1">
+                  <span className="font-medium">Caixa #{caixaData.numeroCaixa}</span> - 
+                  {funcionarios.find(f => f.id === caixaData.funcionarioId)?.nome || 'Funcionário'}
+                </div>
+                {caixaData.saldoAnterior !== 0 && (
+                  <div className="text-sm flex justify-between items-center">
+                    <span className="text-gray-600">Saldo anterior:</span>
+                    <span className={`font-medium ${(caixaData.saldoAnterior || 0) > 0 ? 'text-green-600' : (caixaData.saldoAnterior || 0) < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                      {formatCurrency(caixaData.saldoAnterior || 0)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Tabela de Lançamentos com campos mais largos e sem auto-expansão vertical */}

@@ -150,10 +150,13 @@ export async function POST(req: NextRequest) {
     const novaCaixa = await prisma.caixaViagem.create({
       data: {
         userId: body.userId,
-        data: new Date(body.data),
         destino: body.destino || "",
+        data: new Date(body.data),
         empresaId: body.empresaId ? parseInt(body.empresaId) : null,
         funcionarioId: body.funcionarioId ? parseInt(body.funcionarioId) : null,
+        veiculoId: body.veiculoId ? parseInt(body.veiculoId) : null,
+        numeroCaixa: body.numeroCaixa || 1,
+        saldoAnterior: body.saldoAnterior || 0,
         oculto: body.oculto || false
       },
       include: {
@@ -253,6 +256,87 @@ export async function PUT(req: NextRequest) {
     console.error("Erro ao alternar visibilidade:", error);
     return NextResponse.json(
       { error: "Erro ao alternar visibilidade da caixa de viagem." },
+      { status: 500 }
+    );
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// 🚀 **[PATCH] - Atualizar caixa de viagem** (modificação para preservar número do caixa)
+export async function PATCH(req: NextRequest) {
+  try {
+    // Autenticar usuário
+    const user = authenticateToken(req);
+    const userId = user.id;
+    const isAdmin = user.role === "ADMIN";
+    const body = await req.json();
+    
+    if (!body.id) {
+      return NextResponse.json(
+        { error: "ID da caixa de viagem não fornecido." }, 
+        { status: 400 }
+      );
+    }
+    
+    // Buscar a caixa de viagem
+    const caixa = await prisma.caixaViagem.findUnique({
+      where: { id: parseInt(body.id) }
+    });
+    
+    if (!caixa) {
+      return NextResponse.json(
+        { error: "Caixa de viagem não encontrada." }, 
+        { status: 404 }
+      );
+    }
+    
+    // Verificar permissão para alterar
+    let hasPermission = isAdmin || caixa.userId === userId;
+    
+    if (!hasPermission) {
+      const permission = await prisma.permission.findFirst({
+        where: {
+          userId: userId,
+          page: "caixaviagem",
+          canEdit: true  // Alterado de 'edit' para 'canEdit' para seguir o padrão
+        }
+      });
+      
+      hasPermission = !!permission;
+    }
+    
+    if (!hasPermission) {
+      return NextResponse.json(
+        { error: "Sem permissão para alterar esta caixa de viagem." }, 
+        { status: 403 }
+      );
+    }
+    
+    // Atualizar a caixa de viagem, preservando número do caixa
+    const updatedCaixa = await prisma.caixaViagem.update({
+      where: { id: parseInt(body.id) },
+      data: {
+        destino: body.destino,
+        data: body.data ? new Date(body.data) : undefined,
+        empresaId: body.empresaId !== undefined ? (body.empresaId === null ? null : Number(body.empresaId)) : undefined,
+        funcionarioId: body.funcionarioId !== undefined ? (body.funcionarioId === null ? null : Number(body.funcionarioId)) : undefined,
+        veiculoId: body.veiculoId !== undefined ? (body.veiculoId === null ? null : Number(body.veiculoId)) : undefined,
+        observacao: body.observacao,
+        // NÃO atualizar numeroCaixa aqui, para preservar a sequência
+        // saldoAnterior também não deve ser alterado em uma edição
+        oculto: body.oculto
+      }
+    });
+    
+    return NextResponse.json({
+      ...updatedCaixa,
+      message: "Caixa de viagem atualizada com sucesso"
+    });
+  } catch (error) {
+    console.error("Erro ao atualizar caixa de viagem:", error);
+    return NextResponse.json(
+      { error: "Erro ao atualizar caixa de viagem" },
       { status: 500 }
     );
   } finally {

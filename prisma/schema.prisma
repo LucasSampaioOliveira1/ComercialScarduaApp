@@ -275,30 +275,31 @@ model Lancamento {
   @@index([contaCorrenteId])
 }
 model CaixaViagem {
-  id            Int               @id @default(autoincrement())
-  empresaId     Int?              
-  empresa       Empresa?          @relation(fields: [empresaId], references: [id])
-  funcionarioId Int?              
-  funcionario   Colaborador?      @relation(fields: [funcionarioId], references: [id])
-  userId        String?           // <-- Adicionando chave estrangeira para User
-  user          User?             @relation(fields: [userId], references: [id]) // <-- Relacionamento com User
+  id                Int                @id @default(autoincrement())
+  userId            String?
+  empresaId         Int?
+  funcionarioId     Int?
+  veiculoId         Int?             
+  destino           String
+  data              DateTime
+  numeroCaixa       Int               @default(1)   // Número sequencial por funcionário
+  saldoAnterior     Decimal          @default(0) @db.Decimal(10,2)  // Saldo anterior para continuidade
+  observacao        String?
+  oculto            Boolean           @default(false)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
   
-  // Adicionar campo para relacionar com patrimônio (veículos)
-  veiculoId     Int?
-  veiculo       Patrimonio?       @relation(fields: [veiculoId], references: [id])
+  user              User?             @relation(fields: [userId], references: [id])
+  empresa           Empresa?          @relation(fields: [empresaId], references: [id])
+  funcionario       Colaborador?      @relation(fields: [funcionarioId], references: [id])
+  veiculo           Patrimonio?       @relation(fields: [veiculoId], references: [id])
   
-  destino       String
-  data          DateTime
-  oculto        Boolean           @default(false)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-
-  lancamentos   ViagemLancamento[]
+  lancamentos       ViagemLancamento[]
   
+  @@index([userId])
   @@index([empresaId])
   @@index([funcionarioId])
-  @@index([userId])
-  @@index([veiculoId])  // Adicionar índice para o campo veiculoId
+  @@index([veiculoId])
 }
 
 model ViagemLancamento {

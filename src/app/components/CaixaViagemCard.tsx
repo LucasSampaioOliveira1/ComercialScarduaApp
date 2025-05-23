@@ -57,7 +57,9 @@ const CaixaViagemCard = ({
       return sum + (isNaN(valor) ? 0 : valor);
     }, 0);
   
-  const saldo = entradas - saidas;
+  // Calcular saldo final incluindo saldo anterior
+  const saldoAnterior = caixa.saldoAnterior ? Number(caixa.saldoAnterior) : 0;
+  const saldoFinal = saldoAnterior + entradas - saidas;
 
   // Formatar valores para exibição
   const formatCurrency = (value: number) => {
@@ -79,9 +81,9 @@ const CaixaViagemCard = ({
   };
 
   // Determinar a classe de borda baseada no saldo
-  const borderColorClass = saldo > 0 
+  const borderColorClass = saldoFinal > 0 
     ? 'border-t-green-500' 
-    : saldo < 0 
+    : saldoFinal < 0 
       ? 'border-t-red-500' 
       : 'border-t-blue-500';
 
@@ -92,12 +94,17 @@ const CaixaViagemCard = ({
       <div className="p-5">
         <div className="flex justify-between items-start">
           <div className="flex items-center">
-            <div className={`rounded-full p-2 ${saldo >= 0 ? 'bg-blue-100 text-blue-600' : 'bg-red-100 text-red-600'}`}>
+            <div className={`rounded-full p-2 ${saldoFinal >= 0 ? 'bg-blue-100 text-blue-600' : 'bg-red-100 text-red-600'}`}>
               <MapPin size={20} />
             </div>
             <div className="ml-3">
-              <h3 className="text-lg font-semibold text-gray-900 truncate max-w-[200px]">
-                {caixa.destino || `Caixa #${caixa.id}`}
+              <h3 className="text-lg font-semibold mb-1 text-gray-900 flex items-center">
+                {caixa.numeroCaixa && (
+                  <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full mr-2">
+                    #{caixa.numeroCaixa}
+                  </span>
+                )}
+                {caixa.destino || `Caixa ${caixa.id}`}
               </h3>
               <p className="text-sm text-gray-600">
                 {formatDate(caixa.data)}
@@ -114,14 +121,21 @@ const CaixaViagemCard = ({
         <div className="mt-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium text-gray-600">Saldo:</span>
-            <div className={`font-semibold text-xl ${
-              saldo > 0 
-                ? 'text-green-600' 
-                : saldo < 0 
-                  ? 'text-red-600' 
-                  : 'text-blue-600'
-            }`}>
-              {formatCurrency(saldo)}
+            <div className={`text-lg font-semibold ${saldoFinal >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {formatCurrency(saldoFinal)}
+            </div>
+          </div>
+          
+          <div className="flex justify-between items-center mt-3">
+            {caixa.saldoAnterior !== 0 && (
+              <div className="text-xs text-gray-500">
+                <span>
+                  Saldo Inicial: {formatCurrency(Number(caixa.saldoAnterior))}
+                </span>
+              </div>
+            )}
+            <div className={`text-lg font-semibold ${saldoFinal >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {formatCurrency(saldoFinal)}
             </div>
           </div>
           
@@ -160,12 +174,14 @@ const CaixaViagemCard = ({
               </span>
             </div>
             
-            <div className="flex items-start">
-              <User size={14} className="mt-0.5 text-gray-500 flex-shrink-0" />
-              <span className="ml-2 text-gray-600 truncate max-w-[calc(100%-20px)]">
-                {funcionario ? `${funcionario.nome} ${funcionario.sobrenome || ''}` : '-'}
-              </span>
-            </div>
+            {caixa.funcionario && (
+              <div className="flex items-start">
+                <User size={14} className="mt-0.5 text-gray-500 flex-shrink-0" />
+                <span className="ml-2 text-gray-600 truncate max-w-[calc(100%-20px)]">
+                  {caixa.funcionario.nome} {caixa.funcionario.sobrenome || ''}
+                </span>
+              </div>
+            )}
             
             {caixa.veiculo && (
               <div className="flex items-start">

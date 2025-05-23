@@ -41,13 +41,12 @@ export async function GET(
     // Buscar todas as caixas de viagem do usuário
     const caixasViagem = await prisma.caixaViagem.findMany({
       where: {
-        userId: requestedUserId,
+        userId: params.id,
         oculto: false
       },
       include: {
         empresa: true,
         funcionario: true,
-        lancamentos: true,
         veiculo: {
           select: {
             id: true,
@@ -55,11 +54,13 @@ export async function GET(
             modelo: true,
             placa: true
           }
-        }
+        },
+        lancamentos: true
       },
-      orderBy: {
-        createdAt: 'desc',
-      }
+      orderBy: [
+        { funcionarioId: 'asc' },
+        { numeroCaixa: 'desc' }  // Ordenação por número do caixa
+      ]
     });
 
     return NextResponse.json(caixasViagem);
@@ -144,18 +145,70 @@ export async function POST(
       return NextResponse.json(updatedCaixa);
     } else {
       // Criar nova caixa de viagem
-      const caixaViagem = await prisma.caixaViagem.create({
+      const funcionarioId = body.funcionarioId ? Number(body.funcionarioId) : null;
+      
+      // Se não tem funcionário, não podemos fazer a sequência
+      if (!funcionarioId) {
+        return NextResponse.json({ error: "Funcionário é obrigatório" }, { status: 400 });
+      }
+      
+      // É um novo caixa, vamos buscar o último caixa desse funcionário
+      const ultimoCaixa = await prisma.caixaViagem.findFirst({
+        where: {
+          funcionarioId,
+          oculto: false
+        },
+        orderBy: {
+          numeroCaixa: 'desc'
+        }
+      });
+      
+      // Calcular o próximo número e saldo anterior
+      const proximoNumero = ultimoCaixa ? ultimoCaixa.numeroCaixa + 1 : 1;
+      
+      // Calcular o saldo do último caixa para usar como saldo anterior
+      let saldoAnterior = 0;
+      
+      if (ultimoCaixa) {
+        // Buscar lançamentos do último caixa
+        const lancamentosUltimoCaixa = await prisma.viagemLancamento.findMany({
+          where: {
+            caixaViagemId: ultimoCaixa.id
+          }
+        });
+        
+        // Calcular saldo
+        let totalEntradas = 0;
+        let totalSaidas = 0;
+        
+        lancamentosUltimoCaixa.forEach(lanc => {
+          if (lanc.entrada) {
+            totalEntradas += parseFloat(String(lanc.entrada));
+          }
+          if (lanc.saida) {
+            totalSaidas += parseFloat(String(lanc.saida));
+          }
+        });
+        
+        // Considerar também o saldo anterior do último caixa
+        saldoAnterior = Number(ultimoCaixa.saldoAnterior) + totalEntradas - totalSaidas;
+      }
+      
+      // Criar novo caixa com número sequencial e saldo anterior
+      const novaCaixa = await prisma.caixaViagem.create({
         data: {
           userId,
           destino: body.destino || "",
           data: new Date(body.data),
           empresaId: body.empresaId ? parseInt(body.empresaId) : null,
-          funcionarioId: body.funcionarioId ? parseInt(body.funcionarioId) : null,
-          oculto: body.oculto || false
+          funcionarioId,
+          oculto: body.oculto || false,
+          numeroCaixa: proximoNumero,
+          saldoAnterior: saldoAnterior,
         }
       });
       
-      return NextResponse.json(caixaViagem);
+      return NextResponse.json(novaCaixa);
     }
   } catch (error) {
     console.error("Erro ao salvar caixa de viagem:", error);

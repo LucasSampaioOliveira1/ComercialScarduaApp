@@ -282,17 +282,17 @@ const CaixaViagemDetalhesModal = ({
                       </div>
                     </div>
                     
-                    <div className="flex items-center">
-                      <User className="h-5 w-5 text-gray-500 mr-2" />
-                      <div>
-                        <p className="text-xs text-gray-500">Funcionário</p>
-                        <p className="text-sm font-medium">
-                          {funcionario ? 
-                            `${funcionario.nome} ${funcionario.sobrenome || ''}` : 
-                            'Não vinculado'}
-                        </p>
+                    {funcionario && (
+                      <div className="flex items-center mb-4">
+                        <User className="h-5 w-5 text-gray-500 mr-2" />
+                        <div>
+                          <p className="text-xs text-gray-500">Funcionário</p>
+                          <p className="text-sm font-medium">
+                            {funcionario.nome} {funcionario.sobrenome || ''}
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    )}
                     
                     {/* Ao exibir o veículo nos detalhes */}
                     {veiculo && (
