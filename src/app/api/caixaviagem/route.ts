@@ -112,6 +112,7 @@ export async function POST(req: NextRequest) {
           data: new Date(body.data),
           empresaId: body.empresaId ? Number(body.empresaId) : null,
           funcionarioId: body.funcionarioId ? Number(body.funcionarioId) : null,
+          veiculoId: body.veiculoId ? Number(body.veiculoId) : null, // Adicionar este campo
           oculto: body.oculto !== undefined ? Boolean(body.oculto) : false
         }
       });
@@ -126,6 +127,7 @@ export async function POST(req: NextRequest) {
           data: new Date(body.data),
           empresaId: body.empresaId ? Number(body.empresaId) : null,
           funcionarioId: body.funcionarioId ? Number(body.funcionarioId) : null,
+          veiculoId: body.veiculoId ? Number(body.veiculoId) : null, // Adicionar este campo
           oculto: body.oculto !== undefined ? Boolean(body.oculto) : false
         }
       });

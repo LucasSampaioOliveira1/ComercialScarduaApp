@@ -73,6 +73,9 @@ model Patrimonio {
   kmEntrega            String?          // Novo campo para KM de Entrega (apenas veículos)
   franquia             String?       @db.VarChar(255) // Novo campo para Franquia (todos os tipos)
 
+  // Relação inversa com CaixaViagem
+  caixasViagem  CaixaViagem[]
+
   @@map("patrimonios")
   @@index([responsavelId])
 }
@@ -279,6 +282,11 @@ model CaixaViagem {
   funcionario   Colaborador?      @relation(fields: [funcionarioId], references: [id])
   userId        String?           // <-- Adicionando chave estrangeira para User
   user          User?             @relation(fields: [userId], references: [id]) // <-- Relacionamento com User
+  
+  // Adicionar campo para relacionar com patrimônio (veículos)
+  veiculoId     Int?
+  veiculo       Patrimonio?       @relation(fields: [veiculoId], references: [id])
+  
   destino       String
   data          DateTime
   oculto        Boolean           @default(false)
@@ -289,7 +297,8 @@ model CaixaViagem {
   
   @@index([empresaId])
   @@index([funcionarioId])
-  @@index([userId])              // <-- Adicionando índice para userId
+  @@index([userId])
+  @@index([veiculoId])  // Adicionar índice para o campo veiculoId
 }
 
 model ViagemLancamento {

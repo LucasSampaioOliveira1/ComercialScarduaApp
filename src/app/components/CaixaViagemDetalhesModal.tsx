@@ -12,7 +12,7 @@ interface CaixaViagemDetalhesModalProps {
   caixa: any;
   empresas?: any[];
   funcionarios?: any[];
-  veiculos?: any[];
+  veiculos?: any[]; // Adicionado
   onEdit?: (caixa: any) => void;
   onDelete?: (caixa: any) => void;
   canEdit: boolean;
@@ -40,7 +40,7 @@ const CaixaViagemDetalhesModal = ({
   // Encontrar entidades relacionadas
   const empresa = empresas?.find(emp => emp.id === caixa.empresaId);
   const funcionario = funcionarios?.find(func => func.id === caixa.funcionarioId);
-  const veiculo = veiculos?.find(veic => veic.id === caixa.veiculoId);
+  const veiculo = veiculos?.find(v => v.id === caixa.veiculoId) || caixa.veiculo;
 
   // Calcular totais
   interface Lancamento {
@@ -294,17 +294,20 @@ const CaixaViagemDetalhesModal = ({
                       </div>
                     </div>
                     
-                    <div className="flex items-center">
-                      <Truck className="h-5 w-5 text-gray-500 mr-2" />
-                      <div>
-                        <p className="text-xs text-gray-500">Veículo</p>
-                        <p className="text-sm font-medium">
-                          {veiculo ? 
-                            `${veiculo.modelo} - ${veiculo.placa} ${veiculo.descricao ? `(${veiculo.descricao})` : ''}` : 
-                            'Não informado'}
-                        </p>
+                    {/* Ao exibir o veículo nos detalhes */}
+                    {veiculo && (
+                      <div className="flex items-center mb-4">
+                        <Truck className="h-5 w-5 text-gray-500 mr-2" />
+                        <div>
+                          <p className="text-xs text-gray-500">Veículo</p>
+                          <p className="text-sm font-medium">
+                            {veiculo.nome ? 
+                              `${veiculo.nome} (${veiculo.modelo || ''})` : 
+                              veiculo.modelo} {veiculo.placa ? `- ${veiculo.placa}` : ''}
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    )}
                     
                     <div className="flex items-center">
                       <User className="h-5 w-5 text-gray-500 mr-2" />

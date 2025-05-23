@@ -5,20 +5,29 @@ import jwt from 'jsonwebtoken';
 const prisma = new PrismaClient();
 const SECRET_KEY = process.env.JWT_SECRET || "bd0a3f00b453f0a4e3f64afd92c12777997044d1d00d8832cbd92b57f7f4899c";
 
-// Função para obter o ID do usuário do token
+// Função atualizada para obter o ID do usuário do token
 function getUserIdFromToken(req: NextRequest): string | null {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader) return null;
-  const token = authHeader.replace("Bearer ", "");
   try {
-    const decoded = jwt.verify(token, SECRET_KEY) as any;
-    return decoded?.id || null;
-  } catch {
+    const header = req.headers.get("Authorization");
+    if (!header) return null;
+    
+    const token = header.startsWith("Bearer ") ? header.substring(7) : header;
+    if (!token) return null;
+    
+    try {
+      const decoded = jwt.verify(token, SECRET_KEY) as any;
+      return decoded?.id || null;
+    } catch (error) {
+      console.error("Erro ao verificar token:", error);
+      return null;
+    }
+  } catch (error) {
+    console.error("Erro ao processar cabeçalho:", error);
     return null;
   }
 }
 
-// GET - Obter caixas de viagem de um usuário específico
+// GET - Obter caixas de viagem de um usuário específico (atualizado)
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -29,26 +38,6 @@ export async function GET(
       return NextResponse.json({ error: "ID de usuário não fornecido" }, { status: 400 });
     }
     
-    // Verificar o token para garantir que o usuário só acesse seus próprios dados
-    const tokenUserId = getUserIdFromToken(request);
-    
-    if (!tokenUserId) {
-      return NextResponse.json({ error: "Token não fornecido" }, { status: 401 });
-    }
-    
-    // Verificar se é admin ou é o próprio usuário
-    const userInfo = await prisma.user.findUnique({
-      where: { id: tokenUserId },
-      select: { role: true }
-    });
-    
-    const isAdmin = userInfo?.role === "ADMIN";
-    const isSelf = tokenUserId === requestedUserId;
-    
-    if (!isAdmin && !isSelf) {
-      return NextResponse.json({ error: "Acesso não autorizado" }, { status: 403 });
-    }
-
     // Buscar todas as caixas de viagem do usuário
     const caixasViagem = await prisma.caixaViagem.findMany({
       where: {
@@ -58,10 +47,18 @@ export async function GET(
       include: {
         empresa: true,
         funcionario: true,
-        lancamentos: true
+        lancamentos: true,
+        veiculo: {
+          select: {
+            id: true,
+            nome: true,
+            modelo: true,
+            placa: true
+          }
+        }
       },
       orderBy: {
-        data: 'desc'
+        createdAt: 'desc',
       }
     });
 

@@ -167,11 +167,13 @@ const CaixaViagemCard = ({
               </span>
             </div>
             
-            {veiculo && (
+            {caixa.veiculo && (
               <div className="flex items-start">
                 <Truck size={14} className="mt-0.5 text-gray-500 flex-shrink-0" />
                 <span className="ml-2 text-gray-600 truncate max-w-[calc(100%-20px)]">
-                  {veiculo.placa ? `${veiculo.modelo} - ${veiculo.placa}` : veiculo.modelo || '-'}
+                  {caixa.veiculo.nome ? 
+                    `${caixa.veiculo.nome} (${caixa.veiculo.modelo || ''})` : 
+                    caixa.veiculo.modelo} {caixa.veiculo.placa ? `- ${caixa.veiculo.placa}` : ''}
                 </span>
               </div>
             )}

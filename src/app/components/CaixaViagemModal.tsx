@@ -69,8 +69,9 @@ interface Funcionario {
 
 interface Veiculo {
   id: number;
-  placa?: string;
+  nome?: string; // Adicionando o campo nome como opcional
   modelo?: string;
+  placa?: string;
   descricao?: string;
 }
 
@@ -538,7 +539,7 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
                   <option value="">Selecione um veículo</option>
                   {veiculos.map(veiculo => (
                     <option key={veiculo.id} value={veiculo.id}>
-                      {veiculo.modelo} - {veiculo.placa} {veiculo.descricao ? `(${veiculo.descricao})` : ''}
+                      {veiculo.nome ? `${veiculo.nome} (${veiculo.modelo})` : veiculo.modelo} {veiculo.placa ? `- ${veiculo.placa}` : ''}
                     </option>
                   ))}
                 </select>

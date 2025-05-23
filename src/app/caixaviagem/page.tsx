@@ -379,14 +379,24 @@ export default function CaixaViagemPage() {
         setFuncionarios(funcionariosData);
       }
 
-      // Fetch veículos
+      // Fetch veículos com melhor tratamento de erro
       try {
+        console.log("Buscando veículos...");
         const veiculosResponse = await fetch('/api/patrimonio/veiculos', {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Cache-Control': 'no-cache'
+          }
         });
+        
         if (veiculosResponse.ok) {
           const veiculosData = await veiculosResponse.json();
+          console.log(`Recebidos ${veiculosData.length} veículos`);
           setVeiculos(veiculosData);
+        } else {
+          const errorText = await veiculosResponse.text();
+          console.error(`Erro ${veiculosResponse.status} ao buscar veículos: ${errorText}`);
+          setVeiculos([]);
         }
       } catch (error) {
         console.error("Erro ao buscar veículos:", error);
@@ -1293,7 +1303,7 @@ export default function CaixaViagemPage() {
           onSave={handleSaveCaixaViagem}
           empresas={empresas}
           funcionarios={funcionarios}
-          veiculos={[]} // Adicionando a propriedade veiculos (array vazio por enquanto)
+          veiculos={veiculos} // Passando a lista de veículos obtida da API
           isLoading={loadingAction}
         />
       )}
@@ -1305,6 +1315,7 @@ export default function CaixaViagemPage() {
           caixa={selectedCaixa}
           empresas={empresas}
           funcionarios={funcionarios}
+          veiculos={veiculos} // Adicionar esta propriedade
           onEdit={handleOpenEditModal}
           onDelete={handleToggleVisibility}
           canEdit={userPermissions.canEdit}

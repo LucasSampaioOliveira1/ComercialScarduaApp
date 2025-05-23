@@ -69,6 +69,7 @@ interface Funcionario {
 
 interface Veiculo {
   id: number;
+  nome?: string; // Adicionando nome como propriedade opcional
   placa?: string;
   modelo?: string;
   descricao?: string;
@@ -593,7 +594,7 @@ const CaixaViagemModalAdmin: React.FC<CaixaViagemModalAdminProps> = ({
                   <option value="">Selecione um veículo</option>
                   {veiculos.map(veiculo => (
                     <option key={veiculo.id} value={veiculo.id}>
-                      {veiculo.placa} - {veiculo.modelo} {veiculo.descricao ? `(${veiculo.descricao})` : ''}
+                      {veiculo.nome ? `${veiculo.nome} (${veiculo.modelo})` : veiculo.modelo} {veiculo.placa ? `- ${veiculo.placa}` : ''}
                     </option>
                   ))}
                 </select>

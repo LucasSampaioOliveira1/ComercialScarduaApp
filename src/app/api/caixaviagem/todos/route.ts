@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
       whereClause.oculto = false;
     }
     
-    // Buscar caixas de viagem
+    // Buscar caixas de viagem com informações de veículos
     const caixas = await prisma.caixaViagem.findMany({
       where: whereClause,
       include: {
@@ -62,6 +62,14 @@ export async function GET(req: NextRequest) {
         },
         empresa: true,
         funcionario: true,
+        veiculo: { // Adicionado
+          select: {
+            id: true,
+            nome: true,
+            modelo: true,
+            placa: true
+          }
+        },
         lancamentos: {
           orderBy: {
             data: 'desc'
