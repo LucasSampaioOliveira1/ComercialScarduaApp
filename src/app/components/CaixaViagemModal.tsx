@@ -654,19 +654,19 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
                     <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[18%]">
                       Custo
                     </th>
-                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[22%]">
                       Cliente/Fornecedor
                     </th>
-                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[12%]">
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
                       Documento
                     </th>
                     <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[25%]">
                       Histórico
                     </th>
-                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[8%]">
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[7%]">
                       Entrada
                     </th>
-                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[8%]">
+                    <th className="border-b-2 border-gray-200 px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[7%]">
                       Saída
                     </th>
                     <th className="border-b-2 border-gray-200 px-2 py-2 w-[3%]"></th>

@@ -95,6 +95,13 @@ interface User {
   role?: string;
 }
 
+interface Veiculo {
+  id: number;
+  placa?: string;
+  modelo?: string;
+  descricao?: string;
+}
+
 // Função para garantir que os dados são arrays
 function ensureArray<T>(data: any, fallback: T[] = []): T[] {
   if (Array.isArray(data)) return data;
@@ -146,6 +153,7 @@ export default function CaixaViagemTodosPage() {
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [usuarios, setUsuarios] = useState<User[]>([]);
   const [destinos, setDestinos] = useState<string[]>([]);
+  const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
   
   // Estado para permissões
   const [userPermissions, setUserPermissions] = useState({
@@ -379,6 +387,15 @@ export default function CaixaViagemTodosPage() {
       if (usuariosResponse.ok) {
         const usuariosData = await usuariosResponse.json();
         setUsuarios(usuariosData.usuarios || usuariosData);
+      }
+      
+      // Fetch veículos
+      const veiculosResponse = await fetch('/api/patrimonio/veiculos', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (veiculosResponse.ok) {
+        const veiculosData = await veiculosResponse.json();
+        setVeiculos(veiculosData);
       }
     } catch (error) {
       console.error("Erro ao buscar dados auxiliares:", error);
@@ -1417,6 +1434,7 @@ export default function CaixaViagemTodosPage() {
             onSave={handleSaveCaixaViagem}
             empresas={empresas}
             funcionarios={funcionarios}
+            veiculos={veiculos} // Adicionando a propriedade veiculos
             usuarios={usuarios}
             isLoading={loadingAction}
           />

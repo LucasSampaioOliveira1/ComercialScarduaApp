@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Download, ArrowDownCircle, ArrowUpCircle, DollarSign, Edit, Trash2, MapPin, Building, Calendar, User } from 'lucide-react';
+import { X, Download, ArrowDownCircle, ArrowUpCircle, DollarSign, Edit, Trash2, MapPin, Building, Calendar, User, Truck } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -12,6 +12,7 @@ interface CaixaViagemDetalhesModalProps {
   caixa: any;
   empresas?: any[];
   funcionarios?: any[];
+  veiculos?: any[];
   onEdit?: (caixa: any) => void;
   onDelete?: (caixa: any) => void;
   canEdit: boolean;
@@ -24,6 +25,7 @@ const CaixaViagemDetalhesModal = ({
   caixa,
   empresas,
   funcionarios,
+  veiculos,
   onEdit,
   onDelete,
   canEdit,
@@ -35,16 +37,24 @@ const CaixaViagemDetalhesModal = ({
 
   const lancamentos = Array.isArray(caixa.lancamentos) ? caixa.lancamentos : [];
   
+  // Encontrar entidades relacionadas
+  const empresa = empresas?.find(emp => emp.id === caixa.empresaId);
+  const funcionario = funcionarios?.find(func => func.id === caixa.funcionarioId);
+  const veiculo = veiculos?.find(veic => veic.id === caixa.veiculoId);
+
   // Calcular totais
   interface Lancamento {
     id?: string | number;
     entrada?: string | number;
     saida?: string | number;
     data?: string;
-    numeroDocumento?: string;
-    historicoDoc?: string;
+    documento?: string;
+    historico?: string;
     clienteFornecedor?: string;
     custo?: string;
+    // Campos alternativos para compatibilidade
+    numeroDocumento?: string;
+    historicoDoc?: string;
   }
 
   const totalEntradas: number = lancamentos
@@ -84,9 +94,11 @@ const CaixaViagemDetalhesModal = ({
         'ID': caixa.id,
         'Destino': caixa.destino,
         'Data': formatDate(caixa.data),
-        'Empresa': caixa.empresa?.nome || caixa.empresa?.nomeEmpresa || 'N/A',
-        'Funcionário': caixa.funcionario ? 
-          `${caixa.funcionario.nome} ${caixa.funcionario.sobrenome || ''}` : 'N/A',
+        'Empresa': empresa?.nome || empresa?.nomeEmpresa || 'N/A',
+        'Funcionário': funcionario ? 
+          `${funcionario.nome} ${funcionario.sobrenome || ''}` : 'N/A',
+        'Veículo': veiculo ? 
+          `${veiculo.modelo} - ${veiculo.placa}` : 'N/A',
         'Usuário': caixa.user ? 
           `${caixa.user.nome} ${caixa.user.sobrenome || ''}` : 'N/A',
         'Total Entradas': formatCurrency(totalEntradas),
@@ -101,12 +113,12 @@ const CaixaViagemDetalhesModal = ({
       const lancamentosData = lancamentos.map((lancamento: any, index: number) => ({
         '#': index + 1,
         'Data': formatDate(lancamento.data),
-        'Documento': lancamento.numeroDocumento || '',
+        'Documento': lancamento.documento || lancamento.numeroDocumento || '',
         'Custo': lancamento.custo || '',
         'Cliente/Fornecedor': lancamento.clienteFornecedor || '',
+        'Histórico': lancamento.historico || lancamento.historicoDoc || '',
         'Entrada': lancamento.entrada ? formatCurrency(parseFloat(String(lancamento.entrada))) : '',
-        'Saída': lancamento.saida ? formatCurrency(parseFloat(String(lancamento.saida))) : '',
-        'Descrição': lancamento.historicoDoc || ''
+        'Saída': lancamento.saida ? formatCurrency(parseFloat(String(lancamento.saida))) : ''
       }));
 
       // Criar um novo workbook
@@ -265,7 +277,7 @@ const CaixaViagemDetalhesModal = ({
                       <div>
                         <p className="text-xs text-gray-500">Empresa</p>
                         <p className="text-sm font-medium">
-                          {caixa.empresa?.nome || caixa.empresa?.nomeEmpresa || 'Não vinculada'}
+                          {empresa?.nome || empresa?.nomeEmpresa || 'Não vinculada'}
                         </p>
                       </div>
                     </div>
@@ -275,9 +287,21 @@ const CaixaViagemDetalhesModal = ({
                       <div>
                         <p className="text-xs text-gray-500">Funcionário</p>
                         <p className="text-sm font-medium">
-                          {caixa.funcionario ? 
-                            `${caixa.funcionario.nome} ${caixa.funcionario.sobrenome || ''}` : 
+                          {funcionario ? 
+                            `${funcionario.nome} ${funcionario.sobrenome || ''}` : 
                             'Não vinculado'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <Truck className="h-5 w-5 text-gray-500 mr-2" />
+                      <div>
+                        <p className="text-xs text-gray-500">Veículo</p>
+                        <p className="text-sm font-medium">
+                          {veiculo ? 
+                            `${veiculo.modelo} - ${veiculo.placa} ${veiculo.descricao ? `(${veiculo.descricao})` : ''}` : 
+                            'Não informado'}
                         </p>
                       </div>
                     </div>
@@ -360,23 +384,23 @@ const CaixaViagemDetalhesModal = ({
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Documento</th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente/Fornecedor</th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Custo</th>
-                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Entrada</th>
-                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Saída</th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">Data</th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">Custo</th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">Cliente/Fornecedor</th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">Documento</th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[25%]">Histórico</th>
+                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">Entrada</th>
+                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">Saída</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {lancamentos.map((lancamento: any) => (
-                          <tr key={lancamento.id} className="hover:bg-gray-50">
+                        {lancamentos.map((lancamento: any, index: number) => (
+                          <tr key={lancamento.id || index} className="hover:bg-gray-50">
                             <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900">{formatDate(lancamento.data)}</td>
-                            <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-500">{lancamento.numeroDocumento || '-'}</td>
-                            <td className="px-6 py-3 text-sm text-gray-900">{lancamento.historicoDoc || '-'}</td>
-                            <td className="px-6 py-3 text-sm text-gray-900">{lancamento.clienteFornecedor || '-'}</td>
                             <td className="px-6 py-3 text-sm text-gray-900">{lancamento.custo || '-'}</td>
+                            <td className="px-6 py-3 text-sm text-gray-900">{lancamento.clienteFornecedor || '-'}</td>
+                            <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-500">{lancamento.documento || lancamento.numeroDocumento || '-'}</td>
+                            <td className="px-6 py-3 text-sm text-gray-900">{lancamento.historico || lancamento.historicoDoc || '-'}</td>
                             <td className="px-6 py-3 whitespace-nowrap text-sm text-right text-green-600 font-medium">
                               {lancamento.entrada ? formatCurrency(parseFloat(String(lancamento.entrada))) : ''}
                             </td>

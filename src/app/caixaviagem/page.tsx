@@ -97,6 +97,13 @@ interface User {
   role?: string;
 }
 
+interface Veiculo {
+  id: number;
+  placa?: string;
+  modelo?: string;
+  descricao?: string;
+}
+
 // Função para garantir que os dados são arrays
 function ensureArray<T>(data: any, fallback: T[] = []): T[] {
   if (Array.isArray(data)) return data;
@@ -144,6 +151,7 @@ export default function CaixaViagemPage() {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [destinos, setDestinos] = useState<string[]>([]);
+  const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
   
   // Estado para permissões
   const [userPermissions, setUserPermissions] = useState({
@@ -279,13 +287,13 @@ export default function CaixaViagemPage() {
         
         lancamentos.forEach((lanc) => {
           if (lanc.entrada) {
-            const valorEntrada = parseFloat(String(lanc.entrada));
+            const valorEntrada = parseFloat(String(lanc.entrada).replace(/[^\d.,]/g, '').replace(',', '.'));
             if (!isNaN(valorEntrada)) {
               totalEntradas += valorEntrada;
             }
           }
           if (lanc.saida) {
-            const valorSaida = parseFloat(String(lanc.saida));
+            const valorSaida = parseFloat(String(lanc.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
             if (!isNaN(valorSaida)) {
               totalSaidas += valorSaida;
             }
@@ -369,6 +377,20 @@ export default function CaixaViagemPage() {
       if (funcionariosResponse.ok) {
         const funcionariosData = await funcionariosResponse.json();
         setFuncionarios(funcionariosData);
+      }
+
+      // Fetch veículos
+      try {
+        const veiculosResponse = await fetch('/api/patrimonio/veiculos', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (veiculosResponse.ok) {
+          const veiculosData = await veiculosResponse.json();
+          setVeiculos(veiculosData);
+        }
+      } catch (error) {
+        console.error("Erro ao buscar veículos:", error);
+        setVeiculos([]);
       }
     } catch (error) {
       console.error("Erro ao buscar dados auxiliares:", error);
@@ -1271,6 +1293,7 @@ export default function CaixaViagemPage() {
           onSave={handleSaveCaixaViagem}
           empresas={empresas}
           funcionarios={funcionarios}
+          veiculos={[]} // Adicionando a propriedade veiculos (array vazio por enquanto)
           isLoading={loadingAction}
         />
       )}

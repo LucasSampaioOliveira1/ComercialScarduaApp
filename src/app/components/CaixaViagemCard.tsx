@@ -2,13 +2,16 @@ import React from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
-  MapPin, Building, User, Calendar, 
+  MapPin, Building, User, Calendar, Truck,
   DollarSign, Eye, Edit, Trash2, Clock, ArrowUpCircle, ArrowDownCircle
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface CaixaViagemCardProps {
   caixa: any;
+  empresas?: any[];
+  funcionarios?: any[];
+  veiculos?: any[];
   onViewDetails: () => void;
   onEdit: () => void;
   onToggleVisibility: () => void;
@@ -18,6 +21,9 @@ interface CaixaViagemCardProps {
 
 const CaixaViagemCard = ({ 
   caixa, 
+  empresas,
+  funcionarios,
+  veiculos,
   onViewDetails, 
   onEdit, 
   onToggleVisibility,
@@ -27,18 +33,29 @@ const CaixaViagemCard = ({
   // Calcular totais e saldo
   const lancamentos = Array.isArray(caixa.lancamentos) ? caixa.lancamentos : [];
   
+  // Encontrar entidades relacionadas
+  const empresa = caixa.empresa || empresas?.find(emp => emp.id === caixa.empresaId);
+  const funcionario = caixa.funcionario || funcionarios?.find(func => func.id === caixa.funcionarioId);
+  const veiculo = caixa.veiculo || veiculos?.find(veic => veic.id === caixa.veiculoId);
+  
   interface Lancamento {
     entrada?: number | string | null;
     saida?: number | string | null;
   }
   
   const entradas: number = lancamentos
-    .filter((l: Lancamento) => l?.entrada && !isNaN(parseFloat(String(l.entrada))))
-    .reduce((sum: number, item: Lancamento) => sum + parseFloat(String(item.entrada || "0")), 0);
+    .filter((l: Lancamento) => l?.entrada && !isNaN(parseFloat(String(l.entrada).replace(/[^\d.,]/g, '').replace(',', '.'))))
+    .reduce((sum: number, item: Lancamento) => {
+      const valor = parseFloat(String(item.entrada || "0").replace(/[^\d.,]/g, '').replace(',', '.'));
+      return sum + (isNaN(valor) ? 0 : valor);
+    }, 0);
   
   const saidas: number = lancamentos
-    .filter((l: Lancamento) => l?.saida && !isNaN(parseFloat(String(l.saida))))
-    .reduce((sum: number, item: Lancamento) => sum + parseFloat(String(item.saida || "0")), 0);
+    .filter((l: Lancamento) => l?.saida && !isNaN(parseFloat(String(l.saida).replace(/[^\d.,]/g, '').replace(',', '.'))))
+    .reduce((sum: number, item: Lancamento) => {
+      const valor = parseFloat(String(item.saida || "0").replace(/[^\d.,]/g, '').replace(',', '.'));
+      return sum + (isNaN(valor) ? 0 : valor);
+    }, 0);
   
   const saldo = entradas - saidas;
 
@@ -50,7 +67,7 @@ const CaixaViagemCard = ({
     }).format(value);
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string) => {
     if (!dateString) return "";
     try {
       const date = new Date(dateString);
@@ -79,11 +96,11 @@ const CaixaViagemCard = ({
               <MapPin size={20} />
             </div>
             <div className="ml-3">
-              <h3 className="text-lg font-semibold text-gray-900 truncate">
+              <h3 className="text-lg font-semibold text-gray-900 truncate max-w-[200px]">
                 {caixa.destino || `Caixa #${caixa.id}`}
               </h3>
               <p className="text-sm text-gray-600">
-                {formatDate(caixa.data)} • {caixa.funcionario?.nome || 'Sem funcionário'}
+                {formatDate(caixa.data)}
               </p>
             </div>
           </div>
@@ -108,10 +125,10 @@ const CaixaViagemCard = ({
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-2 mb-2">
+          <div className="grid grid-cols-2 gap-2 mb-4">
             <div className="flex items-center justify-between p-2 bg-green-50 rounded">
               <span className="text-xs font-medium text-green-700 flex items-center">
-                <ArrowUpCircle size={14} className="mr-1" />
+                <ArrowDownCircle size={14} className="mr-1" />
                 Entradas
               </span>
               <div className="flex items-center">
@@ -123,7 +140,7 @@ const CaixaViagemCard = ({
             
             <div className="flex items-center justify-between p-2 bg-red-50 rounded">
               <span className="text-xs font-medium text-red-700 flex items-center">
-                <ArrowDownCircle size={14} className="mr-1" />
+                <ArrowUpCircle size={14} className="mr-1" />
                 Saídas
               </span>
               <div className="flex items-center">
@@ -134,54 +151,67 @@ const CaixaViagemCard = ({
             </div>
           </div>
           
-          {/* Mais detalhes */}
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-gray-700">Empresa:</span>
-            <span className="text-sm text-gray-600 truncate max-w-[60%] text-right">
-              {caixa.empresa?.nome || caixa.empresa?.nomeEmpresa || '-'}
-            </span>
-          </div>
-          
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-gray-700">Funcionário:</span>
-            <span className="text-sm text-gray-600 truncate max-w-[60%] text-right">
-              {caixa.funcionario ? `${caixa.funcionario.nome} ${caixa.funcionario.sobrenome || ''}` : '-'}
-            </span>
-          </div>
-          
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-gray-700">Lançamentos:</span>
-            <span className="text-sm text-gray-600">{lancamentos.length}</span>
+          {/* Detalhes */}
+          <div className="space-y-2 text-sm">
+            <div className="flex items-start">
+              <Building size={14} className="mt-0.5 text-gray-500 flex-shrink-0" />
+              <span className="ml-2 text-gray-600 truncate max-w-[calc(100%-20px)]">
+                {empresa?.nome || empresa?.nomeEmpresa || '-'}
+              </span>
+            </div>
+            
+            <div className="flex items-start">
+              <User size={14} className="mt-0.5 text-gray-500 flex-shrink-0" />
+              <span className="ml-2 text-gray-600 truncate max-w-[calc(100%-20px)]">
+                {funcionario ? `${funcionario.nome} ${funcionario.sobrenome || ''}` : '-'}
+              </span>
+            </div>
+            
+            {veiculo && (
+              <div className="flex items-start">
+                <Truck size={14} className="mt-0.5 text-gray-500 flex-shrink-0" />
+                <span className="ml-2 text-gray-600 truncate max-w-[calc(100%-20px)]">
+                  {veiculo.placa ? `${veiculo.modelo} - ${veiculo.placa}` : veiculo.modelo || '-'}
+                </span>
+              </div>
+            )}
+            
+            <div className="flex items-start">
+              <DollarSign size={14} className="mt-0.5 text-gray-500 flex-shrink-0" />
+              <span className="ml-2 text-gray-600">
+                {lancamentos.length} lançamentos
+              </span>
+            </div>
           </div>
         </div>
         
-        <div className="mt-4 pt-4 border-t border-gray-200 flex justify-end space-x-2">
+        <div className="mt-4 pt-3 border-t border-gray-200 flex justify-end space-x-2">
           <div className="flex items-center space-x-2">
             <button
               onClick={onViewDetails}
-              className="text-blue-600 hover:text-blue-800"
+              className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded-full transition-colors"
               title="Ver detalhes"
             >
-              <Eye size={18} />
+              <Eye size={16} />
             </button>
             
             {canEdit && (
               <button
                 onClick={onEdit}
-                className="text-amber-600 hover:text-amber-800"
+                className="text-amber-600 hover:text-amber-800 p-1.5 hover:bg-amber-50 rounded-full transition-colors"
                 title="Editar"
               >
-                <Edit size={18} />
+                <Edit size={16} />
               </button>
             )}
             
             {canDelete && (
               <button
                 onClick={onToggleVisibility}
-                className="text-red-600 hover:text-red-800"
-                title="Excluir"
+                className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded-full transition-colors"
+                title="Excluir/Ocultar"
               >
-                <Trash2 size={18} />
+                <Trash2 size={16} />
               </button>
             )}
           </div>
