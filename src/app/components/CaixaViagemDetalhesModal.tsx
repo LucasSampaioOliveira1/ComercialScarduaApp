@@ -75,9 +75,25 @@ const CaixaViagemDetalhesModal = ({
     }).format(value);
   };
 
+  // Modificar a função formatDate para ser mais robusta, como no ContaCorrenteDetalhesModal
   const formatDate = (dateString?: string) => {
     if (!dateString) return "";
+    
     try {
+      // Abordagem direta: extrair componentes da data sem usar o construtor Date
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        const [year, month, day] = dateString.split('-');
+        return `${day}/${month}/${year}`;
+      }
+      
+      // Processamento seguro para outros formatos
+      if (dateString.includes('T')) {
+        const [datePart] = dateString.split('T');
+        const [year, month, day] = datePart.split('-');
+        return `${day}/${month}/${year}`;
+      }
+      
+      // Último recurso com o método tradicional
       const date = new Date(dateString);
       return format(date, 'dd/MM/yyyy', { locale: ptBR });
     } catch (error) {
@@ -113,10 +129,10 @@ const CaixaViagemDetalhesModal = ({
       const lancamentosData = lancamentos.map((lancamento: any, index: number) => ({
         '#': index + 1,
         'Data': formatDate(lancamento.data),
-        'Documento': lancamento.documento || lancamento.numeroDocumento || '',
+        'Documento': lancamento.numeroDocumento || '',
         'Custo': lancamento.custo || '',
         'Cliente/Fornecedor': lancamento.clienteFornecedor || '',
-        'Histórico': lancamento.historico || lancamento.historicoDoc || '',
+        'Histórico': lancamento.historicoDoc || '',
         'Entrada': lancamento.entrada ? formatCurrency(parseFloat(String(lancamento.entrada))) : '',
         'Saída': lancamento.saida ? formatCurrency(parseFloat(String(lancamento.saida))) : ''
       }));
@@ -157,29 +173,33 @@ const CaixaViagemDetalhesModal = ({
           animate={{ opacity: 1, scale: 1 }}
           className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-4xl"
         >
-          {/* Cabeçalho */}
-          <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 border-b border-gray-200">
+          {/* Cabeçalho Reformulado */}
+          <div className="bg-blue-50 p-4 rounded-t-lg relative border-b border-blue-100">
             <div className="sm:flex sm:items-start justify-between">
               <div className="flex items-center">
                 <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
-                  <MapPin className="h-6 w-6 text-blue-600" aria-hidden="true" />
+                  <User className="h-6 w-6 text-blue-600" aria-hidden="true" />
                 </div>
                 <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                  <h3 className="text-lg font-medium leading-6 text-gray-900">
-                    {caixa.destino || `Caixa de Viagem #${caixa.id}`}
+                  <h3 className="text-xl font-semibold text-gray-900 flex items-center">
+                    {funcionario ? 
+                      `${funcionario.nome} ${funcionario.sobrenome || ''}`.trim() : 
+                      "Sem Funcionário"}
+                    {caixa.numeroCaixa && (
+                      <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full ml-2">
+                        #{caixa.numeroCaixa}
+                      </span>
+                    )}
                   </h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {formatDate(caixa.data)} 
-                    {caixa.oculto && <span className="ml-2 text-orange-500">(Oculto)</span>}
-                  </p>
+                  {caixa.oculto && <span className="text-sm text-orange-500 mt-1">(Oculto)</span>}
                 </div>
               </div>
               
-              <div className="mt-3 sm:mt-0 flex items-center space-x-3">
+              <div className="flex items-center space-x-2">
                 <button
                   onClick={exportToExcel}
                   type="button"
-                  className="inline-flex items-center p-2 border border-transparent rounded-full shadow-sm text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                  className="p-2 bg-green-100 text-green-600 rounded-full hover:bg-green-200 transition-colors"
                   title="Exportar para Excel"
                 >
                   <Download className="h-5 w-5" />
@@ -189,7 +209,7 @@ const CaixaViagemDetalhesModal = ({
                   <button
                     onClick={() => onEdit(caixa)}
                     type="button"
-                    className="inline-flex items-center p-2 border border-transparent rounded-full shadow-sm text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                    className="p-2 bg-amber-100 text-amber-600 rounded-full hover:bg-amber-200 transition-colors"
                     title="Editar"
                   >
                     <Edit className="h-5 w-5" />
@@ -200,7 +220,7 @@ const CaixaViagemDetalhesModal = ({
                   <button
                     onClick={() => onDelete(caixa)}
                     type="button"
-                    className="inline-flex items-center p-2 border border-transparent rounded-full shadow-sm text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                    className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition-colors"
                     title="Excluir/Ocultar"
                   >
                     <Trash2 className="h-5 w-5" />
@@ -210,7 +230,7 @@ const CaixaViagemDetalhesModal = ({
                 <button
                   onClick={onClose}
                   type="button"
-                  className="inline-flex items-center p-2 border border-transparent rounded-full shadow-sm text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                  className="p-2 bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 transition-colors"
                   title="Fechar"
                 >
                   <X className="h-5 w-5" />
@@ -218,9 +238,9 @@ const CaixaViagemDetalhesModal = ({
               </div>
             </div>
             
-            {/* Guias */}
+            {/* Guias do modal */}
             <div className="mt-4">
-              <div className="border-b border-gray-200">
+              <div className="border-b border-gray-200 -mx-4 px-4">
                 <nav className="-mb-px flex space-x-8" aria-label="Tabs">
                   <button
                     onClick={() => setActiveTab('detalhes')}
@@ -250,126 +270,152 @@ const CaixaViagemDetalhesModal = ({
           {/* Corpo do modal */}
           <div className="bg-white px-4 py-5 sm:p-6">
             {activeTab === 'detalhes' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Informações da Caixa */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-semibold text-gray-900 border-b pb-2 mb-3">Informações da Caixa</h4>
-                  
-                  <div className="space-y-3">
-                    <div className="flex items-center">
-                      <MapPin className="h-5 w-5 text-gray-500 mr-2" />
+              <div>
+                {/* Resumo financeiro em 3 colunas */}
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="bg-green-50 p-3 rounded-lg">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-xs text-gray-500">Destino</p>
-                        <p className="text-sm font-medium">{caixa.destino || 'Não informado'}</p>
+                        <p className="text-xs font-medium text-gray-600">Entradas</p>
+                        <p className="text-lg font-bold text-green-600">{formatCurrency(totalEntradas)}</p>
                       </div>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <Calendar className="h-5 w-5 text-gray-500 mr-2" />
-                      <div>
-                        <p className="text-xs text-gray-500">Data</p>
-                        <p className="text-sm font-medium">{formatDate(caixa.data)}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <Building className="h-5 w-5 text-gray-500 mr-2" />
-                      <div>
-                        <p className="text-xs text-gray-500">Empresa</p>
-                        <p className="text-sm font-medium">
-                          {empresa?.nome || empresa?.nomeEmpresa || 'Não vinculada'}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {funcionario && (
-                      <div className="flex items-center mb-4">
-                        <User className="h-5 w-5 text-gray-500 mr-2" />
-                        <div>
-                          <p className="text-xs text-gray-500">Funcionário</p>
-                          <p className="text-sm font-medium">
-                            {funcionario.nome} {funcionario.sobrenome || ''}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Ao exibir o veículo nos detalhes */}
-                    {veiculo && (
-                      <div className="flex items-center mb-4">
-                        <Truck className="h-5 w-5 text-gray-500 mr-2" />
-                        <div>
-                          <p className="text-xs text-gray-500">Veículo</p>
-                          <p className="text-sm font-medium">
-                            {veiculo.nome ? 
-                              `${veiculo.nome} (${veiculo.modelo || ''})` : 
-                              veiculo.modelo} {veiculo.placa ? `- ${veiculo.placa}` : ''}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center">
-                      <User className="h-5 w-5 text-gray-500 mr-2" />
-                      <div>
-                        <p className="text-xs text-gray-500">Responsável</p>
-                        <p className="text-sm font-medium">
-                          {caixa.user ? 
-                            `${caixa.user.nome} ${caixa.user.sobrenome || ''}` : 
-                            'Não informado'}
-                        </p>
+                      <div className="bg-green-100 rounded-full p-1.5">
+                        <ArrowDownCircle size={16} className="text-green-600" />
                       </div>
                     </div>
                   </div>
                   
-                  {caixa.observacao && (
-                    <div className="mt-4 pt-3 border-t">
-                      <p className="text-xs text-gray-500">Observações</p>
-                      <p className="text-sm mt-1 whitespace-pre-wrap">{caixa.observacao}</p>
+                  <div className="bg-red-50 p-3 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-medium text-gray-600">Saídas</p>
+                        <p className="text-lg font-bold text-red-600">{formatCurrency(totalSaidas)}</p>
+                      </div>
+                      <div className="bg-red-100 rounded-full p-1.5">
+                        <ArrowUpCircle size={16} className="text-red-600" />
+                      </div>
                     </div>
-                  )}
+                  </div>
+                  
+                  <div className="bg-blue-50 p-3 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-medium text-gray-600">Saldo</p>
+                        <p className={`text-lg font-bold ${saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(saldo)}
+                        </p>
+                      </div>
+                      <div className={`${saldo >= 0 ? 'bg-green-100' : 'bg-red-100'} rounded-full p-1.5`}>
+                        <DollarSign size={16} className={saldo >= 0 ? 'text-green-600' : 'text-red-600'} />
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 
-                {/* Resumo Financeiro */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-semibold text-gray-900 border-b pb-2 mb-3">Resumo Financeiro</h4>
+                {/* Informações em duas colunas */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Detalhes da viagem */}
+                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                      <h3 className="font-medium text-gray-800 flex items-center text-sm">
+                        <MapPin size={16} className="mr-2 text-blue-600" />
+                        Detalhes da Viagem
+                      </h3>
+                    </div>
+                    <div className="p-4">
+                      <div className="space-y-3">
+                        {/* Adicionando destino - agora como primeiro item */}
+                        <div className="flex items-center">
+                          <MapPin className="h-5 w-5 text-gray-500 mr-2" />
+                          <div>
+                            <p className="text-xs text-gray-500">Destino</p>
+                            <p className="text-sm font-medium">
+                              {caixa.destino || 'Não informado'}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Adicionando data - agora como segundo item */}
+                        <div className="flex items-center">
+                          <Calendar className="h-5 w-5 text-gray-500 mr-2" />
+                          <div>
+                            <p className="text-xs text-gray-500">Data</p>
+                            <p className="text-sm font-medium">
+                              {formatDate(caixa.data)}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center">
+                          <Building className="h-5 w-5 text-gray-500 mr-2" />
+                          <div>
+                            <p className="text-xs text-gray-500">Empresa</p>
+                            <p className="text-sm font-medium">
+                              {empresa?.nome || empresa?.nomeEmpresa || 'Não vinculada'}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {veiculo && (
+                          <div className="flex items-center">
+                            <Truck className="h-5 w-5 text-gray-500 mr-2" />
+                            <div>
+                              <p className="text-xs text-gray-500">Veículo</p>
+                              <p className="text-sm font-medium">
+                                {veiculo.nome ? 
+                                  `${veiculo.nome} ${veiculo.modelo ? `(${veiculo.modelo})` : ''}` : 
+                                  veiculo.modelo || 'Não informado'} 
+                                {veiculo.placa ? `- ${veiculo.placa}` : ''}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Observações */}
+                      {caixa.observacao && (
+                        <div className="mt-4 pt-3 border-t border-gray-200">
+                          <div className="bg-blue-50 p-3 rounded border border-blue-100">
+                            <p className="text-xs text-gray-600 mb-1">Observações</p>
+                            <p className="text-sm text-gray-800 whitespace-pre-wrap">{caixa.observacao}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   
-                  <div className="space-y-4">
-                    <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-100">
-                      <div className="flex items-center">
-                        <ArrowDownCircle className="h-8 w-8 text-green-500 mr-3" />
-                        <div>
-                          <p className="text-xs text-gray-500">Total de Entradas</p>
-                          <p className="text-lg font-semibold text-green-500">{formatCurrency(totalEntradas)}</p>
+                  {/* Informações adicionais */}
+                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                    <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                      <h3 className="font-medium text-gray-800 flex items-center text-sm">
+                        <Calendar size={16} className="mr-2 text-blue-600" />
+                        Informações Adicionais
+                      </h3>
+                    </div>
+                    <div className="p-4">
+                      <div>
+                        {caixa.saldoAnterior !== 0 && caixa.saldoAnterior !== undefined && (
+                          <div className="flex justify-between items-center mb-2 pb-2 border-b border-gray-100">
+                            <span className="text-sm text-gray-600">Saldo Inicial:</span>
+                            <span className="text-sm font-medium">{formatCurrency(Number(caixa.saldoAnterior))}</span>
+                          </div>
+                        )}
+                        
+                        <div className="mt-4 text-xs text-gray-500">
+                          <div className="flex justify-between mb-1">
+                            <span>ID da Caixa:</span>
+                            <span className="text-gray-700">{caixa.id}</span>
+                          </div>
+                          <div className="flex justify-between mb-1">
+                            <span>Criado em:</span>
+                            <span className="text-gray-700">{formatDate(caixa.createdAt)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Última atualização:</span>
+                            <span className="text-gray-700">{formatDate(caixa.updatedAt)}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    
-                    <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-100">
-                      <div className="flex items-center">
-                        <ArrowUpCircle className="h-8 w-8 text-red-500 mr-3" />
-                        <div>
-                          <p className="text-xs text-gray-500">Total de Saídas</p>
-                          <p className="text-lg font-semibold text-red-500">{formatCurrency(totalSaidas)}</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-100">
-                      <div className="flex items-center">
-                        <DollarSign className="h-8 w-8 text-blue-500 mr-3" />
-                        <div>
-                          <p className="text-xs text-gray-500">Saldo</p>
-                          <p className={`text-lg font-semibold ${saldo >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                            {formatCurrency(saldo)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="text-xs text-gray-500 mt-2 pt-2 border-t">
-                      <p>Criado em: {formatDate(caixa.createdAt)}</p>
-                      <p>Última atualização: {formatDate(caixa.updatedAt)}</p>
                     </div>
                   </div>
                 </div>
@@ -402,8 +448,8 @@ const CaixaViagemDetalhesModal = ({
                             <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900">{formatDate(lancamento.data)}</td>
                             <td className="px-6 py-3 text-sm text-gray-900">{lancamento.custo || '-'}</td>
                             <td className="px-6 py-3 text-sm text-gray-900">{lancamento.clienteFornecedor || '-'}</td>
-                            <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-500">{lancamento.documento || lancamento.numeroDocumento || '-'}</td>
-                            <td className="px-6 py-3 text-sm text-gray-900">{lancamento.historico || lancamento.historicoDoc || '-'}</td>
+                            <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-500">{lancamento.numeroDocumento || '-'}</td>
+                            <td className="px-6 py-3 text-sm text-gray-900">{lancamento.historicoDoc || '-'}</td>
                             <td className="px-6 py-3 whitespace-nowrap text-sm text-right text-green-600 font-medium">
                               {lancamento.entrada ? formatCurrency(parseFloat(String(lancamento.entrada))) : ''}
                             </td>

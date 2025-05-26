@@ -47,10 +47,10 @@ interface LancamentoViagem {
   id?: number;
   caixaViagemId?: number;
   data: string;
-  custo: string; // Campo tipo string para digitar o tipo de custo
+  custo: string;
   clienteFornecedor: string;
-  documento: string;
-  historico: string; // Campo para histórico (descrição detalhada)
+  numeroDocumento: string; // Corrigido para usar o nome do schema
+  historicoDoc: string;    // Corrigido para usar o nome do schema
   entrada?: string | number | null;
   saida?: string | number | null;
 }
@@ -152,8 +152,8 @@ const CaixaViagemModalAdmin: React.FC<CaixaViagemModalAdminProps> = ({
       data: getLocalISODate(),
       custo: '',
       clienteFornecedor: '',
-      documento: '',
-      historico: '',
+      numeroDocumento: '',
+      historicoDoc: '',
       entrada: '',
       saida: ''
     }
@@ -186,8 +186,8 @@ const CaixaViagemModalAdmin: React.FC<CaixaViagemModalAdminProps> = ({
         data: getLocalISODate(),
         custo: '',
         clienteFornecedor: '',
-        documento: '',
-        historico: '',
+        numeroDocumento: '',
+        historicoDoc: '',
         entrada: '',
         saida: ''
       }]);
@@ -212,16 +212,18 @@ const CaixaViagemModalAdmin: React.FC<CaixaViagemModalAdminProps> = ({
 
       // Carregar lançamentos se existirem
       if (caixa.lancamentos && caixa.lancamentos.length > 0) {
-        const lancamentosFormatados = caixa.lancamentos.map((l: LancamentoViagem) => ({
-          id: l.id,
-          data: preserveLocalDate(l.data),
-          custo: l.custo || '',
-          clienteFornecedor: l.clienteFornecedor || '',
-          documento: l.documento || '',
-          historico: l.historico || '',
-          entrada: l.entrada !== null && l.entrada !== undefined ? l.entrada : '',
-          saida: l.saida !== null && l.saida !== undefined ? l.saida : ''
-        }));
+        const lancamentosFormatados = caixa.lancamentos.map(l => {
+          return {
+            id: l.id,
+            data: preserveLocalDate(l.data),
+            numeroDocumento: l.numeroDocumento || '', // Usando o nome do schema
+            historicoDoc: l.historicoDoc || '',       // Usando o nome do schema
+            custo: l.custo || '',
+            clienteFornecedor: l.clienteFornecedor || '',
+            entrada: l.entrada ? formatCurrency(parseFloat(String(l.entrada))) : '',
+            saida: l.saida ? formatCurrency(parseFloat(String(l.saida))) : ''
+          };
+        });
         
         setLancamentos(lancamentosFormatados);
       } else {
@@ -231,14 +233,14 @@ const CaixaViagemModalAdmin: React.FC<CaixaViagemModalAdminProps> = ({
           data: getLocalISODate(),
           custo: '',
           clienteFornecedor: '',
-          documento: '',
-          historico: '',
+          numeroDocumento: '',
+          historicoDoc: '',
           entrada: '',
           saida: ''
         }]);
       }
     }
-  }, [isEdit, caixa, isOpen]);
+  }, [caixa, isEdit, isOpen]);
 
   // Adicionar função para buscar o último caixa do funcionário
   const buscarUltimoCaixaFuncionario = async (funcionarioId: number) => {
@@ -393,21 +395,18 @@ const CaixaViagemModalAdmin: React.FC<CaixaViagemModalAdminProps> = ({
     }
   };
 
-  // Adicionar novo lançamento
+  // Função para criar um novo lançamento vazio
   const adicionarLancamento = () => {
-    setLancamentos([
-      ...lancamentos,
-      {
-        id: undefined,
-        data: getLocalISODate(),
-        custo: '',
-        clienteFornecedor: '',
-        documento: '',
-        historico: '',
-        entrada: '',
-        saida: ''
-      }
-    ]);
+    setLancamentos([...lancamentos, {
+      id: undefined,
+      data: getLocalISODate(),
+      custo: '',
+      clienteFornecedor: '',
+      numeroDocumento: '', // Usando o nome do campo do schema
+      historicoDoc: '',    // Usando o nome do campo do schema
+      entrada: '',
+      saida: ''
+    }]);
   };
 
   // Função para abrir o modal de confirmação de exclusão
@@ -430,8 +429,8 @@ const CaixaViagemModalAdmin: React.FC<CaixaViagemModalAdminProps> = ({
         data: getLocalISODate(),
         custo: '',
         clienteFornecedor: '',
-        documento: '',
-        historico: '',
+        numeroDocumento: '',
+        historicoDoc: '',
         entrada: '',
         saida: ''
       });
@@ -549,8 +548,8 @@ const CaixaViagemModalAdmin: React.FC<CaixaViagemModalAdminProps> = ({
         data: l.data,
         custo: l.custo || '',
         clienteFornecedor: l.clienteFornecedor || '',
-        documento: l.documento || '',
-        historico: l.historico || '',
+        numeroDocumento: l.numeroDocumento || '', // Usar nome do schema
+        historicoDoc: l.historicoDoc || '',       // Usar nome do schema
         entrada: typeof l.entrada !== 'undefined' ? formatarValorParaAPI(l.entrada) : null,
         saida: typeof l.saida !== 'undefined' ? formatarValorParaAPI(l.saida) : null
       };
@@ -719,7 +718,7 @@ const CaixaViagemModalAdmin: React.FC<CaixaViagemModalAdminProps> = ({
                   <option value="">Selecione um veículo</option>
                   {veiculos.map(veiculo => (
                     <option key={veiculo.id} value={veiculo.id}>
-                      {veiculo.nome ? `${veiculo.nome} (${veiculo.modelo})` : veiculo.modelo} {veiculo.placa ? `- ${veiculo.placa}` : ''}
+                      {veiculo.placa ? `${veiculo.placa} - ${veiculo.nome}` : veiculo.nome}
                     </option>
                   ))}
                 </select>
@@ -896,19 +895,20 @@ const CaixaViagemModalAdmin: React.FC<CaixaViagemModalAdminProps> = ({
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {lancamentos.map((lancamento, index) => (
-                    <tr key={index} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                      <td className="px-3 py-2 text-sm text-gray-900">{index + 1}</td>
-                      <td className="px-2 py-2">
+                    <tr key={index} className="border-b border-gray-200">
+                      <td className="px-2 py-3">
+                        {index + 1}
+                      </td>
+                      <td className="px-2 py-3">
                         <input
                           type="date"
-                          value={lancamento.data}
+                          value={lancamento.data || ''}
                           onChange={(e) => atualizarLinha(index, 'data', e.target.value)}
-                          className="block w-full px-2 py-2 text-xs border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                          className="block w-full px-2 py-2 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                           disabled={isLoading}
-                          required
                         />
                       </td>
-                      <td className="px-2 py-2">
+                      <td className="px-2 py-3">
                         {/* Campo com maior largura e altura fixa */}
                         <input
                           type="text"
@@ -919,7 +919,7 @@ const CaixaViagemModalAdmin: React.FC<CaixaViagemModalAdminProps> = ({
                           disabled={isLoading}
                         />
                       </td>
-                      <td className="px-2 py-2">
+                      <td className="px-2 py-3">
                         {/* Campo com maior largura e altura fixa */}
                         <input
                           type="text"
@@ -930,22 +930,22 @@ const CaixaViagemModalAdmin: React.FC<CaixaViagemModalAdminProps> = ({
                           disabled={isLoading}
                         />
                       </td>
-                      <td className="px-2 py-2">
+                      <td className="px-2 py-3">
                         <input
                           type="text"
-                          value={lancamento.documento}
-                          onChange={(e) => atualizarLinha(index, 'documento', e.target.value)}
+                          value={lancamento.numeroDocumento || ''} // Usando o nome do schema
+                          onChange={(e) => atualizarLinha(index, 'numeroDocumento', e.target.value)} // Usando o nome do schema
                           className="block w-full px-2 py-2 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                           placeholder="Nº Doc"
                           disabled={isLoading}
                         />
                       </td>
-                      <td className="px-2 py-2">
+                      <td className="px-2 py-3">
                         {/* Campo com maior largura e altura fixa */}
                         <input
                           type="text"
-                          value={lancamento.historico}
-                          onChange={(e) => atualizarLinha(index, 'historico', e.target.value)}
+                          value={lancamento.historicoDoc || ''} // Usando o nome do schema
+                          onChange={(e) => atualizarLinha(index, 'historicoDoc', e.target.value)} // Usando o nome do schema
                           className="block w-full px-2 py-2 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                           placeholder="Histórico"
                           disabled={isLoading}

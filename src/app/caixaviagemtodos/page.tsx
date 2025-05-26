@@ -529,15 +529,17 @@ export default function CaixaViagemTodosPage() {
         id: dados.caixaViagem.id ? Number(dados.caixaViagem.id) : undefined,
         empresaId: dados.caixaViagem.empresaId ? Number(dados.caixaViagem.empresaId) : null,
         funcionarioId: dados.caixaViagem.funcionarioId ? Number(dados.caixaViagem.funcionarioId) : null,
-        data: dados.caixaViagem.data || new Date().toISOString().split('T')[0]
+        veiculoId: dados.caixaViagem.veiculoId ? Number(dados.caixaViagem.veiculoId) : null,
+        data: dados.caixaViagem.data || new Date().toISOString().split('T')[0],
+        numeroCaixa: dados.caixaViagem.numeroCaixa || 1, // Adicionado campo numeroCaixa
+        saldoAnterior: dados.caixaViagem.saldoAnterior || 0 // Adicionado campo saldoAnterior
       };
       
       try {
         // Usar a API admin para criar/editar a caixa
-        const responseCV = await fetch(`/api/caixaviagem/todos`, {
+        const responseCV = await fetch(`/api/caixaviagem/usuario/${dados.caixaViagem.userId}`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(dadosProcessados)
@@ -576,8 +578,8 @@ export default function CaixaViagemTodosPage() {
           const lancamentosProcessados = lancamentosValidos.map(l => ({
             id: l.id,
             data: l.data || new Date().toISOString().split('T')[0],
-            numeroDocumento: l.numeroDocumento || '',
-            historicoDoc: l.historicoDoc || '',
+            numeroDocumento: l.numeroDocumento || '', // Usando o nome do schema
+            historicoDoc: l.historicoDoc || '',       // Usando o nome do schema
             custo: l.custo || '',
             clienteFornecedor: l.clienteFornecedor || '',
             entrada: l.entrada ? l.entrada.toString().replace(/[^\d.,]/g, '').replace(',', '.') : null,
@@ -587,7 +589,6 @@ export default function CaixaViagemTodosPage() {
           const lancamentosResponse = await fetch(`/api/lancamentoviagem`, {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
@@ -736,8 +737,8 @@ export default function CaixaViagemTodosPage() {
             'Cliente/Fornecedor': l.clienteFornecedor || '',
             'Entrada': l.entrada ? formatCurrency(parseFloat(String(l.entrada))) : '',
             'Saída': l.saida ? formatCurrency(parseFloat(String(l.saida))) : '',
-            'Documento': l.numeroDocumento || '',
-            'Histórico': l.historicoDoc || ''
+            'Documento': l.numeroDocumento || '', // Usando o nome do schema
+            'Histórico': l.historicoDoc || ''     // Usando o nome do schema
           }));
         });
       

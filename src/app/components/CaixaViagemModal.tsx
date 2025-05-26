@@ -47,10 +47,10 @@ interface LancamentoViagem {
   id?: number;
   caixaViagemId?: number;
   data: string;
-  custo: string; // Campo tipo string para digitar o tipo de custo
+  custo: string;
   clienteFornecedor: string;
-  documento: string;
-  historico: string; // Campo para histórico (descrição detalhada)
+  numeroDocumento: string; // Corrigido para usar o nome do schema
+  historicoDoc: string;    // Corrigido para usar o nome do schema
   entrada?: string | number | null;
   saida?: string | number | null;
 }
@@ -136,8 +136,8 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
       data: getLocalISODate(),
       custo: '',
       clienteFornecedor: '',
-      documento: '',
-      historico: '',
+      numeroDocumento: '',
+      historicoDoc: '',
       entrada: '',
       saida: ''
     }
@@ -156,9 +156,9 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
         userId: localStorage.getItem('userId') || '',
         empresaId: null,
         funcionarioId: null,
-        veiculoId: null,
+        veiculoId: null,      // ✓ Usar este nome
         destino: '',
-        observacao: '',
+        observacao: '',       // ✓ Usar este nome
         data: getLocalISODate(),
       });
       
@@ -167,8 +167,8 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
         data: getLocalISODate(),
         custo: '',
         clienteFornecedor: '',
-        documento: '',
-        historico: '',
+        numeroDocumento: '',  // ✓ Use este nome
+        historicoDoc: '',     // ✓ Use este nome
         entrada: '',
         saida: ''
       }]);
@@ -176,32 +176,34 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
       return;
     }
     
-    if (isEdit && caixa) {
+    if (isEdit && caixa && isOpen) {
       setCaixaData({
         id: caixa.id,
         userId: caixa.userId || localStorage.getItem('userId') || '',
         empresaId: caixa.empresaId,
         funcionarioId: caixa.funcionarioId,
-        veiculoId: caixa.veiculoId,
+        veiculoId: caixa.veiculoId,      // ✓ Usar este nome
         destino: caixa.destino || '',
-        observacao: caixa.observacao || '',
+        observacao: caixa.observacao || '', // ✓ Usar este nome
         data: preserveLocalDate(caixa.data),
         numeroCaixa: caixa.numeroCaixa || 1,
         saldoAnterior: caixa.saldoAnterior || 0,
       });
 
-      // Carregar lançamentos se existirem
+      // Se houver lançamentos, carregar
       if (caixa.lancamentos && caixa.lancamentos.length > 0) {
-        const lancamentosFormatados = caixa.lancamentos.map((l: LancamentoViagem) => ({
-          id: l.id,
-          data: preserveLocalDate(l.data),
-          custo: l.custo || '',
-          clienteFornecedor: l.clienteFornecedor || '',
-          documento: l.documento || '',
-          historico: l.historico || '',
-          entrada: l.entrada !== null && l.entrada !== undefined ? l.entrada : '',
-          saida: l.saida !== null && l.saida !== undefined ? l.saida : ''
-        }));
+        const lancamentosFormatados = caixa.lancamentos.map(l => {
+          return {
+            id: l.id,
+            data: preserveLocalDate(l.data),
+            numeroDocumento: l.numeroDocumento || '', // Corrigido para usar nome do schema
+            historicoDoc: l.historicoDoc || '',       // Corrigido para usar nome do schema
+            custo: l.custo || '',
+            clienteFornecedor: l.clienteFornecedor || '',
+            entrada: l.entrada ? formatCurrency(parseFloat(String(l.entrada))) : '',
+            saida: l.saida ? formatCurrency(parseFloat(String(l.saida))) : ''
+          };
+        });
         
         setLancamentos(lancamentosFormatados);
       } else {
@@ -211,14 +213,14 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
           data: getLocalISODate(),
           custo: '',
           clienteFornecedor: '',
-          documento: '',
-          historico: '',
+          numeroDocumento: '',
+          historicoDoc: '',
           entrada: '',
           saida: ''
         }]);
       }
     }
-  }, [isEdit, caixa, isOpen]);
+  }, [caixa, isEdit, isOpen]);
 
   // Adicionar função para buscar o último caixa do funcionário
   const buscarUltimoCaixaFuncionario = async (funcionarioId: number) => {
@@ -316,9 +318,13 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
   const atualizarLinha = (index: number, campo: string, valor: string) => {
     const novasLinhas = [...lancamentos];
     
+    // Mapear os campos para corresponder aos nomes do schema
+    const campoMapeado = campo === 'documento' ? 'numeroDocumento' : 
+                        campo === 'historico' ? 'historicoDoc' : campo;
+    
     novasLinhas[index] = {
       ...novasLinhas[index],
-      [campo]: valor
+      [campoMapeado]: valor // Usar o nome mapeado para o schema
     };
     
     setLancamentos(novasLinhas);
@@ -368,8 +374,8 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
         data: getLocalISODate(),
         custo: '',
         clienteFornecedor: '',
-        documento: '',
-        historico: '',
+        numeroDocumento: '',
+        historicoDoc: '',
         entrada: '',
         saida: ''
       }
@@ -396,8 +402,8 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
         data: getLocalISODate(),
         custo: '',
         clienteFornecedor: '',
-        documento: '',
-        historico: '',
+        numeroDocumento: '',
+        historicoDoc: '',
         entrada: '',
         saida: ''
       });
@@ -509,8 +515,8 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
         data: l.data,
         custo: l.custo || '',
         clienteFornecedor: l.clienteFornecedor || '',
-        documento: l.documento || '',
-        historico: l.historico || '',
+        numeroDocumento: l.numeroDocumento || '', // Usar nome do schema
+        historicoDoc: l.historicoDoc || '',       // Usar nome do schema
         entrada: typeof l.entrada !== 'undefined' ? formatarValorParaAPI(l.entrada) : null,
         saida: typeof l.saida !== 'undefined' ? formatarValorParaAPI(l.saida) : null
       };
@@ -650,7 +656,7 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
                   <option value="">Selecione um veículo</option>
                   {veiculos.map(veiculo => (
                     <option key={veiculo.id} value={veiculo.id}>
-                      {veiculo.nome ? `${veiculo.nome} (${veiculo.modelo})` : veiculo.modelo} {veiculo.placa ? `- ${veiculo.placa}` : ''}
+                      {veiculo.placa ? `${veiculo.placa} - ${veiculo.nome}` : veiculo.nome}
                     </option>
                   ))}
                 </select>
@@ -698,14 +704,14 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
                 </label>
                 <textarea
                   id="observacao"
-                  name="observacao"
-                  value={caixaData.observacao || ''}
+                  name="observacao"         // ✓ Usar este nome como está no schema
+                  value={caixaData.observacao || ''}  
                   onChange={handleCaixaChange}
-                  placeholder="Observações adicionais sobre esta viagem"
-                  rows={1}
-                  className="w-full px-2 py-1.5 bg-white text-gray-800 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 focus:border-transparent text-sm"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Observações adicionais"
                   disabled={isLoading}
-                />
+                  rows={3}
+                ></textarea>
               </div>
             </div>
 
@@ -841,7 +847,7 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
                       <td className="px-2 py-2">
                         <input
                           type="text"
-                          value={lancamento.documento}
+                          value={lancamento.numeroDocumento || ''} // Use numeroDocumento diretamente
                           onChange={(e) => atualizarLinha(index, 'documento', e.target.value)}
                           className="block w-full px-2 py-2 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                           placeholder="Nº Doc"
@@ -852,7 +858,7 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
                         {/* Campo com maior largura e altura fixa */}
                         <input
                           type="text"
-                          value={lancamento.historico}
+                          value={lancamento.historicoDoc || ''} // Use historicoDoc diretamente
                           onChange={(e) => atualizarLinha(index, 'historico', e.target.value)}
                           className="block w-full px-2 py-2 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                           placeholder="Histórico"

@@ -75,51 +75,44 @@ export async function GET(req: NextRequest) {
 // POST - Criar ou atualizar caixa de viagem
 export async function POST(req: NextRequest) {
   try {
+    const body = await req.json();
+    
+    // Validar token e extrair userId
     const userId = getUserIdFromToken(req);
     
     if (!userId) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
-    
-    const body = await req.json();
+
+    // Log para depuração
+    console.log("Dados recebidos na API:", {
+      veiculoId: body.veiculoId,
+      observacao: body.observacao
+    });
     
     if (body.id) {
-      // Verificar se a caixa de viagem existe
-      const caixaViagem = await prisma.caixaViagem.findUnique({
-        where: { id: Number(body.id) }
-      });
-      
-      if (!caixaViagem) {
-        return NextResponse.json(
-          { error: "Caixa de viagem não encontrada" },
-          { status: 404 }
-        );
-      }
-      
-      // Verificar se o usuário é o dono da caixa
-      if (caixaViagem.userId !== userId) {
-        return NextResponse.json(
-          { error: "Sem permissão para editar esta caixa de viagem" },
-          { status: 403 }
-        );
-      }
-      
-      // Atualizar caixa de viagem
+      // Atualizar caixa existente - garantir todos os campos
+      const updateData = {
+        destino: body.destino,
+        data: new Date(body.data),
+        empresaId: body.empresaId ? Number(body.empresaId) : null,
+        funcionarioId: body.funcionarioId ? Number(body.funcionarioId) : null,
+        veiculoId: body.veiculoId ? Number(body.veiculoId) : null,
+        observacao: body.observacao,
+        oculto: body.oculto !== undefined ? Boolean(body.oculto) : false,
+      };
+
+      // Log para verificar os dados que serão atualizados
+      console.log("Dados para atualização:", updateData);
+
       const updatedCaixa = await prisma.caixaViagem.update({
         where: { id: Number(body.id) },
-        data: {
-          destino: body.destino,
-          data: new Date(body.data),
-          empresaId: body.empresaId ? Number(body.empresaId) : null,
-          funcionarioId: body.funcionarioId ? Number(body.funcionarioId) : null,
-          veiculoId: body.veiculoId ? Number(body.veiculoId) : null, // Adicionar este campo
-          oculto: body.oculto !== undefined ? Boolean(body.oculto) : false
-        }
+        data: updateData
       });
       
       return NextResponse.json(updatedCaixa);
     } else {
-      // Criar nova caixa de viagem
+      // Criar nova caixa
       const novaCaixa = await prisma.caixaViagem.create({
         data: {
           userId,
@@ -127,8 +120,9 @@ export async function POST(req: NextRequest) {
           data: new Date(body.data),
           empresaId: body.empresaId ? Number(body.empresaId) : null,
           funcionarioId: body.funcionarioId ? Number(body.funcionarioId) : null,
-          veiculoId: body.veiculoId ? Number(body.veiculoId) : null, // Adicionar este campo
-          oculto: body.oculto !== undefined ? Boolean(body.oculto) : false
+          veiculoId: body.veiculoId ? Number(body.veiculoId) : null,  // ✓ Usar este nome
+          observacao: body.observacao,  // ✓ Usar este nome
+          oculto: body.oculto !== undefined ? Boolean(body.oculto) : false,
         }
       });
       

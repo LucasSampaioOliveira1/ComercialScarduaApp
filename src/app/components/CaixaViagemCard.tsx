@@ -71,9 +71,27 @@ const CaixaViagemCard = ({
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return "";
+    
     try {
+      // Abordagem direta: extrair componentes da data sem usar o construtor Date
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        const [year, month, day] = dateString.split('-');
+        return `${day}/${month}/${year}`;
+      }
+      
+      // Processamento seguro para outros formatos
+      if (dateString.includes('T')) {
+        const [datePart] = dateString.split('T');
+        const [year, month, day] = datePart.split('-');
+        return `${day}/${month}/${year}`;
+      }
+      
+      // Último recurso com o método tradicional - evitando problemas de timezone
       const date = new Date(dateString);
-      return format(date, 'dd/MM/yyyy', { locale: ptBR });
+      // Ajuste para evitar problemas com timezone
+      const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+      const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
+      return format(adjustedDate, 'dd/MM/yyyy', { locale: ptBR });
     } catch (error) {
       console.error("Erro ao formatar data:", error);
       return dateString;
@@ -95,16 +113,16 @@ const CaixaViagemCard = ({
         <div className="flex justify-between items-start">
           <div className="flex items-center">
             <div className={`rounded-full p-2 ${saldoFinal >= 0 ? 'bg-blue-100 text-blue-600' : 'bg-red-100 text-red-600'}`}>
-              <MapPin size={20} />
+              <User size={20} />
             </div>
             <div className="ml-3">
               <h3 className="text-lg font-semibold mb-1 text-gray-900 flex items-center">
+                {funcionario?.nome || "Sem Funcionário"} {funcionario?.sobrenome || ""} 
                 {caixa.numeroCaixa && (
-                  <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full mr-2">
+                  <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full ml-2">
                     #{caixa.numeroCaixa}
                   </span>
                 )}
-                {caixa.destino || `Caixa ${caixa.id}`}
               </h3>
               <p className="text-sm text-gray-600">
                 {formatDate(caixa.data)}
@@ -168,20 +186,18 @@ const CaixaViagemCard = ({
           {/* Detalhes */}
           <div className="space-y-2 text-sm">
             <div className="flex items-start">
+              <MapPin size={14} className="mt-0.5 text-gray-500 flex-shrink-0" />
+              <span className="ml-2 text-gray-600 truncate max-w-[calc(100%-20px)]">
+                {caixa.destino || 'Sem destino'}
+              </span>
+            </div>
+            
+            <div className="flex items-start">
               <Building size={14} className="mt-0.5 text-gray-500 flex-shrink-0" />
               <span className="ml-2 text-gray-600 truncate max-w-[calc(100%-20px)]">
                 {empresa?.nome || empresa?.nomeEmpresa || '-'}
               </span>
             </div>
-            
-            {caixa.funcionario && (
-              <div className="flex items-start">
-                <User size={14} className="mt-0.5 text-gray-500 flex-shrink-0" />
-                <span className="ml-2 text-gray-600 truncate max-w-[calc(100%-20px)]">
-                  {caixa.funcionario.nome} {caixa.funcionario.sobrenome || ''}
-                </span>
-              </div>
-            )}
             
             {caixa.veiculo && (
               <div className="flex items-start">

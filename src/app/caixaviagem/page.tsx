@@ -41,6 +41,7 @@ interface CaixaViagem {
   createdAt?: string;
   updatedAt?: string;
   saldo?: number;
+  numeroCaixa?: number;
   lancamentos: Lancamento[];
   user?: {
     id: string;
@@ -325,7 +326,7 @@ export default function CaixaViagemPage() {
     }
   };
 
-  // Função para buscar resumo financeiro
+  // Função para buscar resumo financeiro - corrigir para garantir que os valores sejam números
   const buscarResumoFinanceiro = async (id: string) => {
     try {
       const response = await fetch(`/api/caixaviagem/resumo/${id}`);
@@ -335,12 +336,27 @@ export default function CaixaViagemPage() {
         return;
       }
       
-      const resumo = await response.json();
-      setResumo(resumo);
+      const resumoData = await response.json();
       
-      console.log("Resumo financeiro atualizado:", resumo);
+      // Garantir que todos os valores são números válidos antes de atualizar o estado
+      const resumoFormatado = {
+        totalCaixas: Number(resumoData.totalCaixas) || 0,
+        totalEntradas: Number(resumoData.totalEntradas) || 0,
+        totalSaidas: Number(resumoData.totalSaidas) || 0,
+        saldoGeral: Number(resumoData.totalEntradas || 0) - Number(resumoData.totalSaidas || 0)
+      };
+      
+      console.log("Resumo financeiro formatado:", resumoFormatado);
+      setResumo(resumoFormatado);
     } catch (error) {
       console.error("Erro ao calcular resumo financeiro:", error);
+      // Definir valores padrão em caso de erro
+      setResumo({
+        totalCaixas: 0,
+        totalEntradas: 0,
+        totalSaidas: 0,
+        saldoGeral: 0
+      });
     }
   };
 
@@ -494,54 +510,63 @@ export default function CaixaViagemPage() {
     try {
       setLoadingAction(true);
       
-      // Verificar se o usuário está disponível
-      if (!userId) {
-        toast.error("Sessão expirada. Por favor, faça login novamente.");
+      // Obter token atualizado
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Token de autenticação não encontrado");
         router.push('/');
         return;
       }
       
+      console.log("Dados para salvar:", dados);
+      
       let caixaSalvaId = dados.caixaViagem.id;
+      let caixaSalva = null;
+      
+      // Sempre salvar, independente de ser edição ou criação
+      const caixaMudou = true;
       
       // Preparar dados da caixa de viagem
-      const dadosProcessados = {
+      const dadosCaixaViagem = {
         ...dados.caixaViagem,
         id: dados.caixaViagem.id ? Number(dados.caixaViagem.id) : undefined,
         empresaId: dados.caixaViagem.empresaId ? Number(dados.caixaViagem.empresaId) : null,
         funcionarioId: dados.caixaViagem.funcionarioId ? Number(dados.caixaViagem.funcionarioId) : null,
+        veiculoId: dados.caixaViagem.veiculoId ? Number(dados.caixaViagem.veiculoId) : null,
         userId: dados.caixaViagem.id ? dados.caixaViagem.userId : userId,
-        data: dados.caixaViagem.data || new Date().toISOString().split('T')[0]
+        data: dados.caixaViagem.data || new Date().toISOString().split('T')[0],
+        destino: dados.caixaViagem.destino || '',
+        observacao: dados.caixaViagem.observacao || '',
+        numeroCaixa: dados.caixaViagem.numeroCaixa || 1,
+        saldoAnterior: dados.caixaViagem.saldoAnterior || 0
       };
       
-      console.log("Dados da caixa de viagem para salvar:", dadosProcessados);
+      console.log("Enviando para API - dados da caixa:", dadosCaixaViagem);
       
-      try {
-        // Usar a API de caixa de viagem por ID de usuário
-        const responseCV = await fetch(`/api/caixaviagem/usuario/${userId}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(dadosProcessados)
-        });
-        
-        if (!responseCV.ok) {
-          const errorText = await responseCV.text();
-          throw new Error(`Erro ao salvar caixa: ${errorText}`);
-        }
-        
-        const caixaSalva = await responseCV.json();
-        caixaSalvaId = caixaSalva.id;
-        console.log("Caixa de viagem salva com sucesso:", caixaSalva);
-      } catch (error) {
-        console.error("Erro ao salvar caixa de viagem:", error);
-        throw error;
+      // CORREÇÃO: Usar o mesmo padrão que funciona no contacorrente
+      const responseCV = await fetch(`/api/caixaviagem/usuario/${userId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+          // Não enviar cabeçalho Authorization, seguindo o padrão do contacorrente
+        },
+        body: JSON.stringify(dadosCaixaViagem)
+      });
+      
+      if (!responseCV.ok) {
+        const errorText = await responseCV.text();
+        console.error("Erro na resposta da API:", errorText);
+        throw new Error(`Erro ao salvar caixa: ${errorText}`);
       }
       
-      // Processar lançamentos
+      caixaSalva = await responseCV.json();
+      caixaSalvaId = caixaSalva.id;
+      console.log("Caixa de viagem salva com sucesso:", caixaSalva);
+      
+      // Processar lançamentos (independente de mudanças na caixa)
       if (dados.lancamentos && dados.lancamentos.length > 0 && caixaSalvaId) {
         try {
-          // Filtrar lançamentos válidos (com entrada ou saída)
+          // Filtrar lançamentos válidos com entrada ou saída
           const lancamentosValidos = dados.lancamentos.filter(l => {
             const temEntrada = l.entrada && l.entrada.toString().trim() !== '';
             const temSaida = l.saida && l.saida.toString().trim() !== '';
@@ -554,22 +579,33 @@ export default function CaixaViagemPage() {
           }
           
           // Processar e normalizar lançamentos
-          const lancamentosProcessados = lancamentosValidos.map(l => ({
-            id: l.id,
-            caixaViagemId: caixaSalvaId,
-            data: l.data || new Date().toISOString().split('T')[0],
-            numeroDocumento: l.numeroDocumento || '',
-            historicoDoc: l.historicoDoc || '',
-            custo: l.custo || '',
-            clienteFornecedor: l.clienteFornecedor || '',
-            entrada: l.entrada ? l.entrada.toString().replace(/[^\d.,]/g, '').replace(',', '.') : null,
-            saida: l.saida ? l.saida.toString().replace(/[^\d.,]/g, '').replace(',', '.') : null
-          }));
+          const lancamentosProcessados = lancamentosValidos.map(l => {
+            return {
+              id: l.id,
+              caixaViagemId: caixaSalvaId,
+              data: l.data || new Date().toISOString().split('T')[0],
+              numeroDocumento: l.numeroDocumento || '', 
+              historicoDoc: l.historicoDoc || '',
+              custo: l.custo || '',
+              clienteFornecedor: l.clienteFornecedor || '',
+              entrada: l.entrada ? l.entrada.toString().replace(/[^\d.,]/g, '').replace(',', '.') : null,
+              saida: l.saida ? l.saida.toString().replace(/[^\d.,]/g, '').replace(',', '.') : null
+            };
+          });
           
-          const lancamentosResponse = await fetch(`/api/lancamentoviagem`, {
+          console.log("Enviando lançamentos para API:", {
+            caixaViagemId: caixaSalvaId,
+            lancamentos: lancamentosProcessados,
+            clearExisting: true
+          });
+          
+          // CORREÇÃO: Remover o cabeçalho de autorização explícito
+          const lancamentosResponse = await fetch('/api/lancamentoviagem', {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
             },
             body: JSON.stringify({
               caixaViagemId: caixaSalvaId,
@@ -579,16 +615,18 @@ export default function CaixaViagemPage() {
           });
           
           if (!lancamentosResponse.ok) {
-            const errorText = await lancamentosResponse.text();
-            console.error("Erro ao salvar lançamentos:", errorText);
-            throw new Error(`Erro ao salvar lançamentos: ${errorText}`);
+            const responseText = await lancamentosResponse.text();
+            console.error(`Erro ${lancamentosResponse.status} ao salvar lançamentos:`, responseText);
+            toast.warn("Os lançamentos podem não ter sido salvos corretamente");
+          } else {
+            console.log("Lançamentos salvos com sucesso!");
           }
-          
-          console.log("Lançamentos salvos com sucesso!");
         } catch (error) {
-          console.error("Erro ao salvar lançamentos:", error);
+          console.error("Erro ao processar lançamentos:", error);
           toast.warn("Erro ao processar lançamentos");
         }
+      } else {
+        console.log("Não há lançamentos para processar");
       }
       
       toast.success("Caixa de viagem salva com sucesso!");
@@ -1156,28 +1194,28 @@ export default function CaixaViagemPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th scope="col" className="px-6 py-4 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
-                      Destino
-                    </th>
-                    <th scope="col" className="px-6 py-4 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
-                      Data
-                    </th>
-                    <th scope="col" className="px-6 py-4 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
-                      Empresa
-                    </th>
-                    <th scope="col" className="px-6 py-4 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Funcionário
                     </th>
-                    <th scope="col" className="px-6 py-4 text-right text-sm font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Destino
+                    </th>
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Data
+                    </th>
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Empresa
+                    </th>
+                    <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Entradas
                     </th>
-                    <th scope="col" className="px-6 py-4 text-right text-sm font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Saídas
                     </th>
-                    <th scope="col" className="px-6 py-4 text-right text-sm font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-6 py-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Saldo
                     </th>
-                    <th scope="col" className="px-6 py-4 text-center text-sm font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Ações
                     </th>
                   </tr>
@@ -1198,73 +1236,94 @@ export default function CaixaViagemPage() {
                     
                     return (
                       <tr key={caixa.id} className="hover:bg-gray-50">
+                        {/* Coluna de Funcionário - Movida para primeira posição */}
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
-                            <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-[#344893]">
-                              <MapPin size={20} />
-                            </div>
-                            <div className="ml-4">
-                              <div className="text-base font-medium text-gray-900">
-                                {caixa.destino || `Caixa #${caixa.id}`}
+                            <User size={20} className="text-blue-600 mr-2 flex-shrink-0" />
+                            <div>
+                              <div className="text-base font-medium text-gray-900 flex items-center">
+                                {caixa.funcionario ? `${caixa.funcionario.nome} ${caixa.funcionario.sobrenome || ''}`.trim() : '-'}
+                                {caixa.numeroCaixa && (
+                                  <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full ml-2">
+                                    #{caixa.numeroCaixa}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
                         </td>
+                        
+                        {/* Coluna de Destino - Movida para segunda posição */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <MapPin size={20} className="text-gray-500 mr-2 flex-shrink-0" />
+                            <div className="text-base text-gray-900 truncate max-w-[200px]">
+                              {caixa.destino || 'Sem destino'}
+                            </div>
+                          </div>
+                        </td>
+                        
+                        {/* Coluna de Data */}
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-base text-gray-900">{formatDate(caixa.data)}</div>
                         </td>
+                        
+                        {/* Coluna de Empresa */}
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-base text-gray-900">
                             {caixa.empresa?.nome || caixa.empresa?.nomeEmpresa || '-'}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-base text-gray-900">
-                            {caixa.funcionario ? `${caixa.funcionario.nome} ${caixa.funcionario.sobrenome || ''}`.trim() : '-'}
-                          </div>
-                        </td>
+                        
+                        {/* Coluna de Entradas */}
                         <td className="px-6 py-4 text-right whitespace-nowrap">
                           <div className="text-base text-green-600 font-medium">
                             {formatCurrency(entradas)}
                           </div>
                         </td>
+                        
+                        {/* Coluna de Saídas */}
                         <td className="px-6 py-4 text-right whitespace-nowrap">
                           <div className="text-base text-red-600 font-medium">
                             {formatCurrency(saidas)}
                           </div>
                         </td>
+                        
+                        {/* Coluna de Saldo */}
                         <td className="px-6 py-4 text-right whitespace-nowrap">
                           <div className={`text-base font-semibold ${saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {formatCurrency(saldo)}
                           </div>
                         </td>
+                        
+                        {/* Coluna de Ações */}
                         <td className="px-6 py-4 text-center whitespace-nowrap">
                           <div className="flex justify-center gap-3">
                             <button
                               onClick={() => handleViewDetails(caixa)}
-                              className="text-blue-600 hover:text-blue-800 p-1.5"
+                              className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded-full transition-colors"
                               title="Ver detalhes"
                             >
-                              <Eye size={22} />
+                              <Eye size={18} />
                             </button>
                             
                             {userPermissions.canEdit && (
                               <button
                                 onClick={() => handleOpenEditModal(caixa)}
-                                className="text-amber-600 hover:text-amber-800 p-1.5"
+                                className="text-amber-600 hover:text-amber-800 p-1.5 hover:bg-amber-50 rounded-full transition-colors"
                                 title="Editar"
                               >
-                                <Edit size={22} />
+                                <Edit size={18} />
                               </button>
                             )}
                             
                             {userPermissions.canDelete && (
                               <button
                                 onClick={() => handleToggleVisibility(caixa)}
-                                className="text-red-600 hover:text-red-800 p-1.5"
+                                className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded-full transition-colors"
                                 title="Excluir"
                               >
-                                <Trash2 size={22} />
+                                <Trash2 size={18} />
                               </button>
                             )}
                           </div>
@@ -1304,7 +1363,7 @@ export default function CaixaViagemPage() {
           empresas={empresas}
           funcionarios={funcionarios}
           veiculos={veiculos} // Passando a lista de veículos obtida da API
-          isLoading={loadingAction}
+          isLoading={loadingAction} // Adicionando a propriedade isLoading necessária
         />
       )}
       
