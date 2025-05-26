@@ -688,7 +688,7 @@ export default function CaixaViagemPage() {
         return;
       }
       
-      // Preparar dados para exportação
+      // Usar apenas os dados filtrados que estão sendo exibidos atualmente
       const dataToExport = filteredCaixas.map(caixa => {
         // Calcular totais
         const lancamentos = Array.isArray(caixa.lancamentos) ? caixa.lancamentos : [];
@@ -719,14 +719,51 @@ export default function CaixaViagemPage() {
         };
       });
       
+      // Nome do arquivo Excel reflete que são dados filtrados
+      let fileName = `caixas-viagem-filtradas-${format(new Date(), 'dd-MM-yyyy')}.xlsx`;
+      
+      // Resumo dos filtros aplicados para incluir na planilha
+      const filtrosAplicados = [];
+      if (searchTerm) filtrosAplicados.push(`Busca: ${searchTerm}`);
+      if (filterDestino) filtrosAplicados.push(`Destino: ${filterDestino}`);
+      if (filterEmpresa > 0) filtrosAplicados.push(`Empresa: ${empresas.find(e => e.id === filterEmpresa)?.nome || 'Selecionada'}`);
+      if (filterDateRange.start || filterDateRange.end) {
+        const periodo = `Período: ${filterDateRange.start ? format(new Date(filterDateRange.start), 'dd/MM/yyyy', { locale: ptBR }) : ''} 
+                        ${filterDateRange.start && filterDateRange.end ? ' a ' : ''} 
+                        ${filterDateRange.end ? format(new Date(filterDateRange.end), 'dd/MM/yyyy', { locale: ptBR }) : ''}`;
+        filtrosAplicados.push(periodo);
+      }
+      if (filterSaldo) {
+        const tipoSaldo = filterSaldo === "positivo" ? "Positivo" : 
+                         filterSaldo === "negativo" ? "Negativo" : 
+                         filterSaldo === "neutro" ? "Neutro" : filterSaldo;
+        filtrosAplicados.push(`Saldo: ${tipoSaldo}`);
+      }
+      
       // Criar um workbook
       const wb = XLSX.utils.book_new();
+      
+      // Adicionar informações sobre os filtros aplicados
+      if (filtrosAplicados.length > 0) {
+        const filtrosData = [
+          ["Dados Exportados com Filtros:"],
+          ["Data de Exportação:", format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })],
+          [""],
+          ...filtrosAplicados.map(filtro => [filtro]),
+          [""],
+          ["Total de registros:", `${filteredCaixas.length}`],
+          [""]
+        ];
+        
+        const wsFiltros = XLSX.utils.aoa_to_sheet(filtrosData);
+        XLSX.utils.book_append_sheet(wb, wsFiltros, 'Filtros Aplicados');
+      }
       
       // Adicionar folha principal com dados da caixa
       const ws = XLSX.utils.json_to_sheet(dataToExport);
       XLSX.utils.book_append_sheet(wb, ws, 'Caixas de Viagem');
       
-      // Extrair todos os lançamentos de todas as caixas
+      // Extrair todos os lançamentos de todas as caixas FILTRADAS
       const allLancamentos = filteredCaixas
         .flatMap(caixa => {
           const lancamentos = Array.isArray(caixa.lancamentos) ? caixa.lancamentos : [];
@@ -743,14 +780,11 @@ export default function CaixaViagemPage() {
             'Histórico': l.historicoDoc || ''
           }));
         });
-      
+    
       if (allLancamentos.length > 0) {
         const wsLancamentos = XLSX.utils.json_to_sheet(allLancamentos);
         XLSX.utils.book_append_sheet(wb, wsLancamentos, 'Lançamentos');
       }
-      
-      // Nome do arquivo Excel
-      let fileName = `caixas-viagem-${format(new Date(), 'dd-MM-yyyy')}.xlsx`;
       
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const data = new Blob([excelBuffer], { type: 'application/octet-stream' });
@@ -851,14 +885,16 @@ export default function CaixaViagemPage() {
                 </button>
               )}
               
-              <button
-                onClick={exportToExcel}
-                className="bg-green-600 hover:bg-green-700 text-white px-5 py-3 text-base rounded-lg flex items-center transition-colors"
-                disabled={filteredCaixas.length === 0}
-              >
-                <Download size={20} className="mr-2" />
-                Exportar
-              </button>
+              {/* Botão de exportar só aparece quando há filtros aplicados ou busca */}
+              {isFilterActive && filteredCaixas.length > 0 && (
+                <button
+                  onClick={exportToExcel}
+                  className="bg-green-600 hover:bg-green-700 text-white px-5 py-3 text-base rounded-lg flex items-center transition-colors"
+                >
+                  <Download size={20} className="mr-2" />
+                  Exportar Filtrados
+                </button>
+              )}
             </div>
           </div>
           
@@ -943,7 +979,16 @@ export default function CaixaViagemPage() {
                   }`}
                 >
                   <Filter size={18} className="mr-2" />
-                  {isFilterActive ? `Filtros (${Object.values({filterDestino, filterEmpresa, filterDateRange, filterSaldo}).filter(Boolean).length})` : "Filtrar"}
+                  {isFilterActive ? `Filtros (${
+                    // Contar corretamente os filtros ativos
+                    [
+                      searchTerm ? 1 : 0,
+                      filterDestino ? 1 : 0,
+                      filterEmpresa > 0 ? 1 : 0,
+                      (filterDateRange.start || filterDateRange.end) ? 1 : 0,
+                      filterSaldo ? 1 : 0
+                    ].reduce((sum, val) => sum + val, 0)
+                  })` : "Filtrar"}
                   <ChevronDown size={18} className="ml-2" />
                 </button>
               </div>
