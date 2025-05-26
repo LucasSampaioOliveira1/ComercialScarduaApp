@@ -87,18 +87,42 @@ export async function POST(req: NextRequest) {
     const formatDate = (dateString?: string | Date | null) => {
       if (!dateString) return "";
       try {
+        // Para strings de data com formato ISO
         if (typeof dateString === 'string') {
+          // Para strings ISO com timezone (formato com "T")
           if (dateString.includes('T')) {
-            const [datePart] = dateString.split('T');
-            const [year, month, day] = datePart.split('-');
-            return `${day}/${month}/${year}`;
-          } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-            const [year, month, day] = dateString.split('-');
-            return `${day}/${month}/${year}`;
+            // Criar uma data e adicionar um dia
+            const date = new Date(dateString);
+            date.setDate(date.getDate() + 1);
+            return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+          }
+          
+          // Para strings simples YYYY-MM-DD
+          if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+            const [year, month, day] = dateString.split('-').map(Number);
+            const date = new Date(year, month - 1, day, 12, 0, 0);
+            date.setDate(date.getDate() + 1);
+            return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
           }
         }
-        return new Date(dateString).toLocaleDateString('pt-BR');
+        
+        // Para objetos Date
+        if (dateString instanceof Date) {
+          const dateCopy = new Date(dateString);
+          dateCopy.setDate(dateCopy.getDate() + 1);
+          return `${dateCopy.getDate().toString().padStart(2, '0')}/${(dateCopy.getMonth() + 1).toString().padStart(2, '0')}/${dateCopy.getFullYear()}`;
+        }
+        
+        // Último recurso
+        const date = new Date(dateString);
+        if (!isNaN(date.getTime())) {
+          date.setDate(date.getDate() + 1);
+          return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+        }
+        
+        return String(dateString);
       } catch (error) {
+        console.error("Erro ao formatar data:", error, dateString);
         return String(dateString);
       }
     };

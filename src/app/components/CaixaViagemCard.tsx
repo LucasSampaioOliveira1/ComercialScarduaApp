@@ -3,10 +3,12 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
   MapPin, Building, User, Calendar, Truck,
-  DollarSign, Eye, Edit, Trash2, Clock, ArrowUpCircle, ArrowDownCircle
+  DollarSign, Eye, Edit, Trash2, Clock, ArrowUpCircle, ArrowDownCircle,
+  FileText // Novo ícone
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
+// Atualizar a interface para incluir a propriedade onGenerateTermo
 interface CaixaViagemCardProps {
   caixa: any;
   empresas?: any[];
@@ -15,6 +17,7 @@ interface CaixaViagemCardProps {
   onViewDetails: () => void;
   onEdit: () => void;
   onToggleVisibility: () => void;
+  onGenerateTermo: () => void; // Nova propriedade
   canEdit: boolean;
   canDelete: boolean;
 }
@@ -27,6 +30,7 @@ const CaixaViagemCard = ({
   onViewDetails, 
   onEdit, 
   onToggleVisibility,
+  onGenerateTermo, // Novo parâmetro
   canEdit,
   canDelete
 }: CaixaViagemCardProps) => {
@@ -221,6 +225,14 @@ const CaixaViagemCard = ({
         
         <div className="mt-4 pt-3 border-t border-gray-200 flex justify-end space-x-2">
           <div className="flex items-center space-x-2">
+            <button
+              onClick={onGenerateTermo} // Novo botão para gerar termo
+              className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded-full transition-colors"
+              title="Gerar Termo"
+            >
+              <FileText size={16} />
+            </button>
+            
             <button
               onClick={onViewDetails}
               className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded-full transition-colors"

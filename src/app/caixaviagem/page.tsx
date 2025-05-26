@@ -15,7 +15,7 @@ import {
   Search, Filter, X, PlusCircle, Download, ChevronDown, Calendar,
   Briefcase, Building, DollarSign, Plane, MapPin, ArrowDownCircle,
   ArrowUpCircle, Eye, Edit, Trash2, Loader2, Check, ListFilter, Coins, User,
-  Grid, List
+  Grid, List, FileText // Adicionar este ícone
 } from 'lucide-react';
 
 // Componentes
@@ -34,6 +34,7 @@ interface CaixaViagem {
   userId: string;
   empresaId?: number;
   funcionarioId?: number;
+  veiculoId?: number;
   data: string;
   destino: string;
   observacao?: string;
@@ -131,6 +132,9 @@ export default function CaixaViagemPage() {
   const [loadingAction, setLoadingAction] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   
+  // Adicionar este estado
+  const [isGeneratingTermo, setIsGeneratingTermo] = useState(false);
+  
   // Estados para modais e seleção
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -162,6 +166,11 @@ export default function CaixaViagemPage() {
     canEdit: false,
     canDelete: false
   });
+
+  // Adicionar novos estados para filtros adicionais
+  const [filterVeiculo, setFilterVeiculo] = useState(0);
+  const [filterFuncionario, setFilterFuncionario] = useState(0);
+  const [filterNumeroCaixa, setFilterNumeroCaixa] = useState('');
 
   // Efeito para verificar autenticação e permissões
   useEffect(() => {
@@ -645,6 +654,83 @@ export default function CaixaViagemPage() {
     }
   };
 
+  // Função para gerar termo
+  const handleGenerateTermo = async (caixa: CaixaViagem) => {
+    try {
+      setIsGeneratingTermo(true);
+      
+      console.log("Gerando termo para caixa:", caixa.id);
+      
+      const response = await fetch('/api/caixaviagem/generate-termo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ caixaId: caixa.id }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erro ao gerar termo: ${errorText}`);
+      }
+
+      // Obter o arquivo PDF como blob
+      const blob = await response.blob();
+      
+      // Criar URL para o blob
+      const url = window.URL.createObjectURL(blob);
+      
+      // Nome do funcionário para o nome do arquivo
+      const funcionarioNome = caixa.funcionario 
+        ? `${caixa.funcionario.nome}_${caixa.funcionario.sobrenome || ''}`.trim().replace(/\s+/g, '_')
+        : 'sem_funcionario';
+      
+      // Destino formatado para o nome do arquivo
+      const destinoArquivo = caixa.destino ? caixa.destino.replace(/\s+/g, '_') : 'sem_destino';
+      
+      // Número da caixa para o nome do arquivo
+      const numeroCaixa = caixa.numeroCaixa || caixa.id;
+      
+      // Nome do arquivo personalizado
+      const nomeArquivo = `caixa_${numeroCaixa}_${funcionarioNome}_${destinoArquivo}.pdf`;
+      
+      // Criar elemento <a> para iniciar o download
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nomeArquivo;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Limpar o URL e o elemento
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success(
+        <div className="flex items-center">
+          <div className="mr-3 bg-blue-100 p-2 rounded-full">
+            <FileText size={18} className="text-blue-600" />
+          </div>
+          <div>
+            <p className="font-medium">Termo gerado com sucesso</p>
+            <p className="text-sm text-gray-600">
+              O download do termo de responsabilidade foi iniciado.
+            </p>
+          </div>
+        </div>,
+        {
+          icon: false,
+          closeButton: true,
+          className: "border-l-4 border-blue-500"
+        }
+      );
+    } catch (error) {
+      console.error('Erro ao gerar termo:', error);
+      toast.error(`Erro ao gerar termo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    } finally {
+      setIsGeneratingTermo(false);
+    }
+  };
+
   // Formatar valores para exibição
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -671,6 +757,9 @@ export default function CaixaViagemPage() {
     setFilterEmpresa(0);
     setFilterDateRange({start: '', end: ''});
     setFilterSaldo('');
+    setFilterVeiculo(0);
+    setFilterFuncionario(0);
+    setFilterNumeroCaixa('');
     setIsFilterOpen(false);
     
     toast.info("Filtros limpos com sucesso");
@@ -678,7 +767,8 @@ export default function CaixaViagemPage() {
 
   // Verificar se há filtros ativos
   const isFilterActive = searchTerm || filterDestino || filterEmpresa > 0 || 
-                        filterDateRange.start || filterDateRange.end || filterSaldo;
+                        filterDateRange.start || filterDateRange.end || filterSaldo ||
+                        filterVeiculo > 0 || filterFuncionario > 0 || filterNumeroCaixa;
 
   // Função para exportar para Excel
   const exportToExcel = async () => {
@@ -818,6 +908,15 @@ export default function CaixaViagemPage() {
     if (filterSaldo === 'positivo' && saldo <= 0) return false;
     if (filterSaldo === 'negativo' && saldo >= 0) return false;
     if (filterSaldo === 'neutro' && saldo !== 0) return false;
+
+    // Aplicar filtro de veículo
+    if (filterVeiculo > 0 && caixa.veiculoId !== filterVeiculo) return false;
+    
+    // Aplicar filtro de funcionário
+    if (filterFuncionario > 0 && caixa.funcionarioId !== filterFuncionario) return false;
+    
+    // Aplicar filtro por número da caixa
+    if (filterNumeroCaixa && caixa.numeroCaixa !== Number(filterNumeroCaixa)) return false;
 
     // Busca por termo
     const search = searchTerm.toLowerCase();
@@ -986,7 +1085,10 @@ export default function CaixaViagemPage() {
                       filterDestino ? 1 : 0,
                       filterEmpresa > 0 ? 1 : 0,
                       (filterDateRange.start || filterDateRange.end) ? 1 : 0,
-                      filterSaldo ? 1 : 0
+                      filterSaldo ? 1 : 0,
+                      filterVeiculo > 0 ? 1 : 0,
+                      filterFuncionario > 0 ? 1 : 0,
+                      filterNumeroCaixa ? 1 : 0
                     ].reduce((sum, val) => sum + val, 0)
                   })` : "Filtrar"}
                   <ChevronDown size={18} className="ml-2" />
@@ -1071,6 +1173,44 @@ export default function CaixaViagemPage() {
                       </select>
                     </div>
                     
+                    {/* Novo filtro por funcionário */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-2">
+                        Funcionário
+                      </label>
+                      <select
+                        className="w-full border border-gray-300 rounded-md py-3 px-4 text-base"
+                        value={filterFuncionario}
+                        onChange={(e) => setFilterFuncionario(Number(e.target.value))}
+                      >
+                        <option value={0}>Todos os funcionários</option>
+                        {funcionarios.map((funcionario) => (
+                          <option key={funcionario.id} value={funcionario.id}>
+                            {`${funcionario.nome} ${funcionario.sobrenome || ''}`.trim()}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {/* Novo filtro por veículo */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-2">
+                        Veículo
+                      </label>
+                      <select
+                        className="w-full border border-gray-300 rounded-md py-3 px-4 text-base"
+                        value={filterVeiculo}
+                        onChange={(e) => setFilterVeiculo(Number(e.target.value))}
+                      >
+                        <option value={0}>Todos os veículos</option>
+                        {veiculos.map((veiculo) => (
+                          <option key={veiculo.id} value={veiculo.id}>
+                            {veiculo.modelo} {veiculo.placa ? `- ${veiculo.placa}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
                     {/* Filtro por saldo */}
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-2">
@@ -1088,8 +1228,22 @@ export default function CaixaViagemPage() {
                       </select>
                     </div>
                     
-                    {/* Filtro por período */}
+                    {/* Novo filtro por número da caixa */}
                     <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-2">
+                        Número da Caixa
+                      </label>
+                      <input
+                        type="number"
+                        value={filterNumeroCaixa}
+                        onChange={(e) => setFilterNumeroCaixa(e.target.value)}
+                        className="w-full border border-gray-300 rounded-md py-3 px-4 text-base"
+                        placeholder="Ex: 1, 2, 3..."
+                      />
+                    </div>
+                    
+                    {/* Filtro por período */}
+                    <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-600 mb-2">
                         Período
                       </label>
@@ -1136,11 +1290,11 @@ export default function CaixaViagemPage() {
           {isFilterActive && (
             <div className="flex flex-wrap gap-2 mt-5">
               {searchTerm && (
-                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
                   Busca: {searchTerm}
                   <button 
                     onClick={() => setSearchTerm('')}
-                    className="ml-2 text-gray-500 hover:text-gray-700"
+                    className="ml-2 text-blue-500 hover:text-blue-700"
                   >
                     <X size={16} />
                   </button>
@@ -1148,7 +1302,7 @@ export default function CaixaViagemPage() {
               )}
               
               {filterDestino && (
-                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
                   Destino: {filterDestino}
                   <button 
                     onClick={() => setFilterDestino('')}
@@ -1160,11 +1314,49 @@ export default function CaixaViagemPage() {
               )}
               
               {filterEmpresa > 0 && (
-                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
                   Empresa: {empresas.find(e => e.id === filterEmpresa)?.nome || 'Selecionada'}
                   <button 
                     onClick={() => setFilterEmpresa(0)}
-                    className="ml-2 text-green-500 hover:text-green-700"
+                    className="ml-2 text-blue-500 hover:text-blue-700"
+                  >
+                    <X size={16} />
+                  </button>
+                </span>
+              )}
+              
+              {filterFuncionario > 0 && (
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
+                  Funcionário: {funcionarios.find(f => f.id === filterFuncionario)?.nome || 'Selecionado'} 
+                  {funcionarios.find(f => f.id === filterFuncionario)?.sobrenome || ''}
+                  <button 
+                    onClick={() => setFilterFuncionario(0)}
+                    className="ml-2 text-blue-500 hover:text-blue-700"
+                  >
+                    <X size={16} />
+                  </button>
+                </span>
+              )}
+              
+              {filterVeiculo > 0 && (
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
+                  Veículo: {veiculos.find(v => v.id === filterVeiculo)?.modelo || 'Selecionado'} 
+                  {veiculos.find(v => v.id === filterVeiculo)?.placa ? ` - ${veiculos.find(v => v.id === filterVeiculo)?.placa}` : ''}
+                  <button 
+                    onClick={() => setFilterVeiculo(0)}
+                    className="ml-2 text-blue-500 hover:text-blue-700"
+                  >
+                    <X size={16} />
+                  </button>
+                </span>
+              )}
+              
+              {filterNumeroCaixa && (
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
+                  Nº Caixa: {filterNumeroCaixa}
+                  <button 
+                    onClick={() => setFilterNumeroCaixa('')}
+                    className="ml-2 text-blue-500 hover:text-blue-700"
                   >
                     <X size={16} />
                   </button>
@@ -1172,13 +1364,13 @@ export default function CaixaViagemPage() {
               )}
               
               {(filterDateRange.start || filterDateRange.end) && (
-                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
                   Período: {filterDateRange.start ? format(new Date(filterDateRange.start), 'dd/MM/yyyy', { locale: ptBR }) : ''} 
                   {filterDateRange.start && filterDateRange.end ? ' a ' : ''} 
                   {filterDateRange.end ? format(new Date(filterDateRange.end), 'dd/MM/yyyy', { locale: ptBR }) : ''}
                   <button 
                     onClick={() => setFilterDateRange({start: '', end: ''})}
-                    className="ml-2 text-purple-500 hover:text-purple-700"
+                    className="ml-2 text-blue-500 hover:text-blue-700"
                   >
                     <X size={16} />
                   </button>
@@ -1186,13 +1378,13 @@ export default function CaixaViagemPage() {
               )}
 
               {filterSaldo && (
-                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-amber-100 text-amber-800">
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
                   Saldo: {filterSaldo === "positivo" ? "Positivo" : 
                          filterSaldo === "negativo" ? "Negativo" : 
                          filterSaldo === "neutro" ? "Neutro" : filterSaldo}
                   <button 
                     onClick={() => setFilterSaldo('')}
-                    className="ml-2 text-amber-500 hover:text-amber-700"
+                    className="ml-2 text-blue-500 hover:text-blue-700"
                   >
                     <X size={16} />
                   </button>
@@ -1386,9 +1578,13 @@ export default function CaixaViagemPage() {
               <CaixaViagemCard
                 key={caixa.id}
                 caixa={caixa}
+                empresas={empresas}
+                funcionarios={funcionarios}
+                veiculos={veiculos}
                 onViewDetails={() => handleViewDetails(caixa)}
                 onEdit={() => handleOpenEditModal(caixa)}
                 onToggleVisibility={() => handleToggleVisibility(caixa)}
+                onGenerateTermo={() => handleGenerateTermo(caixa)} // Passar a função para o card
                 canEdit={userPermissions.canEdit}
                 canDelete={userPermissions.canDelete}
               />
@@ -1419,9 +1615,10 @@ export default function CaixaViagemPage() {
           caixa={selectedCaixa}
           empresas={empresas}
           funcionarios={funcionarios}
-          veiculos={veiculos} // Adicionar esta propriedade
-          onEdit={handleOpenEditModal}
-          onDelete={handleToggleVisibility}
+          veiculos={veiculos}
+          onEdit={userPermissions.canEdit ? handleOpenEditModal : undefined}
+          onDelete={userPermissions.canDelete ? handleToggleVisibility : undefined}
+          onGenerateTermo={handleGenerateTermo} // Passar a função para o modal
           canEdit={userPermissions.canEdit}
           canDelete={userPermissions.canDelete}
         />
@@ -1480,6 +1677,24 @@ export default function CaixaViagemPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Indicador visual durante a geração do termo */}
+      {isGeneratingTermo && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 shadow-lg max-w-md w-full">
+            <h3 className="text-lg font-bold text-gray-800 flex items-center">
+              <FileText size={20} className="mr-2 text-blue-600" />
+              Gerando Termo...
+            </h3>
+            <p className="text-gray-600 mt-2">
+              Aguarde enquanto o termo de responsabilidade está sendo gerado.
+            </p>
+            <div className="mt-4 w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full bg-blue-600 animate-pulse rounded-full"></div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ToastContainer position="bottom-right" />
     </div>

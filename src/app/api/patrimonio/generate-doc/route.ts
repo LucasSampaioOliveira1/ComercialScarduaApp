@@ -402,9 +402,11 @@ export async function POST(req: NextRequest) {
       const spacing = 24;
       let y = height - 50; // Posição inicial do texto
 
-      // Título
-      page.drawText("TERMO DE RESPONSABILIDADE", {
-        x: 50,
+      // Título centralizado
+      const titulo = "TERMO DE RESPONSABILIDADE";
+      const tituloWidth = boldFont.widthOfTextAtSize(titulo, 16);
+      page.drawText(titulo, {
+        x: (width - tituloWidth) / 2, // Centralizar o título
         y: y,
         size: 16,
         font: boldFont,

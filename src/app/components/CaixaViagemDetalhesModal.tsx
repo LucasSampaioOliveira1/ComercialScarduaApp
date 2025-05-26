@@ -1,20 +1,25 @@
 import React, { useState } from 'react';
-import { X, Download, ArrowDownCircle, ArrowUpCircle, DollarSign, Edit, Trash2, MapPin, Building, Calendar, User, Truck } from 'lucide-react';
+import { 
+  X, Download, ArrowDownCircle, ArrowUpCircle, DollarSign, Edit, Trash2, 
+  MapPin, Building, Calendar, User, Truck, FileText // Adicionar FileText
+} from 'lucide-react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
+// Atualizar a interface para incluir onGenerateTermo
 interface CaixaViagemDetalhesModalProps {
   isOpen: boolean;
   onClose: () => void;
   caixa: any;
   empresas?: any[];
   funcionarios?: any[];
-  veiculos?: any[]; // Adicionado
+  veiculos?: any[];
   onEdit?: (caixa: any) => void;
   onDelete?: (caixa: any) => void;
+  onGenerateTermo?: (caixa: any) => void; // Nova propriedade
   canEdit: boolean;
   canDelete: boolean;
 }
@@ -28,6 +33,7 @@ const CaixaViagemDetalhesModal = ({
   veiculos,
   onEdit,
   onDelete,
+  onGenerateTermo, // Novo parâmetro
   canEdit,
   canDelete
 }: CaixaViagemDetalhesModalProps) => {
@@ -196,6 +202,17 @@ const CaixaViagemDetalhesModal = ({
               </div>
               
               <div className="flex items-center space-x-2">
+                {onGenerateTermo && (
+                  <button
+                    onClick={() => onGenerateTermo(caixa)}
+                    type="button"
+                    className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition-colors"
+                    title="Gerar Termo de Responsabilidade"
+                  >
+                    <FileText className="h-5 w-5" />
+                  </button>
+                )}
+                
                 <button
                   onClick={exportToExcel}
                   type="button"
