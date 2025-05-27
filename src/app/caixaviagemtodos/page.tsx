@@ -15,7 +15,7 @@ import {
   Search, Filter, X, PlusCircle, Download, ChevronDown, ChevronUp,
   ArrowDownCircle, ArrowUpCircle, DollarSign, Plane, User,
   Building, Calendar, MapPin, Eye, Edit, Trash2, Loader2, Check,
-  Grid, List
+  Grid, List, FileText
 } from 'lucide-react';
 
 // Componentes
@@ -32,6 +32,7 @@ interface CaixaViagem {
   userId: string;
   empresaId?: number;
   funcionarioId?: number;
+  veiculoId?: number; // Added veiculoId property
   data: string;
   destino: string;
   observacao?: string;
@@ -39,6 +40,7 @@ interface CaixaViagem {
   createdAt?: string;
   updatedAt?: string;
   saldo: number;
+  numeroCaixa?: number;
   lancamentos: Lancamento[];
   user?: {
     id: string;
@@ -173,6 +175,7 @@ export default function CaixaViagemTodosPage() {
     
     try {
       const token = localStorage.getItem("token");
+      setToken(token);
       
       if (!token) {
         console.error("Token não encontrado");
@@ -186,6 +189,56 @@ export default function CaixaViagemTodosPage() {
       router.push('/');
     }
   }, [router]);
+
+  // Efeito para buscar dados iniciais
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const token = localStorage.getItem("token");
+      
+      if (!token) {
+        console.error("Token não encontrado");
+        router.push('/');
+        return;
+      }
+      
+      fetchPermissions(token);
+    } catch (error) {
+      console.error("Erro ao processar dados:", error);
+      router.push('/');
+    }
+  }, [router]);
+
+  // Efeito específico apenas para calcular estatísticas quando as caixas são atualizadas
+  useEffect(() => {
+    // Verificar se há caixas para evitar cálulos desnecessários
+    if (caixasViagem.length > 0) {
+      // Usar setTimeout para garantir que o DOM foi atualizado antes de calcular
+      const timer = setTimeout(() => {
+        buscarEstatisticas();
+      }, 200);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [caixasViagem, showHidden]);
+
+  // Separar a inicialização de dados para evitar loops
+  const inicializarDados = async (token: string) => {
+    try {
+      setLoading(true);
+      const caixas = await buscarCaixasDeViagem();
+      if (caixas.length > 0) {
+        // Adicionar um pequeno delay para garantir que o DOM foi atualizado
+        setTimeout(() => buscarEstatisticas(), 300);
+      }
+      await fetchDadosAuxiliares();
+    } catch (error) {
+      console.error("Erro ao inicializar dados:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Função para verificar permissões
   const fetchPermissions = async (authToken: string) => {
@@ -300,6 +353,7 @@ export default function CaixaViagemTodosPage() {
       const data = await response.json();
       console.log(`Recebidas ${data.length} caixas de viagem`);
       
+      // Atualizar estado com os dados recebidos
       setCaixasViagem(data);
       
       // Extrair lista de destinos únicos para filtros
@@ -319,29 +373,71 @@ export default function CaixaViagemTodosPage() {
     }
   };
 
-  // Função para buscar estatísticas gerais
-  const buscarEstatisticas = async () => {
+  // Atualização da função buscarEstatisticas para garantir estabilidade
+  const buscarEstatisticas = () => {
     try {
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("Token não encontrado");
+      // Criar uma cópia local para evitar problemas de referência
+      const caixasAtual = [...caixasViagem];
       
-      const response = await fetch('/api/caixaviagem/stats', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (!response.ok) {
-        console.error("Erro ao buscar estatísticas:", await response.text());
+      // Verificar se temos dados para processar
+      if (caixasAtual.length === 0) {
+        console.log("Sem caixas para calcular estatísticas");
         return;
       }
       
-      const stats = await response.json();
-      setResumo(stats);
+      console.log(`Calculando estatísticas para ${caixasAtual.length} caixas`);
       
-      console.log("Estatísticas atualizadas:", stats);
+      // Buscar dados diretamente das caixas de viagem já carregadas
+      let totalEntradas = 0;
+      let totalSaidas = 0;
+      let totalCaixas = 0;
+      
+      caixasAtual.forEach(caixa => {
+        // Ignorar caixas ocultas se showHidden está desativado
+        if (caixa.oculto && !showHidden) return;
+        
+        totalCaixas++;
+        
+        // Calcular entradas e saídas dos lançamentos
+        if (Array.isArray(caixa.lancamentos)) {
+          caixa.lancamentos.forEach(lancamento => {
+            if (lancamento.entrada) {
+              const valor = parseFloat(String(lancamento.entrada).replace(/[^\d.,]/g, '').replace(',', '.'));
+              if (!isNaN(valor)) {
+                totalEntradas += valor;
+              }
+            }
+            
+            if (lancamento.saida) {
+              const valor = parseFloat(String(lancamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
+              if (!isNaN(valor)) {
+                totalSaidas += valor;
+              }
+            }
+          });
+        }
+      });
+      
+      // Calcular saldo geral
+      const saldoGeral = totalEntradas - totalSaidas;
+      
+      console.log("Estatísticas calculadas localmente:", {
+        totalCaixas,
+        totalEntradas,
+        totalSaidas,
+        saldoGeral
+      });
+      
+      // Atualizar o estado com os valores calculados
+      setResumo({
+        totalCaixas,
+        totalEntradas,
+        totalSaidas,
+        saldoGeral
+      });
     } catch (error) {
-      console.error("Erro ao buscar estatísticas:", error);
+      console.error("Erro ao calcular estatísticas:", error);
+      // Manter os valores anteriores em caso de erro, em vez de zerar
     }
   };
 
@@ -648,6 +744,11 @@ export default function CaixaViagemTodosPage() {
     setVisibleItems(prev => prev + itemsPerLoad);
   };
 
+  // Atualizar os estados de filtro para incluir os mesmos da página caixaviagem
+  const [filterVeiculo, setFilterVeiculo] = useState(0);
+  const [filterFuncionario, setFilterFuncionario] = useState(0);
+  const [filterNumeroCaixa, setFilterNumeroCaixa] = useState('');
+
   const handleClearFilters = () => {
     setSearchTerm('');
     setFilterDestino('');
@@ -655,6 +756,9 @@ export default function CaixaViagemTodosPage() {
     setFilterUsuario('');
     setFilterDateRange({start: '', end: ''});
     setFilterSaldo('');
+    setFilterVeiculo(0);
+    setFilterFuncionario(0);
+    setFilterNumeroCaixa('');
     setIsFilterOpen(false);
     
     toast.info(
@@ -677,10 +781,12 @@ export default function CaixaViagemTodosPage() {
     );
   };
 
-  // Verificar se há filtros ativos
+  // Verificar se há filtros ativos - adicionados os novos filtros
   const isFilterActive = searchTerm || filterDestino || filterEmpresa > 0 || 
-                        filterUsuario || filterDateRange.start || 
-                        filterDateRange.end || filterSaldo;
+                       filterUsuario || filterDateRange.start || 
+                       filterDateRange.end || filterSaldo || 
+                       filterVeiculo > 0 || filterFuncionario > 0 || 
+                       filterNumeroCaixa ? true : false;
 
   // Função para exportar para Excel
   const exportToExcel = async () => {
@@ -780,12 +886,25 @@ export default function CaixaViagemTodosPage() {
 
   // Toggle para mostrar/ocultar caixas ocultas
   const toggleShowHidden = async () => {
-    setShowHidden(!showHidden);
-    // Refazer a busca de caixas quando mudar a configuração
-    await buscarCaixasDeViagem();
+    const newShowHidden = !showHidden;
+    setShowHidden(newShowHidden);
+    
+    try {
+      // Refazer a busca de caixas e estatísticas quando mudar a configuração
+      const token = localStorage.getItem("token");
+      if (token) {
+        setLoading(true);
+        await buscarCaixasDeViagem();
+        await buscarEstatisticas();
+      }
+    } catch (error) {
+      console.error("Erro ao atualizar dados após alteração de visibilidade:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Filtrar caixas com useMemo para melhorar performance
+  // Filtrar caixas com useMemo para incluir todos os filtros
   const filteredCaixas = useMemo(() => {
     return caixasViagem.filter(caixa => {
       // Se o showHidden estiver desligado, já filtramos na API, mas garantimos aqui também
@@ -806,6 +925,9 @@ export default function CaixaViagemTodosPage() {
       if (filterDestino && filterDestino !== 'Todos' && caixa.destino !== filterDestino) return false;
       if (filterEmpresa > 0 && caixa.empresaId !== filterEmpresa) return false;
       if (filterUsuario && caixa.user?.id !== filterUsuario) return false;
+      if (filterFuncionario > 0 && caixa.funcionarioId !== filterFuncionario) return false;
+      if (filterVeiculo > 0 && caixa.veiculoId !== filterVeiculo) return false;
+      if (filterNumeroCaixa && caixa.numeroCaixa !== Number(filterNumeroCaixa)) return false;
       
       if (filterDateRange.start || filterDateRange.end) {
         const caixaDate = new Date(caixa.data);
@@ -829,7 +951,7 @@ export default function CaixaViagemTodosPage() {
       
       return matchesSearch;
     });
-  }, [caixasViagem, searchTerm, filterDestino, filterEmpresa, filterUsuario, filterDateRange, filterSaldo, showHidden]);
+  }, [caixasViagem, searchTerm, filterDestino, filterEmpresa, filterUsuario, filterDateRange, filterSaldo, showHidden, filterFuncionario, filterVeiculo, filterNumeroCaixa]);
 
   // Ordenar caixas (mais recentes primeiro)
   const sortedCaixas = useMemo(() => {
@@ -837,6 +959,113 @@ export default function CaixaViagemTodosPage() {
       return new Date(b.data).getTime() - new Date(a.data).getTime();
     });
   }, [filteredCaixas]);
+
+  // Adicione esses estados no início da função CaixaViagemTodosPage junto com os outros estados
+  const [isConfirmPdfModalOpen, setIsConfirmPdfModalOpen] = useState(false);
+  const [caixaToDownload, setCaixaToDownload] = useState<CaixaViagem | null>(null);
+  const [isGeneratingTermo, setIsGeneratingTermo] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+
+  // No useEffect inicial, adicione:
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setToken(localStorage.getItem('token'));
+    }
+  }, []);
+
+  // Adicione um efeito para atualizar as estatísticas sempre que as caixas mudam
+  useEffect(() => {
+    // Calcular estatísticas sempre que as caixas mudam
+    if (caixasViagem.length > 0) {
+      buscarEstatisticas();
+    }
+  }, [caixasViagem, showHidden]); // Atualizar quando as caixas ou a visibilidade mudar
+
+  // Função que será chamada quando o usuário clicar no botão de gerar termo
+  const handleGenerateTermoRequest = (caixa: CaixaViagem) => {
+    setCaixaToDownload(caixa);
+    setIsConfirmPdfModalOpen(true);
+  };
+
+  // Função que será chamada quando o usuário confirmar no modal
+  const handleConfirmDownload = async () => {
+    if (!caixaToDownload) return;
+    
+    try {
+      setIsGeneratingTermo(true);
+      setIsConfirmPdfModalOpen(false);
+      
+      const response = await fetch('/api/caixaviagem/generate-termo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ caixaId: caixaToDownload.id }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erro ao gerar termo: ${errorText}`);
+      }
+
+      // Obter o arquivo PDF como blob
+      const blob = await response.blob();
+      
+      // Criar URL para o blob
+      const url = window.URL.createObjectURL(blob);
+      
+      // Nome do funcionário para o nome do arquivo
+      const funcionarioNome = caixaToDownload.funcionario 
+        ? `${caixaToDownload.funcionario.nome}_${caixaToDownload.funcionario.sobrenome || ''}`.trim().replace(/\s+/g, '_')
+        : 'sem_funcionario';
+      
+      // Destino formatado para o nome do arquivo
+      const destinoArquivo = caixaToDownload.destino ? caixaToDownload.destino.replace(/\s+/g, '_') : 'sem_destino';
+      
+      // Número da caixa para o nome do arquivo (se disponível)
+      const numeroCaixa = caixaToDownload.numeroCaixa || caixaToDownload.id;
+      
+      // Nome do arquivo personalizado
+      const nomeArquivo = `caixa_${numeroCaixa}_${funcionarioNome}_${destinoArquivo}.pdf`;
+      
+      // Criar elemento <a> para iniciar o download
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nomeArquivo;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Limpar o URL e o elemento
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success(
+        <div className="flex items-center">
+          <div className="mr-3 bg-orange-100 p-2 rounded-full">
+            <FileText size={18} className="text-orange-600" />
+          </div>
+          <div>
+            <p className="font-medium">Termo gerado com sucesso</p>
+            <p className="text-sm text-gray-600">
+              O download do termo de responsabilidade foi iniciado.
+            </p>
+          </div>
+        </div>,
+        {
+          icon: false,
+          closeButton: true,
+          className: "border-l-4 border-orange-500"
+        }
+      );
+    } catch (error) {
+      console.error('Erro ao gerar termo:', error);
+      toast.error(`Erro ao gerar termo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    } finally {
+      setIsGeneratingTermo(false);
+      setCaixaToDownload(null);
+    }
+  };
 
   return (
     <ProtectedRoute pageName="caixaviagem">
@@ -868,16 +1097,16 @@ export default function CaixaViagemTodosPage() {
                   </button>
                 )}
                 
-                <button
-                  onClick={exportToExcel}
-                  className="bg-green-600 hover:bg-green-700 text-white px-5 py-3 text-base rounded-lg flex items-center transition-colors"
-                  disabled={filteredCaixas.length === 0}
-                >
-                  <Download size={20} className="mr-2" />
-                  Exportar
-                </button>
-                
-                {/* Botão de ver excluídos foi removido como solicitado */}
+                {/* Botão de exportar só aparece quando há filtros aplicados */}
+                {isFilterActive && filteredCaixas.length > 0 && (
+                  <button
+                    onClick={exportToExcel}
+                    className="bg-green-600 hover:bg-green-700 text-white px-5 py-3 text-base rounded-lg flex items-center transition-colors"
+                  >
+                    <Download size={20} className="mr-2" />
+                    Exportar Filtrados
+                  </button>
+                )}
               </div>
             </div>
             
@@ -890,7 +1119,7 @@ export default function CaixaViagemTodosPage() {
                     <Plane size={24} className="text-blue-600" />
                   </div>
                 </div>
-                <p className="text-3xl font-bold text-gray-900">{resumo.totalCaixas}</p>
+                <p className="text-3xl font-bold text-gray-900">{resumo?.totalCaixas || 0}</p>
               </div>
               
               {/* Saídas com seta para baixo */}
@@ -901,7 +1130,7 @@ export default function CaixaViagemTodosPage() {
                     <ArrowDownCircle size={24} className="text-red-600" />
                   </div>
                 </div>
-                <p className="text-3xl font-bold text-red-600">{formatCurrency(resumo.totalSaidas || 0)}</p>
+                <p className="text-3xl font-bold text-red-600">{formatCurrency(resumo?.totalSaidas || 0)}</p>
               </div>
               
               {/* Entradas com seta para cima */}
@@ -912,18 +1141,18 @@ export default function CaixaViagemTodosPage() {
                     <ArrowUpCircle size={24} className="text-green-600" />
                   </div>
                 </div>
-                <p className="text-3xl font-bold text-green-600">{formatCurrency(resumo.totalEntradas || 0)}</p>
+                <p className="text-3xl font-bold text-green-600">{formatCurrency(resumo?.totalEntradas || 0)}</p>
               </div>
               
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Saldo Geral</h2>
                   <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                    <DollarSign size={24} className={(resumo.saldoGeral || 0) >= 0 ? "text-green-600" : "text-red-600"} />
+                    <DollarSign size={24} className={(resumo?.saldoGeral || 0) >= 0 ? "text-green-600" : "text-red-600"} />
                   </div>
                 </div>
-                <p className={`text-3xl font-bold ${(resumo.saldoGeral || 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
-                  {formatCurrency(resumo.saldoGeral || 0)}
+                <p className={`text-3xl font-bold ${(resumo?.saldoGeral || 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                  {formatCurrency(resumo?.saldoGeral || 0)}
                 </p>
               </div>
             </div>
@@ -962,23 +1191,20 @@ export default function CaixaViagemTodosPage() {
                     }`}
                   >
                     <Filter size={18} className="mr-2" />
-                    {isFilterActive ? `Filtros (${Object.values({
-                      searchTerm,
-                      filterDestino,
-                      filterEmpresa,
-                      filterUsuario,
-                      filterDateRange,
-                      filterSaldo
-                    }).filter(value => {
-                      if (typeof value === 'string' || typeof value === 'number') return !!value;
-                      if (value && typeof value === 'object') {
-                        if ('start' in value && 'end' in value) {
-                          const dateRange = value as {start: string, end: string};
-                          return dateRange.start || dateRange.end;
-                        }
-                      }
-                      return false;
-                    }).length})` : "Filtrar"}
+                    {isFilterActive ? `Filtros (${
+                      // Contagem correta de todos os filtros ativos
+                      [
+                        searchTerm ? 1 : 0,
+                        filterDestino ? 1 : 0,
+                        filterEmpresa > 0 ? 1 : 0,
+                        filterUsuario ? 1 : 0,
+                        (filterDateRange.start || filterDateRange.end) ? 1 : 0,
+                        filterSaldo ? 1 : 0,
+                        filterFuncionario > 0 ? 1 : 0,
+                        filterVeiculo > 0 ? 1 : 0,
+                        filterNumeroCaixa ? 1 : 0
+                      ].reduce((sum, val) => sum + val, 0)
+                    })` : "Filtrar"}
                     {isFilterOpen ? <ChevronUp className="ml-2" size={18} /> : <ChevronDown className="ml-2" size={18} />}
                   </button>
                 </div>
@@ -1011,7 +1237,7 @@ export default function CaixaViagemTodosPage() {
               </div>
             </div>
 
-            {/* Painel de filtros expandível - Melhorado espaçamento */}
+            {/* Painel de filtros expandível - Atualizado para incluir novos filtros */}
             <AnimatePresence>
               {isFilterOpen && (
                 <motion.div
@@ -1022,29 +1248,35 @@ export default function CaixaViagemTodosPage() {
                   className="overflow-hidden"
                 >
                   <div className="border-t border-gray-200 mt-7 pt-7">
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {/* Filtro por destino */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-2">Destino</label>
+                        <label className="block text-sm font-medium text-gray-600 mb-2">
+                          Destino
+                        </label>
                         <select
+                          className="w-full border border-gray-300 rounded-md py-3 px-4 text-base"
                           value={filterDestino}
                           onChange={(e) => setFilterDestino(e.target.value)}
-                          className="w-full border border-gray-300 rounded-md py-3 px-4 text-base"
                         >
                           <option value="">Todos os destinos</option>
                           {destinos.map((destino, index) => (
-                            <option key={index} value={destino}>
-                              {destino}
-                            </option>
+                            destino !== 'Todos' && (
+                              <option key={index} value={destino}>{destino}</option>
+                            )
                           ))}
                         </select>
                       </div>
                       
+                      {/* Filtro por empresa */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-2">Empresa</label>
+                        <label className="block text-sm font-medium text-gray-600 mb-2">
+                          Empresa
+                        </label>
                         <select
+                          className="w-full border border-gray-300 rounded-md py-3 px-4 text-base"
                           value={filterEmpresa}
                           onChange={(e) => setFilterEmpresa(Number(e.target.value))}
-                          className="w-full border border-gray-300 rounded-md py-3 px-4 text-base"
                         >
                           <option value={0}>Todas as empresas</option>
                           {empresas.map((empresa) => (
@@ -1055,12 +1287,34 @@ export default function CaixaViagemTodosPage() {
                         </select>
                       </div>
                       
+                      {/* Filtro por funcionário */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-2">Usuário</label>
+                        <label className="block text-sm font-medium text-gray-600 mb-2">
+                          Funcionário
+                        </label>
                         <select
+                          className="w-full border border-gray-300 rounded-md py-3 px-4 text-base"
+                          value={filterFuncionario}
+                          onChange={(e) => setFilterFuncionario(Number(e.target.value))}
+                        >
+                          <option value={0}>Todos os funcionários</option>
+                          {funcionarios.map((funcionario) => (
+                            <option key={funcionario.id} value={funcionario.id}>
+                              {`${funcionario.nome} ${funcionario.sobrenome || ''}`.trim()}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      {/* Filtro por usuário */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-2">
+                          Usuário
+                        </label>
+                        <select
+                          className="w-full border border-gray-300 rounded-md py-3 px-4 text-base"
                           value={filterUsuario}
                           onChange={(e) => setFilterUsuario(e.target.value)}
-                          className="w-full border border-gray-300 rounded-md py-3 px-4 text-base"
                         >
                           <option value="">Todos os usuários</option>
                           {usuarios.map((usuario) => (
@@ -1071,8 +1325,61 @@ export default function CaixaViagemTodosPage() {
                         </select>
                       </div>
                       
+                      {/* Filtro por veículo */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-2">Período</label>
+                        <label className="block text-sm font-medium text-gray-600 mb-2">
+                          Veículo
+                        </label>
+                        <select
+                          className="w-full border border-gray-300 rounded-md py-3 px-4 text-base"
+                          value={filterVeiculo}
+                          onChange={(e) => setFilterVeiculo(Number(e.target.value))}
+                        >
+                          <option value={0}>Todos os veículos</option>
+                          {veiculos.map((veiculo) => (
+                            <option key={veiculo.id} value={veiculo.id}>
+                              {veiculo.modelo} {veiculo.placa ? `- ${veiculo.placa}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      {/* Filtro por número da caixa */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-2">
+                          Número da Caixa
+                        </label>
+                        <input
+                          type="number"
+                          value={filterNumeroCaixa}
+                          onChange={(e) => setFilterNumeroCaixa(e.target.value)}
+                          className="w-full border border-gray-300 rounded-md py-3 px-4 text-base"
+                          placeholder="Ex: 1, 2, 3..."
+                        />
+                      </div>
+                      
+                      {/* Filtro por saldo */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-2">
+                          Saldo
+                        </label>
+                        <select
+                          className="w-full border border-gray-300 rounded-md py-3 px-4 text-base"
+                          value={filterSaldo}
+                          onChange={(e) => setFilterSaldo(e.target.value)}
+                        >
+                          <option value="">Todos os saldos</option>
+                          <option value="positivo">Saldo Positivo</option>
+                          <option value="negativo">Saldo Negativo</option>
+                          <option value="neutro">Saldo Zero</option>
+                        </select>
+                      </div>
+                      
+                      {/* Filtro por período */}
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-600 mb-2">
+                          Período
+                        </label>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <input
@@ -1094,22 +1401,8 @@ export default function CaixaViagemTodosPage() {
                           </div>
                         </div>
                       </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-600 mb-2">Saldo</label>
-                        <select
-                          value={filterSaldo}
-                          onChange={(e) => setFilterSaldo(e.target.value)}
-                          className="w-full border border-gray-300 rounded-md py-3 px-4 text-base"
-                        >
-                          <option value="">Todos os saldos</option>
-                          <option value="positivo">Saldo positivo</option>
-                          <option value="negativo">Saldo negativo</option>
-                          <option value="neutro">Saldo neutro (zero)</option>
-                        </select>
-                      </div>
                     </div>
-                    
+
                     {isFilterActive && (
                       <div className="mt-6 flex justify-end">
                         <button
@@ -1126,15 +1419,15 @@ export default function CaixaViagemTodosPage() {
               )}
             </AnimatePresence>
             
-            {/* Indicadores de filtros ativos */}
+            {/* Indicadores de filtros ativos - com cores padronizadas */}
             {isFilterActive && (
               <div className="flex flex-wrap gap-2 mt-5">
                 {searchTerm && (
-                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
                     Busca: {searchTerm}
                     <button 
                       onClick={() => setSearchTerm('')}
-                      className="ml-2 text-gray-500 hover:text-gray-700"
+                      className="ml-2 text-blue-500 hover:text-blue-700"
                     >
                       <X size={16} />
                     </button>
@@ -1142,7 +1435,7 @@ export default function CaixaViagemTodosPage() {
                 )}
                 
                 {filterDestino && (
-                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
                     Destino: {filterDestino}
                     <button 
                       onClick={() => setFilterDestino('')}
@@ -1154,11 +1447,11 @@ export default function CaixaViagemTodosPage() {
                 )}
                 
                 {filterEmpresa > 0 && (
-                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
                     Empresa: {empresas.find(e => e.id === filterEmpresa)?.nome || 'Selecionada'}
                     <button 
                       onClick={() => setFilterEmpresa(0)}
-                      className="ml-2 text-green-500 hover:text-green-700"
+                      className="ml-2 text-blue-500 hover:text-blue-700"
                     >
                       <X size={16} />
                     </button>
@@ -1166,11 +1459,11 @@ export default function CaixaViagemTodosPage() {
                 )}
                 
                 {filterUsuario && (
-                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800">
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
                     Usuário: {usuarios.find(u => u.id === filterUsuario)?.nome || 'Selecionado'}
                     <button 
                       onClick={() => setFilterUsuario('')}
-                      className="ml-2 text-indigo-500 hover:text-indigo-700"
+                      className="ml-2 text-blue-500 hover:text-blue-700"
                     >
                       <X size={16} />
                     </button>
@@ -1178,13 +1471,13 @@ export default function CaixaViagemTodosPage() {
                 )}
                 
                 {(filterDateRange.start || filterDateRange.end) && (
-                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
                     Período: {filterDateRange.start ? format(new Date(filterDateRange.start), 'dd/MM/yyyy', { locale: ptBR }) : ''} 
                     {filterDateRange.start && filterDateRange.end ? ' a ' : ''} 
                     {filterDateRange.end ? format(new Date(filterDateRange.end), 'dd/MM/yyyy', { locale: ptBR }) : ''}
                     <button 
                       onClick={() => setFilterDateRange({start: '', end: ''})}
-                      className="ml-2 text-purple-500 hover:text-purple-700"
+                      className="ml-2 text-blue-500 hover:text-blue-700"
                     >
                       <X size={16} />
                     </button>
@@ -1192,13 +1485,51 @@ export default function CaixaViagemTodosPage() {
                 )}
 
                 {filterSaldo && (
-                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-amber-100 text-amber-800">
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
                     Saldo: {filterSaldo === "positivo" ? "Positivo" : 
-                           filterSaldo === "negativo" ? "Negativo" : 
-                           filterSaldo === "neutro" ? "Neutro" : filterSaldo}
+                            filterSaldo === "negativo" ? "Negativo" : 
+                            filterSaldo === "neutro" ? "Neutro" : filterSaldo}
                     <button 
                       onClick={() => setFilterSaldo('')}
-                      className="ml-2 text-amber-500 hover:text-amber-700"
+                      className="ml-2 text-blue-500 hover:text-blue-700"
+                    >
+                      <X size={16} />
+                    </button>
+                  </span>
+                )}
+
+                {filterFuncionario > 0 && (
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
+                    Funcionário: {funcionarios.find(f => f.id === filterFuncionario)?.nome || 'Selecionado'} 
+                    {funcionarios.find(f => f.id === filterFuncionario)?.sobrenome || ''}
+                    <button 
+                      onClick={() => setFilterFuncionario(0)}
+                      className="ml-2 text-blue-500 hover:text-blue-700"
+                    >
+                      <X size={16} />
+                    </button>
+                  </span>
+                )}
+                
+                {filterVeiculo > 0 && (
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
+                    Veículo: {veiculos.find(v => v.id === filterVeiculo)?.modelo || 'Selecionado'} 
+                    {veiculos.find(v => v.id === filterVeiculo)?.placa ? ` - ${veiculos.find(v => v.id === filterVeiculo)?.placa}` : ''}
+                    <button 
+                      onClick={() => setFilterVeiculo(0)}
+                      className="ml-2 text-blue-500 hover:text-blue-700"
+                    >
+                      <X size={16} />
+                    </button>
+                  </span>
+                )}
+                
+                {filterNumeroCaixa && (
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
+                    Nº Caixa: {filterNumeroCaixa}
+                    <button 
+                      onClick={() => setFilterNumeroCaixa('')}
+                      className="ml-2 text-blue-500 hover:text-blue-700"
                     >
                       <X size={16} />
                     </button>
@@ -1331,7 +1662,12 @@ export default function CaixaViagemTodosPage() {
                             </div>
                           </td>
                           <td className="px-6 py-4 text-right whitespace-nowrap">
-                            <div className={`text-base font-semibold ${caixa.saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            <div className={`text-base font-semibold ${
+                              caixa.saldo > 0 
+                                ? 'text-green-600' 
+                                : caixa.saldo < 0 
+                                  ? 'text-red-600' 
+                                  : 'text-blue-600'}`}>
                               {formatCurrency(caixa.saldo)}
                             </div>
                           </td>
@@ -1344,34 +1680,46 @@ export default function CaixaViagemTodosPage() {
                           </td>
                           <td className="px-6 py-4 text-center whitespace-nowrap">
                             <div className="flex justify-center gap-3">
+                              {/* Botão para gerar termo PDF com fundo laranja */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleGenerateTermoRequest(caixa);
+                                }}
+                                className="p-2 bg-orange-100 text-orange-600 rounded-full hover:bg-orange-200 transition-colors"
+                                title="Gerar Termo"
+                              >
+                                <FileText size={16} />
+                              </button>
+                              
                               <button
                                 onClick={() => handleViewDetails(caixa)}
-                                className="text-blue-600 hover:text-blue-800 p-1.5"
+                                className="text-blue-600 hover:text-blue-800"
                                 title="Ver detalhes"
                               >
-                                <Eye size={22} />
+                                <Eye size={18} />
                               </button>
                               
                               {userPermissions.canEdit && (
                                 <button
                                   onClick={() => handleOpenEditModal(caixa)}
-                                  className="text-amber-600 hover:text-amber-800 p-1.5"
+                                  className="text-amber-600 hover:text-amber-800"
                                   title="Editar caixa"
                                 >
-                                  <Edit size={22} />
+                                  <Edit size={18} />
                                 </button>
                               )}
                               
                               {userPermissions.canDelete && (
                                 <button
                                   onClick={() => handleToggleVisibility(caixa)}
-                                  className="text-red-600 hover:text-red-800 p-1.5"
+                                  className="text-red-600 hover:text-red-800"
                                   title={caixa.oculto ? "Restaurar caixa" : "Excluir caixa"}
                                 >
                                   {caixa.oculto ? (
-                                    <Check size={22} />
+                                    <Check size={18} />
                                   ) : (
-                                    <Trash2 size={22} />
+                                    <Trash2 size={18} />
                                   )}
                                 </button>
                               )}
@@ -1405,6 +1753,7 @@ export default function CaixaViagemTodosPage() {
                   onViewDetails={() => handleViewDetails(caixa)}
                   onEdit={() => handleOpenEditModal(caixa)}
                   onToggleVisibility={() => handleToggleVisibility(caixa)}
+                  onGenerateTermo={() => handleGenerateTermoRequest(caixa)} // Nova prop para gerar termo
                   canEdit={userPermissions.canEdit}
                   canDelete={userPermissions.canDelete}
                 />
@@ -1448,8 +1797,10 @@ export default function CaixaViagemTodosPage() {
             caixa={selectedCaixa}
             empresas={empresas}
             funcionarios={funcionarios}
+            veiculos={veiculos}
             onEdit={handleOpenEditModal}
             onDelete={handleToggleVisibility}
+            onGenerateTermo={handleGenerateTermoRequest} // Adicione esta prop
             canEdit={userPermissions.canEdit}
             canDelete={userPermissions.canDelete}
           />
@@ -1511,7 +1862,90 @@ export default function CaixaViagemTodosPage() {
           )}
         </AnimatePresence>
 
-        <ToastContainer position="bottom-right" />
+        {/* Modal de confirmação para geração de PDF */}
+        <AnimatePresence>
+          {isConfirmPdfModalOpen && caixaToDownload && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black bg-opacity-50"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+               
+                animate={{ scale: 1, opacity: 1 }}
+                               exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white rounded-xl p-8 max-w-lg w-full mx-4 shadow-xl"
+              >
+                <div className="text-center mb-6">
+                  <div className="mx-auto w-16 h-16 bg-orange-100 rounded-full flex itemscenter justify-center mb-5">
+                    <FileText size={32} className="text-orange-600" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-800">
+                    Gerar Relatório
+                  </h3>
+                  <p className="text-gray-600 mt-3">
+                    Você está prestes a gerar o relatório para a caixa de viagem:
+                  </p>
+                  
+                  <div className="mt-4 bg-orange-50 p-4 rounded-lg">
+                    <div className="grid grid-cols-2 gap-2 text-sm text-left">
+                      <div className="text-gray-600">Destino:</div>
+                      <div className="font-medium">{caixaToDownload.destino || 'Não informado'}</div>
+                      
+                      <div className="text-gray-600">Funcionário:</div>
+                      <div className="font-medium">
+                        {caixaToDownload.funcionario 
+                          ? `${caixaToDownload.funcionario.nome} ${caixaToDownload.funcionario.sobrenome || ''}` 
+                          : 'Sem funcionário associado'
+                        }
+                      </div>
+                                            
+                      <div className="text-gray-600">Empresa:</div>
+                      <div className="font-medium">
+                        {caixaToDownload.empresa?.nome || caixaToDownload.empresa?.nomeEmpresa || 'Não informada'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => {
+                      setIsConfirmPdfModalOpen(false);
+                      setCaixaToDownload(null);
+                    }}
+                    className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleConfirmDownload}
+                    className="flex-1 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
+                  >
+                    Baixar Relatório
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Indicador de carregamento durante a geração do termo */}
+        {isGeneratingTermo && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 shadow-lg max-w-md w-full">
+              <div className="text-center">
+                <Loader2 size={40} className="animate-spin mx-auto text-orange-600 mb-4" />
+                <p className="text-lg font-medium">Gerando documento...</p>
+                <p className="text-gray-500 text-sm mt-2">Aguarde enquanto o termo de responsabilidade está sendo gerado.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <ToastContainer />
       </div>
     </ProtectedRoute>
   );

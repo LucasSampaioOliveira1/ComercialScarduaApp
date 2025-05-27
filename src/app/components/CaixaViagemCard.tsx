@@ -107,7 +107,7 @@ const CaixaViagemCard = ({
     ? 'border-t-green-500' 
     : saldoFinal < 0 
       ? 'border-t-red-500' 
-      : 'border-t-blue-500';
+      : 'border-t-blue-500'; // Azul para saldo zero
 
   return (
     <div 
@@ -116,7 +116,12 @@ const CaixaViagemCard = ({
       <div className="p-5">
         <div className="flex justify-between items-start">
           <div className="flex items-center">
-            <div className={`rounded-full p-2 ${saldoFinal >= 0 ? 'bg-blue-100 text-blue-600' : 'bg-red-100 text-red-600'}`}>
+            <div className={`rounded-full p-2 ${
+              saldoFinal > 0 
+                ? 'bg-green-100 text-green-600' 
+                : saldoFinal < 0 
+                  ? 'bg-red-100 text-red-600' 
+                  : 'bg-blue-100 text-blue-600'}`}>
               <User size={20} />
             </div>
             <div className="ml-3">
@@ -143,7 +148,12 @@ const CaixaViagemCard = ({
         <div className="mt-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium text-gray-600">Saldo:</span>
-            <div className={`text-lg font-semibold ${saldoFinal >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div className={`text-lg font-semibold ${
+              saldoFinal > 0 
+                ? 'text-green-600' 
+                : saldoFinal < 0 
+                  ? 'text-red-600' 
+                  : 'text-blue-600'}`}>
               {formatCurrency(saldoFinal)}
             </div>
           </div>
@@ -156,7 +166,12 @@ const CaixaViagemCard = ({
                 </span>
               </div>
             )}
-            <div className={`text-lg font-semibold ${saldoFinal >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div className={`text-lg font-semibold ${
+              saldoFinal > 0 
+                ? 'text-green-600' 
+                : saldoFinal < 0 
+                  ? 'text-red-600' 
+                  : 'text-blue-600'}`}>
               {formatCurrency(saldoFinal)}
             </div>
           </div>
@@ -223,11 +238,12 @@ const CaixaViagemCard = ({
           </div>
         </div>
         
-        <div className="mt-4 pt-3 border-t border-gray-200 flex justify-end space-x-2">
-          <div className="flex items-center space-x-2">
+        <div className="mt-4 pt-3 border-t border-gray-200 flex justify-end space-x-3">
+          <div className="flex items-center space-x-3">
+            {/* Botão para gerar termo - atualizado para laranja */}
             <button
-              onClick={onGenerateTermo} // Novo botão para gerar termo
-              className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded-full transition-colors"
+              onClick={onGenerateTermo}
+              className="p-2 bg-orange-100 text-orange-600 rounded-full hover:bg-orange-200 transition-colors"
               title="Gerar Termo"
             >
               <FileText size={16} />

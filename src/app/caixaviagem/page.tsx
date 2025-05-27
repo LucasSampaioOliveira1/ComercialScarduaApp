@@ -15,7 +15,7 @@ import {
   Search, Filter, X, PlusCircle, Download, ChevronDown, Calendar,
   Briefcase, Building, DollarSign, Plane, MapPin, ArrowDownCircle,
   ArrowUpCircle, Eye, Edit, Trash2, Loader2, Check, ListFilter, Coins, User,
-  Grid, List, FileText // Adicionar este ícone
+  Grid, List, FileText
 } from 'lucide-react';
 
 // Componentes
@@ -132,9 +132,6 @@ export default function CaixaViagemPage() {
   const [loadingAction, setLoadingAction] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   
-  // Adicionar este estado
-  const [isGeneratingTermo, setIsGeneratingTermo] = useState(false);
-  
   // Estados para modais e seleção
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -142,6 +139,11 @@ export default function CaixaViagemPage() {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
   const [caixaToDelete, setCaixaToDelete] = useState<CaixaViagem | null>(null);
+  
+  // Estados para o modal de confirmação de download
+  const [isConfirmDownloadModalOpen, setIsConfirmDownloadModalOpen] = useState(false);
+  const [caixaToDownload, setCaixaToDownload] = useState<CaixaViagem | null>(null);
+  const [isGeneratingTermo, setIsGeneratingTermo] = useState(false);
   
   // Estados para filtros e visualização
   const [searchTerm, setSearchTerm] = useState('');
@@ -654,19 +656,26 @@ export default function CaixaViagemPage() {
     }
   };
 
-  // Função para gerar termo
-  const handleGenerateTermo = async (caixa: CaixaViagem) => {
+  // Função que será chamada quando o usuário clicar no botão de gerar termo
+  const handleGenerateTermoRequest = (caixa: CaixaViagem) => {
+    setCaixaToDownload(caixa);
+    setIsConfirmDownloadModalOpen(true);
+  };
+
+  // Função que será chamada quando o usuário confirmar no modal
+  const handleConfirmDownload = async () => {
+    if (!caixaToDownload) return;
+    
     try {
       setIsGeneratingTermo(true);
-      
-      console.log("Gerando termo para caixa:", caixa.id);
+      setIsConfirmDownloadModalOpen(false);
       
       const response = await fetch('/api/caixaviagem/generate-termo', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ caixaId: caixa.id }),
+        body: JSON.stringify({ caixaId: caixaToDownload.id }),
       });
 
       if (!response.ok) {
@@ -681,34 +690,34 @@ export default function CaixaViagemPage() {
       const url = window.URL.createObjectURL(blob);
       
       // Nome do funcionário para o nome do arquivo
-      const funcionarioNome = caixa.funcionario 
-        ? `${caixa.funcionario.nome}_${caixa.funcionario.sobrenome || ''}`.trim().replace(/\s+/g, '_')
+      const funcionarioNome = caixaToDownload.funcionario 
+        ? `${caixaToDownload.funcionario.nome}_${caixaToDownload.funcionario.sobrenome || ''}`.trim().replace(/\s+/g, '_')
         : 'sem_funcionario';
-      
+    
       // Destino formatado para o nome do arquivo
-      const destinoArquivo = caixa.destino ? caixa.destino.replace(/\s+/g, '_') : 'sem_destino';
-      
+      const destinoArquivo = caixaToDownload.destino ? caixaToDownload.destino.replace(/\s+/g, '_') : 'sem_destino';
+    
       // Número da caixa para o nome do arquivo
-      const numeroCaixa = caixa.numeroCaixa || caixa.id;
-      
+      const numeroCaixa = caixaToDownload.numeroCaixa || caixaToDownload.id;
+    
       // Nome do arquivo personalizado
       const nomeArquivo = `caixa_${numeroCaixa}_${funcionarioNome}_${destinoArquivo}.pdf`;
-      
+    
       // Criar elemento <a> para iniciar o download
       const a = document.createElement('a');
       a.href = url;
       a.download = nomeArquivo;
       document.body.appendChild(a);
       a.click();
-      
+    
       // Limpar o URL e o elemento
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
+    
       toast.success(
         <div className="flex items-center">
-          <div className="mr-3 bg-blue-100 p-2 rounded-full">
-            <FileText size={18} className="text-blue-600" />
+          <div className="mr-3 bg-orange-100 p-2 rounded-full">
+            <FileText size={18} className="text-orange-600" />
           </div>
           <div>
             <p className="font-medium">Termo gerado com sucesso</p>
@@ -720,7 +729,7 @@ export default function CaixaViagemPage() {
         {
           icon: false,
           closeButton: true,
-          className: "border-l-4 border-blue-500"
+          className: "border-l-4 border-orange-500"  // Atualizado para laranja
         }
       );
     } catch (error) {
@@ -1528,7 +1537,12 @@ export default function CaixaViagemPage() {
                         
                         {/* Coluna de Saldo */}
                         <td className="px-6 py-4 text-right whitespace-nowrap">
-                          <div className={`text-base font-semibold ${saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <div className={`text-base font-semibold ${
+                            saldo > 0 
+                              ? 'text-green-600' 
+                              : saldo < 0 
+                                ? 'text-red-600' 
+                                : 'text-blue-600'}`}>
                             {formatCurrency(saldo)}
                           </div>
                         </td>
@@ -1536,6 +1550,16 @@ export default function CaixaViagemPage() {
                         {/* Coluna de Ações */}
                         <td className="px-6 py-4 text-center whitespace-nowrap">
                           <div className="flex justify-center gap-3">
+                            {/* Adicionar botão de gerar termo PDF com fundo laranja */}
+                            <button
+                              onClick={() => handleGenerateTermoRequest(caixa)}
+                              className="p-2 bg-orange-100 text-orange-600 rounded-full hover:bg-orange-200 transition-colors"
+                              title="Gerar Termo"
+                            >
+                              <FileText size={16} />
+                            </button>
+                            
+                            {/* Botões existentes mantêm o estilo original */}
                             <button
                               onClick={() => handleViewDetails(caixa)}
                               className="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded-full transition-colors"
@@ -1584,7 +1608,7 @@ export default function CaixaViagemPage() {
                 onViewDetails={() => handleViewDetails(caixa)}
                 onEdit={() => handleOpenEditModal(caixa)}
                 onToggleVisibility={() => handleToggleVisibility(caixa)}
-                onGenerateTermo={() => handleGenerateTermo(caixa)} // Passar a função para o card
+                onGenerateTermo={() => handleGenerateTermoRequest(caixa)} // Nova função
                 canEdit={userPermissions.canEdit}
                 canDelete={userPermissions.canDelete}
               />
@@ -1618,7 +1642,7 @@ export default function CaixaViagemPage() {
           veiculos={veiculos}
           onEdit={userPermissions.canEdit ? handleOpenEditModal : undefined}
           onDelete={userPermissions.canDelete ? handleToggleVisibility : undefined}
-          onGenerateTermo={handleGenerateTermo} // Passar a função para o modal
+          onGenerateTermo={handleGenerateTermoRequest} // Nova função
           canEdit={userPermissions.canEdit}
           canDelete={userPermissions.canDelete}
         />
@@ -1678,26 +1702,90 @@ export default function CaixaViagemPage() {
         )}
       </AnimatePresence>
 
-      {/* Indicador visual durante a geração do termo */}
-      {isGeneratingTermo && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 shadow-lg max-w-md w-full">
-            <h3 className="text-lg font-bold text-gray-800 flex items-center">
-              <FileText size={20} className="mr-2 text-blue-600" />
-              Gerando Termo...
-            </h3>
-            <p className="text-gray-600 mt-2">
-              Aguarde enquanto o termo de responsabilidade está sendo gerado.
-            </p>
-            <div className="mt-4 w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full bg-blue-600 animate-pulse rounded-full"></div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal de confirmação de download do PDF */}
+      <AnimatePresence>
+        {isConfirmDownloadModalOpen && caixaToDownload && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black bg-opacity-50"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-xl p-8 max-w-lg w-full mx-4 shadow-xl"
+            >
+              <div className="text-center mb-6">
+                <div className="mx-auto w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mb-5">
+                  <FileText size={32} className="text-orange-600" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-800">
+                  Gerar Relatório
+                </h3>
+                <p className="text-gray-600 mt-3">
+                  Você está prestes a gerar o relatório para a caixa de viagem:
+                </p>
+                
+                <div className="mt-4 bg-orange-50 p-4 rounded-lg">
+                  <div className="grid grid-cols-2 gap-2 text-sm text-left">
+                    <div className="text-gray-600">Destino:</div>
+                    <div className="font-medium">{caixaToDownload.destino || 'Não informado'}</div>
+                    
+                    <div className="text-gray-600">Funcionário:</div>
+                    <div className="font-medium">
+                      {caixaToDownload.funcionario 
+                        ? `${caixaToDownload.funcionario.nome} ${caixaToDownload.funcionario.sobrenome || ''}` 
+                        : 'Sem funcionário associado'
+                      }
+                    </div>
+                    
+                    <div className="text-gray-600">Caixa nº:</div>
+                    <div className="font-medium">
+                      {caixaToDownload.numeroCaixa || caixaToDownload.id}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-4">
+                <button
+                  onClick={() => {
+                    setIsConfirmDownloadModalOpen(false);
+                    setCaixaToDownload(null);
+                  }}
+                  className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmDownload}
+                  className="flex-1 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
+                >
+                  Baixar Relatório
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <ToastContainer position="bottom-right" />
-    </div>
-  </ProtectedRoute>
-);
-}
+            {/* Indicador de carregamento durante a geração do termo */}
+            {isGeneratingTermo && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-6 shadow-lg max-w-md w-full">
+                  <div className="text-center">
+                    <Loader2 size={40} className="animate-spin mx-auto text-blue-600 mb-4" />
+                    <p className="text-lg font-medium">Gerando documento...</p>
+                    <p className="text-gray-500">Aguarde enquanto o termo é preparado.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+      
+            <ToastContainer position="bottom-right" />
+          </div>
+        </ProtectedRoute>
+      );
+      }

@@ -1069,6 +1069,87 @@ export default function ContaCorrentePage() {
     return new Date(b.data).getTime() - new Date(a.data).getTime();
   });
 
+  // Adicionar no início do componente junto com os outros estados
+  const [isConfirmPdfModalOpen, setIsConfirmPdfModalOpen] = useState(false);
+  const [contaForPdf, setContaForPdf] = useState<ContaCorrente | null>(null);
+
+  // Adicionar com as outras funções de manipulação
+  const handleGeneratePdfRequest = (conta: ContaCorrente) => {
+    setContaForPdf(conta);
+    setIsConfirmPdfModalOpen(true);
+  };
+
+  // Função para gerar o PDF após confirmação
+  const handleConfirmGeneratePdf = async () => {
+    if (!contaForPdf) return;
+    
+    try {
+      setLoadingAction(true);
+      
+      const response = await fetch('/api/contacorrente/generate-termo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ contaId: contaForPdf.id }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erro ao gerar termo: ${errorText}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      const fornecedorCliente = contaForPdf.fornecedorCliente 
+        ? contaForPdf.fornecedorCliente.replace(/\s+/g, '_')
+        : `conta_${contaForPdf.id}`;
+        
+      const empresaNome = contaForPdf.empresa?.nome
+        ? contaForPdf.empresa.nome.replace(/\s+/g, '_')
+        : 'sem_empresa';
+      
+      const nomeArquivo = `termo_${fornecedorCliente}_${empresaNome}.pdf`;
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nomeArquivo;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Limpar
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success(
+        <div className="flex items-center">
+          <div className="mr-3 bg-orange-100 p-2 rounded-full">
+            <FileText size={18} className="text-orange-600" />
+          </div>
+          <div>
+            <p className="font-medium">Termo gerado com sucesso</p>
+            <p className="text-sm text-gray-600">
+              O download do termo de conta corrente foi iniciado.
+            </p>
+          </div>
+        </div>,
+        {
+          icon: false,
+          closeButton: true,
+          className: "border-l-4 border-orange-500"
+        }
+      );
+    } catch (error) {
+      console.error('Erro ao gerar termo:', error);
+      toast.error(`Erro ao gerar termo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    } finally {
+      setIsConfirmPdfModalOpen(false);
+      setContaForPdf(null);
+      setLoadingAction(false);
+    }
+  };
+
   return (
     <ProtectedRoute pageName="contacorrente">
       <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
@@ -1642,12 +1723,25 @@ export default function ContaCorrentePage() {
 
                         <td className="px-6 py-4 whitespace-nowrap text-center">
                           <div className="flex items-center justify-center space-x-3">
+                            {/* Botão para gerar termo PDF - manter com fundo colorido */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleGeneratePdfRequest(conta);
+                              }}
+                              className="p-2 bg-orange-100 text-orange-600 rounded-full hover:bg-orange-200 transition-colors"
+                              title="Gerar Termo"
+                            >
+                              <FileText size={16} />
+                            </button>
+                            
+                            {/* Botões existentes - sem fundo colorido */}
                             <button
                               onClick={() => handleViewDetails(conta)}
                               className="text-blue-600 hover:text-blue-800"
                               title="Ver detalhes"
                             >
-                              <Eye size={18} />
+                              <Eye size={16} />
                             </button>
                             
                             {userPermissions.canEdit && (
@@ -1656,7 +1750,7 @@ export default function ContaCorrentePage() {
                                 className="text-orange-600 hover:text-orange-800"
                                 title="Editar"
                               >
-                                <Edit size={18} />
+                                <Edit size={16} />
                               </button>
                             )}
                             
@@ -1666,7 +1760,7 @@ export default function ContaCorrentePage() {
                                 className="text-red-600 hover:text-red-800"
                                 title="Excluir"
                               >
-                                <Trash2 size={18} />
+                                <Trash2 size={16} />
                               </button>
                             )}
                           </div>
@@ -1686,6 +1780,7 @@ export default function ContaCorrentePage() {
                   onViewDetails={() => handleViewDetails(conta)}
                   onEdit={() => handleOpenEditModal(conta)}
                   onToggleVisibility={() => handleToggleVisibility(conta)}
+                  onGeneratePdf={() => handleGeneratePdfRequest(conta)} // Adicionar esta prop
                   canEdit={userPermissions.canEdit}
                   canDelete={userPermissions.canDelete}
                 />
@@ -1828,6 +1923,64 @@ export default function ContaCorrentePage() {
             canEdit={userPermissions.isAdmin || userPermissions.canEdit || selectedConta.userId === userId}
           />
         )}
+
+        {/* Modal de confirmação para geração de PDF - Versão Simplificada */}
+        <AnimatePresence>
+          {isConfirmPdfModalOpen && contaForPdf && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl"
+              >
+                <div className="text-center mb-5">
+                  <div className="mx-auto w-14 h-14 bg-orange-100 rounded-full flex items-center justify-center mb-4">
+                    <FileText size={28} className="text-orange-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    Gerar Termo em PDF
+                  </h3>
+                  <p className="text-gray-600 mt-2">
+                    Deseja baixar o termo em PDF para esta conta corrente?
+                  </p>
+                </div>
+                
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => {
+                      setIsConfirmPdfModalOpen(false);
+                      setContaForPdf(null);
+                    }}
+                    className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                    disabled={loadingAction}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleConfirmGeneratePdf}
+                    className="flex-1 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
+                    disabled={loadingAction}
+                  >
+                    {loadingAction ? (
+                      <div className="flex items-center justify-center">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                        Gerando...
+                      </div>
+                    ) : (
+                      'Baixar Termo'
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <ToastContainer />
       </div>

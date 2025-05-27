@@ -9,6 +9,7 @@ interface ContaCorrenteCardProps {
   onViewDetails: (conta: any) => void;
   onEdit: (conta: any) => void;
   onToggleVisibility: (conta: any) => void;
+  onGeneratePdf: (conta: any) => void; // Adicionar esta prop
   canEdit: boolean;
   canDelete: boolean;
 }
@@ -85,6 +86,7 @@ const ContaCorrenteCard: React.FC<ContaCorrenteCardProps> = ({
   onViewDetails,
   onEdit,
   onToggleVisibility,
+  onGeneratePdf, // Adicionar este parâmetro
   canEdit,
   canDelete
 }) => {
@@ -117,41 +119,16 @@ const ContaCorrenteCard: React.FC<ContaCorrenteCardProps> = ({
                       conta.empresa?.nomeEmpresa || 
                       (conta.empresaId ? `Empresa #${conta.empresaId}` : '-');
   
-  // Adicionar estado para o modal de confirmação
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  
-  // Modificar a função para gerar termo PDF para abrir o modal de confirmação em vez de gerar imediatamente
-  const handleGerarTermoClick = (event: React.MouseEvent) => {
-    event.stopPropagation(); // Evitar que abra o modal de detalhes
-    setShowConfirmModal(true);
-  };
-  
-  // Função para gerar o PDF após confirmação
-  const confirmarGerarTermoPDF = async () => {
+  const handleGerarTermoClick = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>): void => {
+    e.stopPropagation(); // Prevent parent elements from receiving the click event
+    e.preventDefault(); // Prevent default action if any
+    
     try {
-      setShowConfirmModal(false);
-      const response = await fetch('/api/contacorrente/generate-termo', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ contaId: conta.id }),
-      });
-
-      if (!response.ok) throw new Error('Erro ao gerar termo');
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `termo_conta_corrente_${conta.id}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      // Call the onGeneratePdf function passed as a prop
+      onGeneratePdf(conta);
     } catch (error) {
-      console.error('Erro ao gerar termo:', error);
-      alert('Erro ao gerar o termo de conta corrente');
+      console.error("Erro ao gerar o termo PDF:", error);
+      // Could add toast notification here if you have a notification system
     }
   };
 
@@ -246,8 +223,18 @@ const ContaCorrenteCard: React.FC<ContaCorrenteCardProps> = ({
             </div>
           </div>
           
-          <div className="mt-4 pt-4 border-t border-gray-200 flex justify-end space-x-2">
-            <div className="flex items-center space-x-2">
+          <div className="mt-4 pt-4 border-t border-gray-200 flex justify-end">
+            <div className="flex items-center space-x-4"> {/* Aumentei o espaçamento aqui de space-x-2 para space-x-4 */}
+              {/* Botão para gerar termo PDF - agora como primeira opção */}
+              <button
+                onClick={(e) => handleGerarTermoClick(e)}
+                className="p-2 bg-orange-100 text-orange-600 rounded-full hover:bg-orange-200 transition-colors"
+                title="Gerar Termo"
+              >
+                <FileText size={16} />
+              </button>
+              
+              {/* Botão de ver detalhes */}
               <button
                 onClick={() => onViewDetails(conta)}
                 className="text-blue-600 hover:text-blue-800"
@@ -259,7 +246,10 @@ const ContaCorrenteCard: React.FC<ContaCorrenteCardProps> = ({
               {/* Botão de editar - só aparece com permissão */}
               {canEdit && (
                 <button
-                  onClick={onEdit}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(conta);
+                  }}
                   className="text-orange-600 hover:text-orange-800"
                   title="Editar"
                 >
@@ -267,61 +257,23 @@ const ContaCorrenteCard: React.FC<ContaCorrenteCardProps> = ({
                 </button>
               )}
               
-              {/* Botão de excluir - só aparece com permissão */}
+              {/* Botão de excluir - só aparece com permissão e agora é o último */}
               {canDelete && (
                 <button
-                  onClick={onToggleVisibility}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleVisibility(conta);
+                  }}
                   className="text-red-600 hover:text-red-800"
                   title="Excluir"
                 >
                   <Trash2 size={18} />
                 </button>
               )}
-              
-              {/* Botão para gerar termo PDF - agora abre o modal de confirmação */}
-              <button
-                onClick={(e) => handleGerarTermoClick(e)}
-                className="p-2 bg-orange-100 text-orange-600 rounded-full hover:bg-orange-200 transition-colors"
-                title="Gerar Termo"
-              >
-                <FileText size={16} />
-              </button>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Modal de confirmação */}
-      {showConfirmModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4 p-4"
-          >
-            <h3 className="text-lg font-semibold text-gray-800 mb-3">Confirmar geração de termo</h3>
-            <p className="text-gray-600 mb-4">
-              Deseja gerar o termo em PDF para esta conta corrente?
-            </p>
-            
-            <div className="flex justify-end space-x-2 mt-4 pt-3 border-t border-gray-200">
-              <button
-                onClick={() => setShowConfirmModal(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmarGerarTermoPDF}
-                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center"
-              >
-                <FileText size={16} className="mr-2" />
-                Gerar Termo
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
     </>
   );
 };

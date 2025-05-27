@@ -318,9 +318,14 @@ const CaixaViagemDetalhesModal = ({
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-xs font-medium text-gray-600">Saldo</p>
-                        <p className={`text-lg font-bold ${saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <div className={`text-xl font-semibold ${
+                          saldo > 0 
+                            ? 'text-green-600' 
+                            : saldo < 0 
+                              ? 'text-red-600' 
+                              : 'text-blue-600'}`}>
                           {formatCurrency(saldo)}
-                        </p>
+                        </div>
                       </div>
                       <div className={`${saldo >= 0 ? 'bg-green-100' : 'bg-red-100'} rounded-full p-1.5`}>
                         <DollarSign size={16} className={saldo >= 0 ? 'text-green-600' : 'text-red-600'} />
