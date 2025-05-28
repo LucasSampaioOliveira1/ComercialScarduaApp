@@ -748,14 +748,28 @@ export default function CaixaViagemPage() {
     }).format(value);
   };
 
+  // Atualização da função formatDate para melhor tratamento das datas
   const formatDate = (dateString?: string) => {
     if (!dateString) return "";
     try {
-      const date = new Date(dateString);
+      // Extrair apenas a parte da data (YYYY-MM-DD) para evitar problemas de fuso horário
+      const dateParts = dateString.split('T')[0].split('-');
+      if (dateParts.length !== 3) {
+        return dateString; // Retornar a string original se não estiver no formato esperado
+      }
+      
+      const year = parseInt(dateParts[0], 10);
+      const month = parseInt(dateParts[1], 10) - 1; // Mês em JS começa em 0
+      const day = parseInt(dateParts[2], 10);
+      
+      // Criar nova data usando os componentes extraídos
+      const date = new Date(year, month, day);
+      
+      // Formatar a data no estilo brasileiro
       return format(date, 'dd/MM/yyyy', { locale: ptBR });
     } catch (error) {
-      console.error("Erro ao formatar data:", error);
-      return dateString;
+      console.error("Erro ao formatar data:", error, dateString);
+      return dateString || "";
     }
   };
 
@@ -1374,9 +1388,24 @@ export default function CaixaViagemPage() {
               
               {(filterDateRange.start || filterDateRange.end) && (
                 <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
-                  Período: {filterDateRange.start ? format(new Date(filterDateRange.start), 'dd/MM/yyyy', { locale: ptBR }) : ''} 
+                  Período: 
+                  {filterDateRange.start ? 
+                    (() => {
+                      // Extrair a data sem o fuso horário
+                      const [year, month, day] = filterDateRange.start.split('-').map(Number);
+                      // Criar uma data local com componentes específicos
+                      return format(new Date(year, month - 1, day), 'dd/MM/yyyy', { locale: ptBR });
+                    })() : ''
+                  } 
                   {filterDateRange.start && filterDateRange.end ? ' a ' : ''} 
-                  {filterDateRange.end ? format(new Date(filterDateRange.end), 'dd/MM/yyyy', { locale: ptBR }) : ''}
+                  {filterDateRange.end ? 
+                    (() => {
+                      // Extrair a data sem o fuso horário
+                      const [year, month, day] = filterDateRange.end.split('-').map(Number);
+                      // Criar uma data local com componentes específicos
+                      return format(new Date(year, month - 1, day), 'dd/MM/yyyy', { locale: ptBR });
+                    })() : ''
+                  }
                   <button 
                     onClick={() => setFilterDateRange({start: '', end: ''})}
                     className="ml-2 text-blue-500 hover:text-blue-700"

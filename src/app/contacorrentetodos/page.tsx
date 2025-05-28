@@ -1161,8 +1161,15 @@ export default function ContaCorrenteTodosPage() {
                 Filtros
                 {showFilters ? <ChevronUp size={16} className="ml-1" /> : <ChevronDown size={16} className="ml-1" />}
                 {isFilterActive && (
-                  <span className="ml-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full px-2 py-0.5">
-                    {(searchTerm ? 1 : 0) + (filterTipo ? 1 : 0) + (filterUsuario ? 1 : 0) + (filterEmpresa ? 1 : 0)}
+                  <span className="ml-1.5 bg-blue-600 text-white text-xs py-0.5 px-1.5 rounded-full">
+                    {/* Contagem correta dos filtros */}
+                    {[
+                      searchTerm ? 1 : 0,
+                      filterTipo ? 1 : 0,
+                      filterUsuario ? 1 : 0,
+                      filterEmpresa ? 1 : 0,
+                      filterSaldoTipo ? 1 : 0
+                    ].reduce((sum, val) => sum + val, 0)}
                   </span>
                 )}
               </button>
@@ -1296,11 +1303,11 @@ export default function ContaCorrenteTodosPage() {
           {isFilterActive && (
             <div className="flex flex-wrap gap-2 mt-3">
               {searchTerm && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                   Busca: {searchTerm}
                   <button 
                     onClick={() => setSearchTerm('')}
-                    className="ml-1 text-gray-500 hover:text-gray-700"
+                    className="ml-1 text-blue-500 hover:text-blue-700"
                   >
                     <X size={12} />
                   </button>
@@ -1309,7 +1316,9 @@ export default function ContaCorrenteTodosPage() {
               
               {filterTipo && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                  Tipo: {filterTipo}
+                  Tipo: {filterTipo === 'EXTRA_CAIXA' ? 'Extra Caixa' : 
+                        filterTipo === 'PERMUTA' ? 'Permuta' : 
+                        filterTipo === 'DEVOLUCAO' ? 'Devolução' : filterTipo}
                   <button 
                     onClick={() => setFilterTipo('')}
                     className="ml-1 text-blue-500 hover:text-blue-700"
@@ -1320,11 +1329,11 @@ export default function ContaCorrenteTodosPage() {
               )}
               
               {filterUsuario && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                   Usuário: {usuarios.find(u => u.id === filterUsuario)?.nome || 'Selecionado'}
                   <button 
                     onClick={() => setFilterUsuario('')}
-                    className="ml-1 text-purple-500 hover:text-purple-700"
+                    className="ml-1 text-blue-500 hover:text-blue-700"
                   >
                     <X size={12} />
                   </button>
@@ -1332,11 +1341,11 @@ export default function ContaCorrenteTodosPage() {
               )}
               
               {filterEmpresa && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                   Empresa: {filterEmpresa === 'null' ? 'Sem empresa' : empresas.find(e => e.id.toString() === filterEmpresa)?.nome || 'Selecionada'}
                   <button 
                     onClick={() => setFilterEmpresa('')}
-                    className="ml-1 text-green-500 hover:text-green-700"
+                    className="ml-1 text-blue-500 hover:text-blue-700"
                   >
                     <X size={12} />
                   </button>
@@ -1344,13 +1353,13 @@ export default function ContaCorrenteTodosPage() {
               )}
 
               {filterSaldoTipo && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                   Saldo: {filterSaldoTipo === "positivo" ? "Positivo" : 
                          filterSaldoTipo === "negativo" ? "Negativo" : 
                          filterSaldoTipo === "neutro" ? "Neutro" : filterSaldoTipo}
                   <button 
                     onClick={() => setFilterSaldoTipo('')}
-                    className="ml-1 text-amber-500 hover:text-amber-700"
+                    className="ml-1 text-blue-500 hover:text-blue-700"
                   >
                     <X size={12} />
                   </button>
@@ -1841,7 +1850,7 @@ export default function ContaCorrenteTodosPage() {
             </p>
             <div className="mt-4 w-full h-2 bg-gray-100 rounded-full overflow-hidden">
               <div className="h-full bg-orange-600 animate-pulse rounded-full"></div>
-            </div>
+                       </div>
           </div>
         </div>
       )}

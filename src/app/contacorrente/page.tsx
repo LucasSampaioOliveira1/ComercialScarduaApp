@@ -1345,7 +1345,18 @@ export default function ContaCorrentePage() {
                     }`}
                   >
                     <Filter size={16} className="mr-1.5" />
-                    {isFilterActive ? `${Object.values({filterTipo, filterSetor, filterEmpresa, filterDateRange, filterPositiveSaldo, filterSaldo}).filter(Boolean).length} filtros` : "Filtrar"}
+                    {isFilterActive ? `${
+                      // Contagem correta dos filtros ativos
+                      [
+                        searchTerm ? 1 : 0,
+                        filterTipo ? 1 : 0,
+                        filterSetor && filterSetor !== 'Todos' ? 1 : 0,
+                        filterEmpresa > 0 ? 1 : 0,
+                        (filterDateRange.start || filterDateRange.end) ? 1 : 0,
+                        filterPositiveSaldo !== null ? 1 : 0,
+                        filterSaldo ? 1 : 0
+                      ].reduce((sum, val) => sum + val, 0)
+                    } filtros` : "Filtrar"}
                     <ChevronDown size={16} className="ml-1.5" />
                   </button>
                 </div>
@@ -1556,6 +1567,116 @@ export default function ContaCorrentePage() {
                 </motion.div>
               )}
             </AnimatePresence>
+
+            {/* Indicadores de filtros ativos - Nova seção */}
+            {isFilterActive && (
+              <div className="flex flex-wrap gap-2 mt-5">
+                {searchTerm && (
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
+                    Busca: {searchTerm}
+                    <button 
+                      onClick={() => setSearchTerm('')}
+                      className="ml-2 text-blue-500 hover:text-blue-700"
+                    >
+                      <X size={16} />
+                    </button>
+                  </span>
+                )}
+                
+                {filterTipo && (
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
+                    Tipo: {filterTipo === 'EXTRA_CAIXA' ? 'Extra Caixa' : 
+                          filterTipo === 'PERMUTA' ? 'Permuta' : 
+                          filterTipo === 'DEVOLUCAO' ? 'Devolução' : filterTipo}
+                    <button 
+                      onClick={() => setFilterTipo('')}
+                      className="ml-2 text-blue-500 hover:text-blue-700"
+                    >
+                      <X size={16} />
+                    </button>
+                  </span>
+                )}
+                
+                {filterSetor && filterSetor !== 'Todos' && (
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
+                    Setor: {filterSetor}
+                    <button 
+                      onClick={() => setFilterSetor('')}
+                      className="ml-2 text-blue-500 hover:text-blue-700"
+                    >
+                      <X size={16} />
+                    </button>
+                  </span>
+                )}
+                
+                {filterEmpresa > 0 && (
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
+                    Empresa: {empresas.find(e => e.id === filterEmpresa)?.nome || 'Selecionada'}
+                    <button 
+                      onClick={() => setFilterEmpresa(0)}
+                      className="ml-2 text-blue-500 hover:text-blue-700"
+                    >
+                      <X size={16} />
+                    </button>
+                  </span>
+                )}
+                
+                {(filterDateRange.start || filterDateRange.end) && (
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
+                    Período: 
+                    {filterDateRange.start ? 
+                      (() => {
+                        // Extrair a data sem o fuso horário para evitar problemas
+                        const [year, month, day] = filterDateRange.start.split('-').map(Number);
+                        // Criar uma data local com esses componentes
+                        return format(new Date(year, month - 1, day), 'dd/MM/yyyy', { locale: ptBR });
+                      })() : ''
+                    } 
+                    {filterDateRange.start && filterDateRange.end ? ' a ' : ''} 
+                    {filterDateRange.end ? 
+                      (() => {
+                        // Extrair a data sem o fuso horário para evitar problemas
+                        const [year, month, day] = filterDateRange.end.split('-').map(Number);
+                        // Criar uma data local com esses componentes
+                        return format(new Date(year, month - 1, day), 'dd/MM/yyyy', { locale: ptBR });
+                      })() : ''
+                    }
+                    <button 
+                      onClick={() => setFilterDateRange({start: '', end: ''})}
+                      className="ml-2 text-blue-500 hover:text-blue-700"
+                    >
+                      <X size={16} />
+                    </button>
+                  </span>
+                )}
+
+                {filterSaldo && (
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
+                    Saldo: {filterSaldo === "positivo" ? "Positivo" : 
+                           filterSaldo === "negativo" ? "Negativo" : 
+                           filterSaldo === "neutro" ? "Neutro" : filterSaldo}
+                    <button 
+                      onClick={() => setFilterSaldo('')}
+                      className="ml-2 text-blue-500 hover:text-blue-700"
+                    >
+                      <X size={16} />
+                    </button>
+                  </span>
+                )}
+                
+                {filterPositiveSaldo !== null && (
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
+                    Saldo: {filterPositiveSaldo ? 'Positivo' : 'Negativo'}
+                    <button 
+                      onClick={() => setFilterPositiveSaldo(null)}
+                      className="ml-2 text-blue-500 hover:text-blue-700"
+                    >
+                      <X size={16} />
+                    </button>
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Visualização de contas */}

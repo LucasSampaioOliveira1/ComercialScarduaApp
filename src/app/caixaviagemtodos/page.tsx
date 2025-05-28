@@ -728,13 +728,23 @@ export default function CaixaViagemTodosPage() {
     }).format(value);
   };
 
+  // Atualização da função formatDate para melhor tratamento das datas
   const formatDate = (dateString: string) => {
     if (!dateString) return "";
     try {
-      const date = new Date(dateString);
+      // Garantir que a string de data seja tratada corretamente (problema de timezone)
+      // Extrair apenas a parte da data (YYYY-MM-DD) para evitar problemas de fuso horário
+      const dateParts = dateString.split('T')[0].split('-');
+      const year = parseInt(dateParts[0], 10);
+      const month = parseInt(dateParts[1], 10) - 1; // Mês em JS começa em 0
+      const day = parseInt(dateParts[2], 10);
+      
+      const date = new Date(year, month, day);
+      
+      // Usar o format do date-fns para formatar a data no estilo brasileiro
       return format(date, 'dd/MM/yyyy', { locale: ptBR });
     } catch (error) {
-      console.error("Erro ao formatar data:", error);
+      console.error("Erro ao formatar data:", error, dateString);
       return dateString;
     }
   };
@@ -1472,9 +1482,24 @@ export default function CaixaViagemTodosPage() {
                 
                 {(filterDateRange.start || filterDateRange.end) && (
                   <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
-                    Período: {filterDateRange.start ? format(new Date(filterDateRange.start), 'dd/MM/yyyy', { locale: ptBR }) : ''} 
+                    Período: 
+                    {filterDateRange.start ? 
+                      (() => {
+                        // Extrair a data sem o fuso horário
+                        const [year, month, day] = filterDateRange.start.split('-').map(Number);
+                        // Criar uma data local com componentes específicos
+                        return format(new Date(year, month - 1, day), 'dd/MM/yyyy', { locale: ptBR });
+                      })() : ''
+                    } 
                     {filterDateRange.start && filterDateRange.end ? ' a ' : ''} 
-                    {filterDateRange.end ? format(new Date(filterDateRange.end), 'dd/MM/yyyy', { locale: ptBR }) : ''}
+                    {filterDateRange.end ? 
+                      (() => {
+                        // Extrair a data sem o fuso horário
+                        const [year, month, day] = filterDateRange.end.split('-').map(Number);
+                        // Criar uma data local com componentes específicos
+                        return format(new Date(year, month - 1, day), 'dd/MM/yyyy', { locale: ptBR });
+                      })() : ''
+                    }
                     <button 
                       onClick={() => setFilterDateRange({start: '', end: ''})}
                       className="ml-2 text-blue-500 hover:text-blue-700"
@@ -1575,10 +1600,10 @@ export default function CaixaViagemTodosPage() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Destino
+                        Funcionário
                       </th>
                       <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Usuário
+                        Destino
                       </th>
                       <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Data
@@ -1596,9 +1621,6 @@ export default function CaixaViagemTodosPage() {
                         Saldo
                       </th>
                       <th scope="col" className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th scope="col" className="px-6 py-4 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Ações
                       </th>
                     </tr>
@@ -1613,9 +1635,27 @@ export default function CaixaViagemTodosPage() {
                       const totalSaidas = caixa.lancamentos
                         .filter(l => l.saida)
                         .reduce((sum, l) => sum + (parseFloat(String(l.saida)) || 0), 0);
-                      
+
                       return (
                         <tr key={caixa.id} className={`hover:bg-gray-50 ${caixa.oculto ? 'bg-gray-50' : ''}`}>
+                          {/* Coluna de Funcionário */}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0 h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-600">
+                                <User size={18} />
+                              </div>
+                              <div className="ml-3">
+                                <div className="text-base font-medium text-gray-900">
+                                  {caixa.funcionario 
+                                    ? `${caixa.funcionario.nome} ${caixa.funcionario.sobrenome || ''}` 
+                                    : caixa.user?.nome || "Sem funcionário"}
+                                  {caixa.numeroCaixa && <span className="ml-1 text-blue-600">#{caixa.numeroCaixa}</span>}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          
+                          {/* Coluna de Destino */}
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-[#344893]">
@@ -1628,39 +1668,34 @@ export default function CaixaViagemTodosPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-600">
-                                <User size={18} />
-                              </div>
-                              <div className="ml-3">
-                                <div className="text-base font-medium text-gray-900">
-                                  {caixa.user?.nome || "Desconhecido"}
-                                </div>
-                                <div className="text-sm text-gray-500">
-                                  {caixa.user?.email || ""}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
+                          
+                          {/* Coluna de Data */}
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-base text-gray-900">{formatDate(caixa.data)}</div>
                           </td>
+                          
+                          {/* Coluna de Empresa */}
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-base text-gray-900">
                               {caixa.empresa?.nome || caixa.empresa?.nomeEmpresa || `Empresa ${caixa.empresaId}`}
                             </div>
                           </td>
+                          
+                          {/* Coluna de Entradas */}
                           <td className="px-6 py-4 text-right whitespace-nowrap">
                             <div className="text-base text-green-600 font-medium">
                               {formatCurrency(totalEntradas)}
                             </div>
                           </td>
+                          
+                          {/* Coluna de Saídas */}
                           <td className="px-6 py-4 text-right whitespace-nowrap">
                             <div className="text-base text-red-600 font-medium">
                               {formatCurrency(totalSaidas)}
                             </div>
                           </td>
+                          
+                          {/* Coluna de Saldo */}
                           <td className="px-6 py-4 text-right whitespace-nowrap">
                             <div className={`text-base font-semibold ${
                               caixa.saldo > 0 
@@ -1671,16 +1706,11 @@ export default function CaixaViagemTodosPage() {
                               {formatCurrency(caixa.saldo)}
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-center whitespace-nowrap">
-                            <span className={`inline-flex px-3 py-1 text-sm font-medium rounded-full ${
-                              caixa.oculto ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
-                            }`}>
-                              {caixa.oculto ? 'Oculto' : 'Visível'}
-                            </span>
-                          </td>
+                          
+                          {/* Coluna de Ações */}
                           <td className="px-6 py-4 text-center whitespace-nowrap">
                             <div className="flex justify-center gap-3">
-                              {/* Botão para gerar termo PDF com fundo laranja */}
+                              {/* Botão para gerar termo PDF */}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1813,6 +1843,7 @@ export default function CaixaViagemTodosPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+             
               transition={{ duration: 0.3 }}
               className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black bg-opacity-50"
             >
@@ -1873,9 +1904,8 @@ export default function CaixaViagemTodosPage() {
             >
               <motion.div
                 initial={{ scale: 0.95, opacity: 0 }}
-               
                 animate={{ scale: 1, opacity: 1 }}
-                               exit={{ scale: 0.95, opacity: 0 }}
+                exit={{ scale: 0.95, opacity: 0 }}
                 className="bg-white rounded-xl p-8 max-w-lg w-full mx-4 shadow-xl"
               >
                 <div className="text-center mb-6">
