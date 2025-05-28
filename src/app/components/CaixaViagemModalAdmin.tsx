@@ -442,20 +442,20 @@ const CaixaViagemModalAdmin: React.FC<CaixaViagemModalAdminProps> = ({
   };
 
   // Função para converter valor para API (string para número)
-  const formatarValorParaAPI = (valor: string | number | undefined | null): number | null => {
-    if (valor === null || valor === undefined || valor === '') return null;
+  const formatarValorParaAPI = (valor: string | number | undefined | null): number => {
+    if (valor === null || valor === undefined || valor === '') return 0;
     
     if (typeof valor === 'number') return valor;
     
-    // Se for string, limpar formatação
+    // Remover formatação
     let valorLimpo = valor.replace(/[R$\s]/g, '');
     
-    // Substituir vírgula por ponto
+    // Tratar separadores decimais
     valorLimpo = valorLimpo.replace(/\./g, '').replace(',', '.');
     
-    // Converter para número ou retornar null
+    // Converter para número
     const numero = parseFloat(valorLimpo);
-    return isNaN(numero) ? null : numero;
+    return isNaN(numero) ? 0 : numero;
   };
 
   // Calcular totais
@@ -483,9 +483,13 @@ const CaixaViagemModalAdmin: React.FC<CaixaViagemModalAdminProps> = ({
 
   // Modificar a função de cálculo de saldo para incluir o saldo anterior
   const calcularSaldo = () => {
-    const saldoAnterior = caixaData.saldoAnterior || 0;
+    // Garantir que estamos tratando os valores como números
+    const saldoAnterior = typeof caixaData.saldoAnterior === 'number' ? caixaData.saldoAnterior : 0;
     const totalEntradas = calcularTotalEntradas();
     const totalSaidas = calcularTotalSaidas();
+    
+    // Log para debug
+    console.log(`Cálculo de saldo: ${saldoAnterior} + ${totalEntradas} - ${totalSaidas} = ${saldoAnterior + totalEntradas - totalSaidas}`);
     
     return saldoAnterior + totalEntradas - totalSaidas;
   };
@@ -604,7 +608,7 @@ const CaixaViagemModalAdmin: React.FC<CaixaViagemModalAdminProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-60">
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black bg-opacity-60 overflow-auto py-3">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}

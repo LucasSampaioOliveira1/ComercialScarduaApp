@@ -414,24 +414,21 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
     setLancamentoParaExcluir(null);
   };
 
-  // Função para converter valor para API (string para número)
-  const formatarValorParaAPI = (valor: string | number | undefined | null): number | null => {
-    if (valor === null || valor === undefined || valor === '') return null;
+  // Corrigir a função calcularSaldo para tratar corretamente os valores numéricos
+
+  const calcularSaldo = () => {
+    // Garantir que estamos tratando os valores como números
+    const saldoAnterior = typeof caixaData.saldoAnterior === 'number' ? caixaData.saldoAnterior : 0;
+    const totalEntradas = calcularTotalEntradas();
+    const totalSaidas = calcularTotalSaidas();
     
-    if (typeof valor === 'number') return valor;
+    // Log para debug
+    console.log(`Cálculo de saldo: ${saldoAnterior} + ${totalEntradas} - ${totalSaidas} = ${saldoAnterior + totalEntradas - totalSaidas}`);
     
-    // Se for string, limpar formatação
-    let valorLimpo = valor.replace(/[R$\s]/g, '');
-    
-    // Substituir vírgula por ponto
-    valorLimpo = valorLimpo.replace(/\./g, '').replace(',', '.');
-    
-    // Converter para número ou retornar null
-    const numero = parseFloat(valorLimpo);
-    return isNaN(numero) ? null : numero;
+    return saldoAnterior + totalEntradas - totalSaidas;
   };
 
-  // Calcular totais
+  // Também atualizar as funções que calculam entradas e saídas para garantir que retornam números
   const calcularTotalEntradas = () => {
     return lancamentos.reduce((total, lancamento) => {
       if (!lancamento.entrada || (typeof lancamento.entrada === 'string' && lancamento.entrada.trim() === '')) {
@@ -454,12 +451,21 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
     }, 0);
   };
 
-  const calcularSaldo = () => {
-    const saldoAnterior = caixaData.saldoAnterior || 0;
-    const totalEntradas = calcularTotalEntradas();
-    const totalSaidas = calcularTotalSaidas();
+  // Melhorar a função formatarValorParaAPI para ser mais robusta
+  const formatarValorParaAPI = (valor: string | number | undefined | null): number => {
+    if (valor === null || valor === undefined || valor === '') return 0;
     
-    return saldoAnterior + totalEntradas - totalSaidas;
+    if (typeof valor === 'number') return valor;
+    
+    // Remover formatação
+    let valorLimpo = valor.replace(/[R$\s]/g, '');
+    
+    // Tratar separadores decimais
+    valorLimpo = valorLimpo.replace(/\./g, '').replace(',', '.');
+    
+    // Converter para número
+    const numero = parseFloat(valorLimpo);
+    return isNaN(numero) ? 0 : numero;
   };
 
   // Formatação de moeda
@@ -570,7 +576,7 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-60">
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black bg-opacity-60 overflow-auto py-3">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
