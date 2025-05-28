@@ -15,7 +15,7 @@ import {
   Search, Filter, X, PlusCircle, Download, ChevronDown, Calendar,
   Briefcase, Building, DollarSign, Plane, MapPin, ArrowDownCircle,
   ArrowUpCircle, Eye, Edit, Trash2, Loader2, Check, ListFilter, Coins, User,
-  Grid, List, FileText
+  Grid, List, FileText, RefreshCw
 } from 'lucide-react';
 
 // Componentes
@@ -643,10 +643,17 @@ export default function CaixaViagemPage() {
       toast.success("Caixa de viagem salva com sucesso!");
       setIsModalOpen(false);
       
-      // Forçar atualização completa dos dados após salvar
-      if (userId) {
-        await buscarCaixasDoUsuario(userId);
-        await buscarResumoFinanceiro(userId);
+      // Recalcular saldos automaticamente se houver um funcionário associado
+      if (dados.caixaViagem.funcionarioId) {
+        // Pequena espera para garantir que o registro foi atualizado no banco
+        setTimeout(() => {
+          recalcularSaldos(dados.caixaViagem.funcionarioId);
+        }, 500);
+      } else {
+        // Se não houver funcionário, recalcular todos (menos comum, mas por segurança)
+        setTimeout(() => {
+          recalcularSaldos();
+        }, 500);
       }
     } catch (error) {
       console.error("Erro ao salvar caixa de viagem:", error);
@@ -977,6 +984,55 @@ export default function CaixaViagemPage() {
     return new Date(b.data).getTime() - new Date(a.data).getTime();
   });
 
+  // Adicionar uma função para recalcular saldos antes da função de renderização principal
+  const recalcularSaldos = async (funcionarioId?: number) => {
+    try {
+      setLoading(true);
+      
+      // Verificar se temos o userId
+      if (!userId) {
+        toast.error("ID do usuário não encontrado");
+        return;
+      }
+      
+      // Mostrar mensagem informativa ao usuário
+      toast.info("Recalculando saldos entre caixas...");
+      
+      const response = await fetch('/api/caixaviagem/recalcularSaldos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          funcionarioId: funcionarioId !== undefined && funcionarioId > 0 ? funcionarioId : undefined
+        })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        
+        // Recarregar os dados após o recálculo
+        await buscarCaixasDoUsuario(userId);
+        
+        // NOVO: Atualizar também o resumo financeiro
+        await buscarResumoFinanceiro(userId);
+        
+        toast.success("Saldos recalculados com sucesso!");
+        
+        return result;
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(errorData.error || "Erro ao recalcular saldos");
+      }
+    } catch (error) {
+      console.error("Erro ao recalcular saldos:", error);
+      toast.error("Ocorreu um erro ao recalcular saldos");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
   <ProtectedRoute pageName="caixaviagem">
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
@@ -1119,6 +1175,20 @@ export default function CaixaViagemPage() {
               </div>
               
               <div className="flex space-x-3">
+                {/* Botão de Recalcular Saldos - Sempre visível */}
+                <button
+                  onClick={() => recalcularSaldos(filterFuncionario > 0 ? filterFuncionario : undefined)}
+                  disabled={loading}
+                  className={`p-3 rounded-lg border flex items-center ${
+                    loading 
+                      ? 'bg-gray-200 text-gray-500 border-gray-200' 
+                      : 'bg-green-600 text-white border-green-600 hover:bg-green-700'
+                  }`}
+                  title="Recalcular saldos das caixas"
+                >
+                  <RefreshCw size={22} className={loading ? "animate-spin" : ""} />
+                </button>
+
                 <button
                   onClick={() => setViewMode("grid")}
                   className={`p-3 rounded-lg border ${
@@ -1729,12 +1799,12 @@ export default function CaixaViagemPage() {
             </div>
           </motion.div>
         )}
-      </AnimatePresence>
+           </AnimatePresence>
 
       {/* Modal de confirmação de download do PDF */}
       <AnimatePresence>
         {isConfirmDownloadModalOpen && caixaToDownload && (
-          <motion.div
+                   <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1746,7 +1816,7 @@ export default function CaixaViagemPage() {
               exit={{ scale: 0.95, opacity: 0 }}
               className="bg-white rounded-xl p-8 max-w-lg w-full mx-4 shadow-xl"
             >
-              <div className="text-center mb-6">
+                           <div className="text-center mb-6">
                 <div className="mx-auto w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mb-5">
                   <FileText size={32} className="text-orange-600" />
                 </div>
@@ -1813,8 +1883,8 @@ export default function CaixaViagemPage() {
               </div>
             )}
       
-            <ToastContainer position="bottom-right" />
-          </div>
-        </ProtectedRoute>
-      );
+                  <ToastContainer position="bottom-right" />
+                </div>
+              </ProtectedRoute>
+            );
       }

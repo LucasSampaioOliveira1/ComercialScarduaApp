@@ -47,23 +47,45 @@ const CaixaViagemCard = ({
     saida?: number | string | null;
   }
   
-  const entradas: number = lancamentos
-    .filter((l: Lancamento) => l?.entrada && !isNaN(parseFloat(String(l.entrada).replace(/[^\d.,]/g, '').replace(',', '.'))))
-    .reduce((sum: number, item: Lancamento) => {
-      const valor = parseFloat(String(item.entrada || "0").replace(/[^\d.,]/g, '').replace(',', '.'));
-      return sum + (isNaN(valor) ? 0 : valor);
-    }, 0);
-  
-  const saidas: number = lancamentos
-    .filter((l: Lancamento) => l?.saida && !isNaN(parseFloat(String(l.saida).replace(/[^\d.,]/g, '').replace(',', '.'))))
-    .reduce((sum: number, item: Lancamento) => {
-      const valor = parseFloat(String(item.saida || "0").replace(/[^\d.,]/g, '').replace(',', '.'));
-      return sum + (isNaN(valor) ? 0 : valor);
-    }, 0);
-  
-  // Calcular saldo final incluindo saldo anterior
-  const saldoAnterior = caixa.saldoAnterior ? Number(caixa.saldoAnterior) : 0;
-  const saldoFinal = saldoAnterior + entradas - saidas;
+  // Atualizar a função que calcula o saldo no card
+
+  // Calcular saldo corretamente
+  const calcularSaldo = () => {
+    // Garantir que estamos trabalhando com números
+    const saldoAnterior = typeof caixa.saldoAnterior === 'number' 
+      ? caixa.saldoAnterior 
+      : parseFloat(String(caixa.saldoAnterior || 0));
+    
+    let totalEntradas = 0;
+    let totalSaidas = 0;
+    
+    // Calcular entradas e saídas
+    if (Array.isArray(caixa.lancamentos)) {
+      caixa.lancamentos.forEach((lancamento: Lancamento) => {
+        if (lancamento.entrada) {
+          const valorEntrada: number = parseFloat(String(lancamento.entrada).replace(/[^\d.,]/g, '').replace(',', '.'));
+          if (!isNaN(valorEntrada)) {
+        totalEntradas += valorEntrada;
+          }
+        }
+        if (lancamento.saida) {
+          const valorSaida: number = parseFloat(String(lancamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
+          if (!isNaN(valorSaida)) {
+        totalSaidas += valorSaida;
+          }
+        }
+      });
+    }
+    
+    // O saldo é a soma do saldo anterior com entradas menos saídas
+    return {
+      saldo: saldoAnterior + totalEntradas - totalSaidas,
+      entradas: totalEntradas,
+      saidas: totalSaidas
+    };
+  };
+
+  const { saldo, entradas, saidas } = calcularSaldo();
 
   // Formatar valores para exibição
   const formatCurrency = (value: number) => {
@@ -103,9 +125,9 @@ const CaixaViagemCard = ({
   };
 
   // Determinar a classe de borda baseada no saldo
-  const borderColorClass = saldoFinal > 0 
+  const borderColorClass = saldo > 0 
     ? 'border-t-green-500' 
-    : saldoFinal < 0 
+    : saldo < 0 
       ? 'border-t-red-500' 
       : 'border-t-blue-500'; // Azul para saldo zero
 
@@ -117,9 +139,9 @@ const CaixaViagemCard = ({
         <div className="flex justify-between items-start">
           <div className="flex items-center">
             <div className={`rounded-full p-2 ${
-              saldoFinal > 0 
+              saldo > 0 
                 ? 'bg-green-100 text-green-600' 
-                : saldoFinal < 0 
+                : saldo < 0 
                   ? 'bg-red-100 text-red-600' 
                   : 'bg-blue-100 text-blue-600'}`}>
               <User size={20} />
@@ -149,12 +171,12 @@ const CaixaViagemCard = ({
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium text-gray-600">Saldo:</span>
             <div className={`text-lg font-semibold ${
-              saldoFinal > 0 
+              saldo > 0 
                 ? 'text-green-600' 
-                : saldoFinal < 0 
+                : saldo < 0 
                   ? 'text-red-600' 
                   : 'text-blue-600'}`}>
-              {formatCurrency(saldoFinal)}
+              {formatCurrency(saldo)}
             </div>
           </div>
           
@@ -167,12 +189,12 @@ const CaixaViagemCard = ({
               </div>
             )}
             <div className={`text-lg font-semibold ${
-              saldoFinal > 0 
+              saldo > 0 
                 ? 'text-green-600' 
-                : saldoFinal < 0 
+                : saldo < 0 
                   ? 'text-red-600' 
                   : 'text-blue-600'}`}>
-              {formatCurrency(saldoFinal)}
+              {formatCurrency(saldo)}
             </div>
           </div>
           
