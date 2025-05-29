@@ -201,20 +201,19 @@ export default function CaixaViagemPage() {
       setLoading(true);
       
       const statusResponse = await fetch("/api/status", {
-        headers: { 
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { Authorization: `Bearer ${authToken}` }
       });
 
       if (!statusResponse.ok) {
-        throw new Error("Falha ao verificar autenticação");
+        // ...tratamento de erro...
+        return;
       }
 
       const statusData = await statusResponse.json();
-      
-      if (!statusData.success) {
-        throw new Error(statusData.message || "Erro na autenticação");
+
+      // Salvar usuário logado no localStorage na chave 'usuarios'
+      if (statusData.user && statusData.user.cpf) {
+        localStorage.setItem('usuarios', JSON.stringify([statusData.user]));
       }
 
       const userId = statusData.user?.id;

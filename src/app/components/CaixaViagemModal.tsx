@@ -65,6 +65,7 @@ interface Funcionario {
   id: number;
   nome: string;
   sobrenome?: string;
+  cpf?: string; // <-- Adicione esta linha
 }
 
 interface Veiculo {
@@ -573,6 +574,30 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
     onSave(dadosCompletos);
   };
 
+  // Função para limpar CPF
+  function limparCPF(cpf?: string) {
+    return cpf ? cpf.replace(/[^\d]/g, '') : '';
+  }
+
+  // Buscar o CPF do usuário logado no localStorage (array 'usuarios')
+  let cpfUsuario: string | undefined = undefined;
+  try {
+    const usuariosLS = localStorage.getItem('usuarios');
+    if (usuariosLS) {
+      const usuariosArray = JSON.parse(usuariosLS);
+      if (Array.isArray(usuariosArray) && usuariosArray.length > 0) {
+        cpfUsuario = usuariosArray[0].cpf;
+      }
+    }
+  } catch (error) {
+    console.error("Erro ao buscar CPF do usuário no localStorage:", error);
+  }
+
+  // Encontrar o funcionário correspondente ao CPF
+  const funcionarioAtual = cpfUsuario
+    ? funcionarios.find(f => limparCPF(f.cpf) === limparCPF(cpfUsuario))
+    : undefined;
+
   if (!isOpen) return null;
 
   return (
@@ -636,11 +661,11 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
                   required
                 >
                   <option value="">Selecione um funcionário</option>
-                  {funcionarios.map(funcionario => (
-                    <option key={funcionario.id} value={funcionario.id}>
-                      {funcionario.nome} {funcionario.sobrenome || ''}
+                  {funcionarioAtual && (
+                    <option value={funcionarioAtual.id}>
+                      {funcionarioAtual.nome} {funcionarioAtual.sobrenome || ''}
                     </option>
-                  ))}
+                  )}
                 </select>
               </div>
             </div>
