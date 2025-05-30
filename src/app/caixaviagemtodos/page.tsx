@@ -1796,7 +1796,7 @@ export default function CaixaViagemTodosPage() {
                           {/* Coluna de Destino */}
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
-                              <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex itemsCenter justify-center text-[#344893]">
+                              <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-[#344893]">
                                 <MapPin size={18} />
                               </div>
                               <div className="ml-3">
@@ -2047,7 +2047,7 @@ export default function CaixaViagemTodosPage() {
                 className="bg-white rounded-xl p-8 max-w-lg w-full mx-4 shadow-xl"
               >
                 <div className="text-center mb-6">
-                  <div className="mx-auto w-16 h-16 bg-orange-100 rounded-full flex itemscenter justify-center mb-5">
+                  <div className="mx-auto w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mb-5">
                     <FileText size={32} className="text-orange-600" />
                   </div>
                   <h3 className="text-xl font-semibold text-gray-800">
