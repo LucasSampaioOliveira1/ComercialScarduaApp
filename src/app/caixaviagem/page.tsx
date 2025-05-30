@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast, ToastContainer } from 'react-toastify';
@@ -1032,6 +1032,46 @@ export default function CaixaViagemPage() {
     }
   };
 
+  // Adicione este useMemo após a definição de sortedCaixas para calcular estatísticas baseadas nos filtros
+  const filteredStats = useMemo(() => {
+    // Calcular estatísticas a partir das caixas filtradas
+    const totalCaixas = filteredCaixas.length;
+    
+    let totalEntradas = 0;
+    let totalSaidas = 0;
+    
+    filteredCaixas.forEach(caixa => {
+      // Calcular entradas e saídas dos lançamentos para cada caixa filtrada
+      if (Array.isArray(caixa.lancamentos)) {
+        caixa.lancamentos.forEach(lancamento => {
+          if (lancamento.entrada) {
+            const valor = parseFloat(String(lancamento.entrada).replace(/[^\d.,]/g, '').replace(',', '.'));
+            if (!isNaN(valor)) {
+              totalEntradas += valor;
+            }
+          }
+          
+          if (lancamento.saida) {
+            const valor = parseFloat(String(lancamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
+            if (!isNaN(valor)) {
+              totalSaidas += valor;
+            }
+          }
+        });
+      }
+    });
+    
+    // Calcular saldo geral
+    const saldoGeral = totalEntradas - totalSaidas;
+    
+    return {
+      totalCaixas,
+      totalEntradas,
+      totalSaidas,
+      saldoGeral
+    };
+  }, [filteredCaixas]);
+
   return (
   <ProtectedRoute pageName="caixaviagem">
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
@@ -1075,52 +1115,79 @@ export default function CaixaViagemPage() {
             </div>
           </div>
           
-          {/* Cartões de resumo - Trocados de posição e com ícones ajustados */}
+          {/* Cartões de resumo - Agora respondendo aos filtros */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total de Caixas</h2>
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                  <Plane size={24} className="text-blue-600" />
-                </div>
-              </div>
-              <p className="text-3xl font-bold text-gray-900">{resumo.totalCaixas}</p>
-            </div>
-            
-            {/* Card de Saídas - Agora em segundo lugar com seta para baixo */}
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total Saídas</h2>
-                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                  <ArrowDownCircle size={24} className="text-red-600" />
-                </div>
-              </div>
-              <p className="text-3xl font-bold text-red-600">{formatCurrency(resumo.totalSaidas)}</p>
-            </div>
-            
-            {/* Card de Entradas - Agora em terceiro lugar com seta para cima */}
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total Entradas</h2>
-                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                  <ArrowUpCircle size={24} className="text-green-600" />
-                </div>
-              </div>
-              <p className="text-3xl font-bold text-green-600">{formatCurrency(resumo.totalEntradas)}</p>
-            </div>
-            
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Saldo Geral</h2>
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                  <DollarSign size={24} className={resumo.saldoGeral >= 0 ? "text-green-600" : "text-red-600"} />
-                </div>
-              </div>
-              <p className={`text-3xl font-bold ${resumo.saldoGeral >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {formatCurrency(resumo.saldoGeral)}
-              </p>
-            </div>
-          </div>
+  {/* Indicador de estatísticas filtradas */}
+  {isFilterActive && (
+    <div className="md:col-span-4 mb-0">
+      <span className="text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full flex items-center">
+        <Filter size={14} className="mr-1" />
+        Estatísticas baseadas nos filtros aplicados
+      </span>
+    </div>
+  )}
+
+  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+    <div className="flex items-center justify-between mb-4">
+      <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total de Caixas</h2>
+      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+        <Plane size={24} className="text-blue-600" />
+      </div>
+    </div>
+    <p className="text-3xl font-bold text-gray-900">
+      {isFilterActive ? filteredStats.totalCaixas : resumo.totalCaixas}
+    </p>
+  </div>
+  
+  {/* Card de Saídas */}
+  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+    <div className="flex items-center justify-between mb-4">
+      <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total Saídas</h2>
+      <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+        <ArrowDownCircle size={24} className="text-red-600" />
+      </div>
+    </div>
+    <p className="text-3xl font-bold text-red-600">
+      {formatCurrency(isFilterActive ? filteredStats.totalSaidas : resumo.totalSaidas)}
+    </p>
+  </div>
+  
+  {/* Card de Entradas */}
+  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+    <div className="flex items-center justify-between mb-4">
+      <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total Entradas</h2>
+      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+        <ArrowUpCircle size={24} className="text-green-600" />
+      </div>
+    </div>
+    <p className="text-3xl font-bold text-green-600">
+      {formatCurrency(isFilterActive ? filteredStats.totalEntradas : resumo.totalEntradas)}
+    </p>
+  </div>
+  
+  {/* Card de Saldo */}
+  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+    <div className="flex items-center justify-between mb-4">
+      <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Saldo Geral</h2>
+      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+        <DollarSign 
+          size={24} 
+          className={isFilterActive
+            ? (filteredStats.saldoGeral >= 0 ? "text-green-600" : "text-red-600")
+            : (resumo.saldoGeral >= 0 ? "text-green-600" : "text-red-600")
+          }
+        />
+      </div>
+    </div>
+    <p className={`text-3xl font-bold ${
+      isFilterActive
+        ? (filteredStats.saldoGeral >= 0 ? "text-green-600" : "text-red-600")
+        : (resumo.saldoGeral >= 0 ? "text-green-600" : "text-red-600")
+    }`}>
+      {formatCurrency(isFilterActive ? filteredStats.saldoGeral : resumo.saldoGeral)}
+    </p>
+  </div>
+</div>
         </div>
 
         {/* Barra de busca e filtros - Aumentado espaço e tamanho */}

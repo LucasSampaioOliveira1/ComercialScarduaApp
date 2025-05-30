@@ -1149,6 +1149,46 @@ export default function CaixaViagemTodosPage() {
     }
   };
 
+  // Adicione este useMemo após a definição de sortedCaixas para calcular estatísticas baseadas nos filtros
+  const filteredStats = useMemo(() => {
+    // Calcular estatísticas a partir das caixas filtradas
+    const totalCaixas = filteredCaixas.length;
+    
+    let totalEntradas = 0;
+    let totalSaidas = 0;
+    
+    filteredCaixas.forEach(caixa => {
+      // Calcular entradas e saídas dos lançamentos para cada caixa filtrada
+      if (Array.isArray(caixa.lancamentos)) {
+        caixa.lancamentos.forEach(lancamento => {
+          if (lancamento.entrada) {
+            const valor = parseFloat(String(lancamento.entrada).replace(/[^\d.,]/g, '').replace(',', '.'));
+            if (!isNaN(valor)) {
+              totalEntradas += valor;
+            }
+          }
+          
+          if (lancamento.saida) {
+            const valor = parseFloat(String(lancamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
+            if (!isNaN(valor)) {
+              totalSaidas += valor;
+            }
+          }
+        });
+      }
+    });
+    
+    // Calcular saldo geral
+    const saldoGeral = totalEntradas - totalSaidas;
+    
+    return {
+      totalCaixas,
+      totalEntradas,
+      totalSaidas,
+      saldoGeral
+    };
+  }, [filteredCaixas]);
+
   return (
     <ProtectedRoute pageName="caixaviagem">
       <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
@@ -1192,7 +1232,7 @@ export default function CaixaViagemTodosPage() {
               </div>
             </div>
             
-            {/* Cartões de resumo - Melhorados com design consistente */}
+            {/* Cartões de resumo - Agora usando estatísticas filtradas */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -1201,40 +1241,40 @@ export default function CaixaViagemTodosPage() {
                     <Plane size={24} className="text-blue-600" />
                   </div>
                 </div>
-                <p className="text-3xl font-bold text-gray-900">{resumo?.totalCaixas || 0}</p>
+                <p className="text-3xl font-bold text-gray-900">{filteredStats.totalCaixas}</p>
               </div>
               
-              {/* Saídas com seta para baixo */}
+              {/* Saídas com seta centralizada */}
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total Saídas</h2>
-                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                    <ArrowDownCircle size={24} className="text-red-600" />
+                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-[#E7000B]">
+                    <ArrowDownCircle size={24} />
                   </div>
                 </div>
-                <p className="text-3xl font-bold text-red-600">{formatCurrency(resumo?.totalSaidas || 0)}</p>
+                <p className="text-3xl font-bold text-red-600">{formatCurrency(filteredStats.totalSaidas)}</p>
               </div>
               
-              {/* Entradas com seta para cima */}
+              {/* Entradas com seta centralizada */}
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total Entradas</h2>
-                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                    <ArrowUpCircle size={24} className="text-green-600" />
+                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-[#00A63E]">
+                    <ArrowUpCircle size={24} />
                   </div>
                 </div>
-                <p className="text-3xl font-bold text-green-600">{formatCurrency(resumo?.totalEntradas || 0)}</p>
+                <p className="text-3xl font-bold text-green-600">{formatCurrency(filteredStats.totalEntradas)}</p>
               </div>
               
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider">Saldo Geral</h2>
                   <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                    <DollarSign size={24} className={(resumo?.saldoGeral || 0) >= 0 ? "text-green-600" : "text-red-600"} />
+                    <DollarSign size={24} className={(filteredStats.saldoGeral) >= 0 ? "text-green-600" : "text-red-600"} />
                   </div>
                 </div>
-                <p className={`text-3xl font-bold ${(resumo?.saldoGeral || 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
-                  {formatCurrency(resumo?.saldoGeral || 0)}
+                <p className={`text-3xl font-bold ${(filteredStats.saldoGeral) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                  {formatCurrency(filteredStats.saldoGeral)}
                 </p>
               </div>
             </div>
@@ -1652,6 +1692,16 @@ export default function CaixaViagemTodosPage() {
             )}
           </div>
 
+          {/* Indicador de estatísticas filtradas */}
+          {isFilterActive && (
+            <div className="mb-3 flex items-center">
+              <span className="text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full flex items-center">
+                <Filter size={14} className="mr-1" />
+                Estatísticas baseadas nos filtros aplicados
+              </span>
+            </div>
+          )}
+
           {/* Visualização de caixas - Melhorada com mais espaçamento */}
           {loading ? (
             <div className="bg-white rounded-xl shadow p-12 mb-8 flex flex-col items-center justify-center">
@@ -1746,7 +1796,7 @@ export default function CaixaViagemTodosPage() {
                           {/* Coluna de Destino */}
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
-                              <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center text-[#344893]">
+                              <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex itemsCenter justify-center text-[#344893]">
                                 <MapPin size={18} />
                               </div>
                               <div className="ml-3">
