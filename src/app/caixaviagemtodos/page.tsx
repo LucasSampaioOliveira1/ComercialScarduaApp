@@ -15,7 +15,7 @@ import {
   Search, Filter, X, PlusCircle, Download, ChevronDown, ChevronUp,
   ArrowDownCircle, ArrowUpCircle, DollarSign, Plane, User,
   Building, Calendar, MapPin, Eye, Edit, Trash2, Loader2, Check,
-  Grid, List, FileText
+  Grid, List, FileText, RefreshCw
 } from 'lucide-react';
 
 // Componentes
@@ -1077,6 +1077,78 @@ export default function CaixaViagemTodosPage() {
     }
   };
 
+  // Função para recalcular saldos baseada no usuário selecionado no filtro
+  const recalcularSaldos = async () => {
+    // Se não tiver usuário selecionado, alertar e não prosseguir
+    if (!filterUsuario || filterUsuario === '') {
+      toast.info("Selecione um usuário no filtro para recalcular os saldos");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const usuarioSelecionado = usuarios.find(u => u.id === filterUsuario);
+      
+      toast.info(
+        <div className="flex items-center">
+          <div className="mr-3">
+            <RefreshCw size={18} className="animate-spin text-blue-600" />
+          </div>
+          <div>
+            <p className="font-medium">Recalculando saldos</p>
+            <p className="text-sm text-gray-600">
+              Atualizando saldos para {usuarioSelecionado?.nome || 'usuário selecionado'}...
+            </p>
+          </div>
+        </div>
+      );
+      
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Token de autenticação não encontrado");
+        return;
+      }
+      
+      const response = await fetch('/api/caixaviagem/recalcularSaldos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ userId: filterUsuario })
+      });
+      
+      if (response.ok) {
+        // Recarregar dados após recálculo
+        await buscarCaixasDeViagem();
+        await buscarEstatisticas();
+        
+        toast.success(
+          <div className="flex items-center">
+            <div className="mr-3 bg-green-100 p-2 rounded-full">
+              <Check size={18} className="text-green-600" />
+            </div>
+            <div>
+              <p className="font-medium">Recálculo concluído</p>
+              <p className="text-sm text-gray-600">
+                Os saldos de {usuarioSelecionado?.nome || 'usuário selecionado'} foram atualizados.
+              </p>
+            </div>
+          </div>
+        );
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        toast.error(errorData.error || "Erro ao recalcular saldos");
+      }
+    } catch (error) {
+      console.error("Erro ao recalcular saldos:", error);
+      toast.error("Ocorreu um erro ao recalcular saldos");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <ProtectedRoute pageName="caixaviagem">
       <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
@@ -1220,6 +1292,22 @@ export default function CaixaViagemTodosPage() {
                 </div>
                 
                 <div className="flex space-x-3">
+                  {/* Botão de Recalcular Saldos - Só aparece quando um usuário está selecionado */}
+                  {filterUsuario && (
+                    <button
+                      onClick={recalcularSaldos}
+                      disabled={loading}
+                      className={`p-3 rounded-lg border flex items-center ${
+                        loading 
+                          ? 'bg-gray-200 text-gray-500 border-gray-200' 
+                          : 'bg-green-600 text-white border-green-600 hover:bg-green-700'
+                      }`}
+                      title={`Recalcular saldos para ${usuarios.find(u => u.id === filterUsuario)?.nome || 'usuário selecionado'}`}
+                    >
+                      <RefreshCw size={22} className={loading ? "animate-spin" : ""} />
+                    </button>
+                  )}
+
                   <button
                     onClick={() => setViewMode('grid')}
                     className={`p-3 rounded-lg border ${
@@ -1741,18 +1829,18 @@ export default function CaixaViagemTodosPage() {
                               )}
                               
                               {userPermissions.canDelete && (
-                                <button
-                                  onClick={() => handleToggleVisibility(caixa)}
-                                  className="text-red-600 hover:text-red-800"
-                                  title={caixa.oculto ? "Restaurar caixa" : "Excluir caixa"}
-                                >
-                                  {caixa.oculto ? (
-                                    <Check size={18} />
-                                  ) : (
-                                    <Trash2 size={18} />
-                                  )}
-                                </button>
-                              )}
+                                  <button
+                                    onClick={() => handleToggleVisibility(caixa)}
+                                    className="text-red-600 hover:text-red-800"
+                                    title={caixa.oculto ? "Restaurar caixa" : "Excluir caixa"}
+                                  >
+                                    {caixa.oculto ? (
+                                      <Check size={18} />
+                                    ) : (
+                                      <Trash2 size={18} />
+                                    )}
+                                  </button>
+                                )}
                             </div>
                           </td>
                         </tr>
