@@ -32,6 +32,7 @@ model User {
   empresasCriadas Empresa[]
   contasCorrentes   ContaCorrente[]
   caixasViagem      CaixaViagem[]  // <-- Adicionando relacionamento inverso
+  adiantamentos     Adiantamento[]
 
   colaborador Colaborador? @relation("UserColaborador")
 
@@ -169,6 +170,7 @@ model Colaborador {
   movimentacoesComoResponsavelNovo     Movimentacao[] @relation("MovimentacaoResponsavelNovo")
   contasCorrentes                      ContaCorrente[]
   caixasViagem                         CaixaViagem[]
+  adiantamentos                        Adiantamento[]
 
   @@map("colaboradores")
   @@index([empresaId])
@@ -295,6 +297,7 @@ model CaixaViagem {
   veiculo           Patrimonio?       @relation(fields: [veiculoId], references: [id])
   
   lancamentos       ViagemLancamento[]
+  adiantamentos     Adiantamento[]
   
   @@index([userId])
   @@index([empresaId])
@@ -317,5 +320,29 @@ model ViagemLancamento {
   updatedAt        DateTime     @updatedAt
 
   @@index([caixaViagemId]) // <-- Adicione esta linha
+}
+model Adiantamento {
+  id             Int           @id @default(autoincrement())
+  data           DateTime
+  nome           String        @db.VarChar(255)
+  saida          String
+  observacao     String?       @db.Text
+  oculto         Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Relacionamentos
+  caixaViagemId  Int?
+  caixaViagem    CaixaViagem?  @relation(fields: [caixaViagemId], references: [id], onDelete: SetNull)
+
+  userId         String?
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  colaboradorId  Int?
+  colaborador    Colaborador?  @relation(fields: [colaboradorId], references: [id], onDelete: SetNull)
+
+  @@index([caixaViagemId])
+  @@index([userId])
+  @@index([colaboradorId])
 }
 
