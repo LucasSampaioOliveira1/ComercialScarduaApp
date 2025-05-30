@@ -47,10 +47,41 @@ const CaixaViagemCard = ({
     saida?: number | string | null;
   }
   
-  // Atualizar a função que calcula o saldo no card
-
-  // Calcular saldo corretamente
+  // Usar o saldo da API diretamente, em vez de recalcular
   const calcularSaldo = () => {
+    // Usar o saldo já calculado pelo backend quando disponível
+    if (caixa.saldo !== undefined) {
+      // Calcular apenas entradas e saídas para exibição
+      let totalEntradas = 0;
+      let totalSaidas = 0;
+      
+      // Calcular entradas e saídas para exibição nos cards
+      if (Array.isArray(caixa.lancamentos)) {
+        caixa.lancamentos.forEach((lancamento: Lancamento) => {
+          if (lancamento.entrada) {
+            const valorEntrada: number = parseFloat(String(lancamento.entrada).replace(/[^\d.,]/g, '').replace(',', '.'));
+            if (!isNaN(valorEntrada)) {
+              totalEntradas += valorEntrada;
+            }
+          }
+          if (lancamento.saida) {
+            const valorSaida: number = parseFloat(String(lancamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
+            if (!isNaN(valorSaida)) {
+              totalSaidas += valorSaida;
+            }
+          }
+        });
+      }
+      
+      // Retornar o saldo da API e os totais calculados
+      return {
+        saldo: caixa.saldo, // Usar o valor calculado pelo backend
+        entradas: totalEntradas,
+        saidas: totalSaidas
+      };
+    }
+    
+    // Fallback para o cálculo local (caso o backend não tenha fornecido o saldo)
     // Garantir que estamos trabalhando com números
     const saldoAnterior = typeof caixa.saldoAnterior === 'number' 
       ? caixa.saldoAnterior 
@@ -65,13 +96,13 @@ const CaixaViagemCard = ({
         if (lancamento.entrada) {
           const valorEntrada: number = parseFloat(String(lancamento.entrada).replace(/[^\d.,]/g, '').replace(',', '.'));
           if (!isNaN(valorEntrada)) {
-        totalEntradas += valorEntrada;
+            totalEntradas += valorEntrada;
           }
         }
         if (lancamento.saida) {
           const valorSaida: number = parseFloat(String(lancamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
           if (!isNaN(valorSaida)) {
-        totalSaidas += valorSaida;
+            totalSaidas += valorSaida;
           }
         }
       });
