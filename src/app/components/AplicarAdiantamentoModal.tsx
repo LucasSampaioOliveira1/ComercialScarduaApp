@@ -39,6 +39,35 @@ interface AplicarAdiantamentoModalProps {
   onAdiantamentoAplicado: () => void;
 }
 
+// Função para preservar a data local corretamente
+const preserveLocalDate = (dateString?: string): string => {
+  if (!dateString) return new Date().toISOString().split('T')[0];
+  
+  // Se já estiver no formato YYYY-MM-DD, retornar como está
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    return dateString;
+  }
+  
+  try {
+    // Se for um ISO string com timestamp (formato que vem do banco)
+    if (dateString.includes('T')) {
+      const [datePart] = dateString.split('T');
+      return datePart;
+    }
+    
+    // Para outros formatos, converter usando uma data local
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
+  } catch (e) {
+    console.error("Erro ao preservar data local:", e);
+    return new Date().toISOString().split('T')[0];
+  }
+};
+
 export default function AplicarAdiantamentoModal({
   isOpen,
   onClose,
@@ -156,7 +185,18 @@ export default function AplicarAdiantamentoModal({
   
   const formatarData = (data: string) => {
     try {
-      return format(new Date(data.split("T")[0]), "dd/MM/yyyy", { locale: ptBR });
+      // Usar a abordagem direta para evitar problemas de fuso horário
+      if (data.includes('T')) {
+        const [dataPart] = data.split('T');
+        const [ano, mes, dia] = dataPart.split('-');
+        return `${dia}/${mes}/${ano}`;
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+        const [ano, mes, dia] = data.split('-');
+        return `${dia}/${mes}/${ano}`;
+      }
+      
+      // Último recurso
+      return format(new Date(data), "dd/MM/yyyy", { locale: ptBR });
     } catch (error) {
       return data;
     }

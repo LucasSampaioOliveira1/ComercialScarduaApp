@@ -40,6 +40,35 @@ interface AdiantamentoModalProps {
   onAdiantamentosUpdated: () => void;
 }
 
+// Função para preservar a data local corretamente
+const preserveLocalDate = (dateString?: string): string => {
+  if (!dateString) return new Date().toISOString().split('T')[0];
+  
+  // Se já estiver no formato YYYY-MM-DD, retornar como está
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    return dateString;
+  }
+  
+  try {
+    // Se for um ISO string com timestamp (formato que vem do banco)
+    if (dateString.includes('T')) {
+      const [datePart] = dateString.split('T');
+      return datePart;
+    }
+    
+    // Para outros formatos, converter usando uma data local
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
+  } catch (e) {
+    console.error("Erro ao preservar data local:", e);
+    return new Date().toISOString().split('T')[0];
+  }
+};
+
 export default function AdiantamentoModal({
   isOpen,
   onClose,
@@ -211,10 +240,11 @@ export default function AdiantamentoModal({
         minimumFractionDigits: 2, 
         maximumFractionDigits: 2
       });
-      
+    
+    // Usar preserveLocalDate para garantir que a data esteja correta  
     setFormData({
       id: adiantamento.id,
-      data: adiantamento.data.split("T")[0],
+      data: preserveLocalDate(adiantamento.data),
       nome: adiantamento.nome,
       observacao: adiantamento.observacao || "",
       saida: valorFormatado
@@ -307,7 +337,18 @@ export default function AdiantamentoModal({
   
   const formatarData = (data: string) => {
     try {
-      return format(new Date(data.split("T")[0]), "dd/MM/yyyy", { locale: ptBR });
+      // Usar a função format diretamente com a data correta
+      if (data.includes('T')) {
+        const [dataPart] = data.split('T');
+        const [ano, mes, dia] = dataPart.split('-');
+        return `${dia}/${mes}/${ano}`;
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+        const [ano, mes, dia] = data.split('-');
+        return `${dia}/${mes}/${ano}`;
+      }
+      
+      // Último recurso
+      return format(new Date(data), "dd/MM/yyyy", { locale: ptBR });
     } catch (error) {
       return data;
     }
@@ -483,7 +524,7 @@ export default function AdiantamentoModal({
             </div>
           </div>
 
-          {/* Tabela de adiantamentos */}
+          {/* Tabela de adiantamentos - removida a coluna de Status */}
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -493,7 +534,7 @@ export default function AdiantamentoModal({
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Observação</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Saída</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    {/* Coluna de Status removida */}
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                   </tr>
                 </thead>
@@ -501,14 +542,14 @@ export default function AdiantamentoModal({
                 <tbody className="bg-white divide-y divide-gray-200">
                   {isLoading && !filteredAdiantamentos.length ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-4 text-center">
+                      <td colSpan={5} className="px-6 py-4 text-center">
                         <Loader2 size={30} className="mx-auto animate-spin text-[#344893]" />
                         <p className="mt-2 text-gray-500">Carregando adiantamentos...</p>
                       </td>
                     </tr>
                   ) : filteredAdiantamentos.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                      <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
                         {searchTerm ? "Nenhum adiantamento corresponde à sua pesquisa." : "Nenhum adiantamento registrado."}
                       </td>
                     </tr>
@@ -523,19 +564,7 @@ export default function AdiantamentoModal({
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-red-600">
                           {formatarValor(adiantamento.saida)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          {adiantamento.caixaViagemId ? (
-                            <div className="flex items-center text-green-600">
-                              <Link size={16} className="mr-1.5" />
-                              <span>
-                                Aplicado: Caixa #{adiantamento.caixaViagem?.numeroCaixa || adiantamento.caixaViagemId} 
-                                {adiantamento.caixaViagem?.destino ? ` (${adiantamento.caixaViagem.destino})` : ''}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-gray-500">Não aplicado</span>
-                          )}
-                        </td>
+                        {/* Coluna Status removida */}
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
                           <div className="flex items-center justify-center space-x-2">
                             {adiantamento.caixaViagemId ? (
