@@ -74,7 +74,8 @@ export async function GET(req: NextRequest) {
           orderBy: {
             data: 'desc'
           }
-        }
+        },
+        adiantamentos: true, // Incluir adiantamentos vinculados à caixa
       },
       orderBy: {
         updatedAt: 'desc'

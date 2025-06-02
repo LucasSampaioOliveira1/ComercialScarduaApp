@@ -15,7 +15,7 @@ import {
   Search, Filter, X, PlusCircle, Download, ChevronDown, ChevronUp,
   ArrowDownCircle, ArrowUpCircle, DollarSign, Plane, User,
   Building, Calendar, MapPin, Eye, Edit, Trash2, Loader2, Check,
-  Grid, List, FileText, RefreshCw
+  Grid, List, FileText, RefreshCw, Coins, Link as LinkIcon
 } from 'lucide-react';
 
 // Componentes
@@ -25,6 +25,8 @@ import CaixaViagemCard from '../components/CaixaViagemCard';
 import CaixaViagemModalAdmin from '../components/CaixaViagemModalAdmin';
 import CaixaViagemDetalhesModal from '../components/CaixaViagemDetalhesModal';
 import ProtectedRoute from '../components/ProtectedRoute';
+import AdiantamentoModal from '../components/AdiantamentoModal';
+import AplicarAdiantamentoModal from '../components/AplicarAdiantamentoModal';
 
 // Interfaces
 interface CaixaViagem {
@@ -32,7 +34,7 @@ interface CaixaViagem {
   userId: string;
   empresaId?: number;
   funcionarioId?: number;
-  veiculoId?: number; // Added veiculoId property
+  veiculoId?: number;
   data: string;
   destino: string;
   observacao?: string;
@@ -42,6 +44,7 @@ interface CaixaViagem {
   saldo: number;
   numeroCaixa?: number;
   lancamentos: Lancamento[];
+  adiantamentos?: any[]; // Adicionando a propriedade adiantamentos
   user?: {
     id: string;
     nome: string;
@@ -165,6 +168,11 @@ export default function CaixaViagemTodosPage() {
     canEdit: false,
     canDelete: false
   });
+
+  // Adicione os estados para modais de adiantamento
+  const [isAdiantamentoModalOpen, setIsAdiantamentoModalOpen] = useState(false);
+  const [isAplicarAdiantamentoModalOpen, setIsAplicarAdiantamentoModalOpen] = useState(false);
+  const [selectedFuncionarioAdiantamento, setSelectedFuncionarioAdiantamento] = useState<number | null>(null);
 
   const router = useRouter();
 
@@ -1149,13 +1157,14 @@ export default function CaixaViagemTodosPage() {
     }
   };
 
-  // Adicione este useMemo após a definição de sortedCaixas para calcular estatísticas baseadas nos filtros
+  // Modificar o useMemo que calcula as estatísticas filtradas
   const filteredStats = useMemo(() => {
     // Calcular estatísticas a partir das caixas filtradas
     const totalCaixas = filteredCaixas.length;
     
     let totalEntradas = 0;
     let totalSaidas = 0;
+    let totalAdiantamentos = 0;
     
     filteredCaixas.forEach(caixa => {
       // Calcular entradas e saídas dos lançamentos para cada caixa filtrada
@@ -1176,18 +1185,61 @@ export default function CaixaViagemTodosPage() {
           }
         });
       }
+      
+      // Adicionar cálculo dos adiantamentos
+      if (Array.isArray(caixa.adiantamentos)) {
+        caixa.adiantamentos.forEach(adiantamento => {
+          if (adiantamento.saida) {
+            const valor = parseFloat(String(adiantamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
+            if (!isNaN(valor)) {
+              totalAdiantamentos += valor;
+            }
+          }
+        });
+      }
     });
     
-    // Calcular saldo geral
-    const saldoGeral = totalEntradas - totalSaidas;
+    // Calcular saldo geral (incluindo adiantamentos nas saídas)
+    const saldoGeral = totalEntradas - totalSaidas - totalAdiantamentos;
     
     return {
       totalCaixas,
       totalEntradas,
-      totalSaidas,
+      totalSaidas: totalSaidas + totalAdiantamentos,
+      totalAdiantamentos,
       saldoGeral
     };
   }, [filteredCaixas]);
+
+  // Função para abrir modal de aplicar adiantamento a uma caixa específica
+  const handleAplicarAdiantamento = (caixa: CaixaViagem) => {
+    if (!caixa.funcionarioId) {
+      toast.error("Esta caixa não possui um funcionário associado para aplicar adiantamento.");
+      return;
+    }
+    
+    setSelectedFuncionarioAdiantamento(caixa.funcionarioId);
+    setSelectedCaixa(caixa);
+    setIsAplicarAdiantamentoModalOpen(true);
+  };
+
+  // Função para atualizar dados após operações com adiantamentos
+  const handleAdiantamentosUpdated = async () => {
+    try {
+      // Primeiro recalcular os saldos se necessário
+      if (filterUsuario) {
+        await recalcularSaldos();
+      }
+      
+      // Atualizar os dados das caixas
+      await buscarCaixasDeViagem();
+      await buscarEstatisticas();
+      
+      toast.success('Dados atualizados com sucesso!');
+    } catch (error) {
+      console.error("Erro ao atualizar dados após adiantamento:", error);
+    }
+  };
 
   return (
     <ProtectedRoute pageName="caixaviagem">
@@ -1219,7 +1271,16 @@ export default function CaixaViagemTodosPage() {
                   </button>
                 )}
                 
-                {/* Botão de exportar só aparece quando há filtros aplicados */}
+                {/* Adicionar botão para gerenciar adiantamentos */}
+                <button
+                  onClick={() => setIsAdiantamentoModalOpen(true)}
+                  className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-3 text-base rounded-lg flex items-center transition-colors"
+                >
+                  <Coins size={20} className="mr-2" />
+                  Adiantamentos
+                </button>
+                
+                {/* Botão existente de exportação */}
                 {isFilterActive && filteredCaixas.length > 0 && (
                   <button
                     onClick={exportToExcel}
@@ -1845,9 +1906,21 @@ export default function CaixaViagemTodosPage() {
                             </div>
                           </td>
                           
-                          {/* Coluna de Ações */}
+                          {/* Coluna de Ações da visualização em tabela */}
                           <td className="px-6 py-4 text-center whitespace-nowrap">
                             <div className="flex justify-center gap-3">
+                              {/* Botão para aplicar adiantamento */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAplicarAdiantamento(caixa);
+                                }}
+                                className="p-2 bg-teal-100 text-teal-600 rounded-full hover:bg-teal-200 transition-colors"
+                                title="Aplicar Adiantamento"
+                              >
+                                <LinkIcon size={16} />
+                              </button>
+                              
                               {/* Botão para gerar termo PDF */}
                               <button
                                 onClick={(e) => {
@@ -1922,6 +1995,7 @@ export default function CaixaViagemTodosPage() {
                   onEdit={() => handleOpenEditModal(caixa)}
                   onToggleVisibility={() => handleToggleVisibility(caixa)}
                   onGenerateTermo={() => handleGenerateTermoRequest(caixa)} // Nova prop para gerar termo
+                  onAplicarAdiantamento={() => handleAplicarAdiantamento(caixa)} // Nova propriedade
                   canEdit={userPermissions.canEdit}
                   canDelete={userPermissions.canDelete}
                 />
@@ -2111,6 +2185,24 @@ export default function CaixaViagemTodosPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Modais de Adiantamento */}
+        {isAdiantamentoModalOpen && (
+          <AdiantamentoModal
+            isOpen={isAdiantamentoModalOpen}
+            onClose={() => setIsAdiantamentoModalOpen(false)}
+            onAdiantamentosUpdated={handleAdiantamentosUpdated}
+          />
+        )}
+
+        {isAplicarAdiantamentoModalOpen && selectedCaixa && (
+          <AplicarAdiantamentoModal
+            isOpen={isAplicarAdiantamentoModalOpen}
+            onClose={() => setIsAplicarAdiantamentoModalOpen(false)}
+            caixaViagem={selectedCaixa}
+            onAdiantamentoAplicado={handleAdiantamentosUpdated}
+          />
         )}
 
         <ToastContainer />
