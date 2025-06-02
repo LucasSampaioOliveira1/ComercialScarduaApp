@@ -18,6 +18,7 @@ const authenticateToken = (req: NextRequest) => {
   }
 };
 
+
 /**
  * GET - Listar todos os adiantamentos
  * Lista todos os adiantamentos para o usuário autenticado
