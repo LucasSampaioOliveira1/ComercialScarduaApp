@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import jwt from "jsonwebtoken";
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || "seu-segredo-jwt-padrão";
+const JWT_SECRET = process.env.JWT_SECRET || "bd0a3f00b453f0a4e3f64afd92c12777997044d1d00d8832cbd92b57f7f4899c";
 
 // Função de autenticação semelhante às outras APIs
 const authenticateToken = (req: NextRequest) => {
@@ -126,8 +126,13 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Adiantamento não encontrado" }, { status: 404 });
     }
     
-    // Verificar permissão - apenas o proprietário ou admin pode atualizar
-    if (adiantamento.userId !== decodedToken.id && decodedToken.role !== 'ADMIN') {
+    // Verificar permissão - proprietário, admin ou aplicação a uma caixa pode ser feita por qualquer usuário
+    if ((adiantamento.userId !== decodedToken.id && decodedToken.role !== 'ADMIN') && 
+        // Permitir a operação se for apenas para aplicar a uma caixa
+        !(body.caixaViagemId !== undefined && 
+          Object.keys(body).length === 2 && 
+          Object.keys(body).includes('adiantamentoId') && 
+          Object.keys(body).includes('caixaViagemId'))) {
       return NextResponse.json({ error: "Sem permissão para editar este adiantamento" }, { status: 403 });
     }
     
