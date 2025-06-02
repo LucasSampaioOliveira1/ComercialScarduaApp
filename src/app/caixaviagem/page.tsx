@@ -15,7 +15,7 @@ import {
   Search, Filter, X, PlusCircle, Download, ChevronDown, Calendar,
   Briefcase, Building, DollarSign, Plane, MapPin, ArrowDownCircle,
   ArrowUpCircle, Eye, Edit, Trash2, Loader2, Check, ListFilter, Coins, User,
-  Grid, List, FileText, RefreshCw
+  Grid, List, FileText, RefreshCw, Link as LinkIcon
 } from 'lucide-react';
 
 // Componentes
@@ -24,6 +24,8 @@ import CardResumo from '../components/CardResumo';
 import CaixaViagemCard from '../components/CaixaViagemCard';
 import CaixaViagemModal from '../components/CaixaViagemModal';
 import CaixaViagemDetalhesModal from '../components/CaixaViagemDetalhesModal';
+import AdiantamentoModal from '../components/AdiantamentoModal'; // Importar novo modal
+import AplicarAdiantamentoModal from '../components/AplicarAdiantamentoModal'; // Importar novo modal
 
 // Protegido
 import ProtectedRoute from '../components/ProtectedRoute';
@@ -1072,6 +1074,37 @@ export default function CaixaViagemPage() {
     };
   }, [filteredCaixas]);
 
+  // Estados para modais de adiantamento
+  const [isAdiantamentoModalOpen, setIsAdiantamentoModalOpen] = useState(false);
+  const [isAplicarAdiantamentoModalOpen, setIsAplicarAdiantamentoModalOpen] = useState(false);
+  const [selectedFuncionarioAdiantamento, setSelectedFuncionarioAdiantamento] = useState<number | null>(null);
+
+  // Função para abrir modal de aplicar adiantamento a uma caixa específica
+  const handleAplicarAdiantamento = (caixa: CaixaViagem) => {
+    if (!caixa.funcionarioId) {
+      toast.error("Esta caixa não possui um funcionário associado para aplicar adiantamento.");
+      return;
+    }
+    
+    setSelectedFuncionarioAdiantamento(caixa.funcionarioId);
+    setSelectedCaixa(caixa);
+    setIsAplicarAdiantamentoModalOpen(true);
+  };
+
+  // Função para atualizar dados após operações com adiantamentos
+  const handleAdiantamentosUpdated = async () => {
+    if (userId) {
+      // Primeiro recalcular os saldos para garantir consistência
+      await recalcularSaldos();
+      
+      // Depois buscar os dados atualizados
+      await buscarCaixasDoUsuario(userId);
+      await buscarResumoFinanceiro(userId);
+      
+      toast.success('Dados atualizados com sucesso!');
+    }
+  };
+
   return (
   <ProtectedRoute pageName="caixaviagem">
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
@@ -1101,6 +1134,15 @@ export default function CaixaViagemPage() {
                   Nova Caixa de Viagem
                 </button>
               )}
+              
+              {/* Adicionar botão para gerenciar adiantamentos */}
+              <button
+                onClick={() => setIsAdiantamentoModalOpen(true)}
+                className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-3 text-base rounded-lg flex items-center transition-colors"
+              >
+                <Coins size={20} className="mr-2" />
+                Adiantamentos
+              </button>
               
               {/* Botão de exportar só aparece quando há filtros aplicados ou busca */}
               {isFilterActive && filteredCaixas.length > 0 && (
@@ -1715,6 +1757,15 @@ export default function CaixaViagemPage() {
                         {/* Coluna de Ações */}
                         <td className="px-6 py-4 text-center whitespace-nowrap">
                           <div className="flex justify-center gap-3">
+                            {/* Botão para aplicar adiantamento */}
+                            <button
+                              onClick={() => handleAplicarAdiantamento(caixa)}
+                              className="p-2 bg-teal-100 text-teal-600 rounded-full hover:bg-teal-200 transition-colors"
+                              title="Aplicar Adiantamento"
+                            >
+                              <LinkIcon size={16} />
+                            </button>
+                            
                             {/* Adicionar botão de gerar termo PDF com fundo laranja */}
                             <button
                               onClick={() => handleGenerateTermoRequest(caixa)}
@@ -1773,7 +1824,8 @@ export default function CaixaViagemPage() {
                 onViewDetails={() => handleViewDetails(caixa)}
                 onEdit={() => handleOpenEditModal(caixa)}
                 onToggleVisibility={() => handleToggleVisibility(caixa)}
-                onGenerateTermo={() => handleGenerateTermoRequest(caixa)} // Nova função
+                onGenerateTermo={() => handleGenerateTermoRequest(caixa)}
+                onAplicarAdiantamento={() => handleAplicarAdiantamento(caixa)} // Usar nova função
                 canEdit={userPermissions.canEdit}
                 canDelete={userPermissions.canDelete}
               />
@@ -1865,7 +1917,7 @@ export default function CaixaViagemPage() {
             </div>
           </motion.div>
         )}
-           </AnimatePresence>
+      </AnimatePresence>
 
       {/* Modal de confirmação de download do PDF */}
       <AnimatePresence>
@@ -1949,8 +2001,26 @@ export default function CaixaViagemPage() {
               </div>
             )}
       
-                  <ToastContainer position="bottom-right" />
-                </div>
-              </ProtectedRoute>
-            );
+                  {/* Modais de Adiantamento */}
+      {isAdiantamentoModalOpen && (
+        <AdiantamentoModal
+          isOpen={isAdiantamentoModalOpen}
+          onClose={() => setIsAdiantamentoModalOpen(false)}
+          onAdiantamentosUpdated={handleAdiantamentosUpdated}
+        />
+      )}
+
+      {isAplicarAdiantamentoModalOpen && selectedCaixa && (
+        <AplicarAdiantamentoModal
+          isOpen={isAplicarAdiantamentoModalOpen}
+          onClose={() => setIsAplicarAdiantamentoModalOpen(false)}
+          caixaViagem={selectedCaixa}
+          onAdiantamentoAplicado={handleAdiantamentosUpdated}
+        />
+      )}
+
+      <ToastContainer position="bottom-right" />
+    </div>
+  </ProtectedRoute>
+    );
       }

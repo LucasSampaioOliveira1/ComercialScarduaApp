@@ -4,7 +4,7 @@ import { ptBR } from 'date-fns/locale';
 import { 
   MapPin, Building, User, Calendar, Truck,
   DollarSign, Eye, Edit, Trash2, Clock, ArrowUpCircle, ArrowDownCircle,
-  FileText // Novo ícone
+  FileText, Link as LinkIcon // Importação do ícone LinkIcon
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -18,6 +18,7 @@ interface CaixaViagemCardProps {
   onEdit: () => void;
   onToggleVisibility: () => void;
   onGenerateTermo: () => void; // Nova propriedade
+  onAplicarAdiantamento: () => void; // Nova propriedade
   canEdit: boolean;
   canDelete: boolean;
 }
@@ -30,7 +31,8 @@ const CaixaViagemCard = ({
   onViewDetails, 
   onEdit, 
   onToggleVisibility,
-  onGenerateTermo, // Novo parâmetro
+  onGenerateTermo,
+  onAplicarAdiantamento, // Garantir que este prop está sendo usado
   canEdit,
   canDelete
 }: CaixaViagemCardProps) => {
@@ -163,9 +165,7 @@ const CaixaViagemCard = ({
       : 'border-t-blue-500'; // Azul para saldo zero
 
   return (
-    <div 
-      className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-all border border-gray-100 ${borderColorClass} border-t-4 overflow-hidden`}
-    >
+    <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 hover:shadow-lg transition-shadow">
       <div className="p-5">
         <div className="flex justify-between items-start">
           <div className="flex items-center">
@@ -293,7 +293,16 @@ const CaixaViagemCard = ({
         
         <div className="mt-4 pt-3 border-t border-gray-200 flex justify-end space-x-3">
           <div className="flex items-center space-x-3">
-            {/* Botão para gerar termo - atualizado para laranja */}
+            {/* Botão para aplicar adiantamento */}
+            <button
+              onClick={onAplicarAdiantamento}
+              className="p-2 text-teal-600 hover:text-teal-800 hover:bg-teal-50 rounded-full transition-colors"
+              title="Aplicar Adiantamento"
+            >
+              <LinkIcon size={18} />
+            </button>
+            
+            {/* Outros botões existentes... */}
             <button
               onClick={onGenerateTermo}
               className="p-2 bg-orange-100 text-orange-600 rounded-full hover:bg-orange-200 transition-colors"

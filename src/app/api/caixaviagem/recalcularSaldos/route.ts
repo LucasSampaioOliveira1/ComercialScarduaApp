@@ -129,24 +129,32 @@ export async function POST(req: NextRequest) {
         let totalEntradas = 0;
         let totalSaidas = 0;
         
-        // Define interface for properly typed lancamentos
-        interface LancamentoProcessing extends Lancamento {
-          id?: number;
+        // Somar lançamentos
+        if (caixa.lancamentos) {
+            caixa.lancamentos.forEach((lanc: Lancamento) => {
+            if (lanc.entrada) {
+              const valor: number = parseFloat(String(lanc.entrada));
+              if (!isNaN(valor)) totalEntradas += valor;
+            }
+            if (lanc.saida) {
+              const valor: number = parseFloat(String(lanc.saida));
+              if (!isNaN(valor)) totalSaidas += valor;
+            }
+            });
         }
         
-        caixa.lancamentos.forEach((lancamento: LancamentoProcessing) => {
-          if (lancamento.entrada) {
-            const valor: number = parseFloat(String(lancamento.entrada));
-            if (!isNaN(valor)) totalEntradas += valor;
-          }
-          if (lancamento.saida) {
-            const valor: number = parseFloat(String(lancamento.saida));
-            if (!isNaN(valor)) totalSaidas += valor;
-          }
-        });
+        // Novo: somar adiantamentos vinculados a este caixa
+        let totalAdiantamentos = 0;
+        if (caixa.adiantamentos) {
+            caixa.adiantamentos.forEach((adiantamento: { saida?: number | string | null }) => {
+            if (adiantamento.saida) {
+              totalAdiantamentos += parseFloat(String(adiantamento.saida));
+            }
+            });
+        }
         
-        // Calcular saldo final desta caixa
-        const saldoFinal = Number(caixa.saldoAnterior || 0) + totalEntradas - totalSaidas;
+        // Calcular saldo considerando adiantamentos
+        const saldoFinal = saldoAnterior + totalEntradas - totalSaidas - totalAdiantamentos;
         
         // Armazenar o saldo para a próxima caixa
         saldoAnterior = saldoFinal;
