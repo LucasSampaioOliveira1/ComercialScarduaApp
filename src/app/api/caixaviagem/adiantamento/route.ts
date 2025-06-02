@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     const adiantamentos = await prisma.adiantamento.findMany({
       where: {
         userId: userId as string,
-        oculto: false
+        oculto: false // Não mostrar adiantamentos ocultos
       },
       include: {
         caixaViagem: {
@@ -110,15 +110,15 @@ export async function PUT(req: NextRequest) {
     if (!decodedToken) {
       return NextResponse.json({ error: "Token inválido ou expirado" }, { status: 401 });
     }
-
+    
     const body = await req.json();
     
-    // Validar ID do adiantamento
+    // Validar parâmetros necessários
     if (!body.adiantamentoId) {
       return NextResponse.json({ error: "ID do adiantamento é obrigatório" }, { status: 400 });
     }
-    
-    // Verificar se o adiantamento existe
+
+    // Buscar adiantamento para verificar se existe
     const adiantamento = await prisma.adiantamento.findUnique({
       where: { id: Number(body.adiantamentoId) }
     });
@@ -126,70 +126,55 @@ export async function PUT(req: NextRequest) {
     if (!adiantamento) {
       return NextResponse.json({ error: "Adiantamento não encontrado" }, { status: 404 });
     }
+
+    // Preparar dados para atualização
+    const updateData: any = {};
     
-    // Verificar permissão - proprietário, admin ou aplicação a uma caixa pode ser feita por qualquer usuário
-    if ((adiantamento.userId !== decodedToken.id && decodedToken.role !== 'ADMIN') && 
-        // Permitir a operação se for apenas para aplicar a uma caixa
-        !(body.caixaViagemId !== undefined && 
-          Object.keys(body).length === 2 && 
-          Object.keys(body).includes('adiantamentoId') && 
-          Object.keys(body).includes('caixaViagemId'))) {
-      return NextResponse.json({ error: "Sem permissão para editar este adiantamento" }, { status: 403 });
+    // Campos que podem ser atualizados
+    if (body.data !== undefined) updateData.data = body.data;
+    if (body.nome !== undefined) updateData.nome = body.nome;
+    if (body.observacao !== undefined) updateData.observacao = body.observacao;
+    if (body.saida !== undefined) updateData.saida = body.saida;
+    if (body.oculto !== undefined) updateData.oculto = body.oculto;
+    if (body.caixaViagemId !== undefined) {
+      updateData.caixaViagemId = body.caixaViagemId === null ? null : Number(body.caixaViagemId);
+    }
+
+    // Verificar se há campos para atualizar
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: "Nenhum campo para atualizar fornecido" }, { status: 400 });
     }
     
-    // Atualizar o adiantamento
-    // Se caixaViagemId estiver definido, vincular ao caixa, se null, desvincular
-    const dadosAtualizados: any = {};
+    // Console log para debug
+    console.log("Atualizando adiantamento", body.adiantamentoId, "com dados:", updateData);
     
-    // Atualização de campos, se fornecidos
-    if (body.data) dadosAtualizados.data = new Date(body.data);
-    if (body.nome !== undefined) dadosAtualizados.nome = body.nome;
-    if (body.observacao !== undefined) dadosAtualizados.observacao = body.observacao;
-    if (body.saida !== undefined) dadosAtualizados.saida = String(body.saida);
-    if (body.caixaViagemId !== undefined) dadosAtualizados.caixaViagemId = body.caixaViagemId;
-    
-    // Se caixaViagemId foi fornecido e não é null, verificar se o caixa existe
-    if (body.caixaViagemId) {
-      const caixaViagem = await prisma.caixaViagem.findUnique({
-        where: { id: Number(body.caixaViagemId) }
-      });
-      
-      if (!caixaViagem) {
-        return NextResponse.json({ error: "Caixa de viagem não encontrada" }, { status: 404 });
-      }
-    }
-    
-    const adiantamentoAtualizado = await prisma.adiantamento.update({
-      where: { id: Number(body.adiantamentoId) },
-      data: dadosAtualizados,
-      include: {
-        caixaViagem: {
-          select: {
-            id: true,
-            destino: true,
-            numeroCaixa: true
+    try {
+      // Atualizar adiantamento
+      const adiantamentoAtualizado = await prisma.adiantamento.update({
+        where: { id: Number(body.adiantamentoId) },
+        data: updateData,
+        include: {
+          caixaViagem: {
+            select: {
+              id: true,
+              destino: true,
+              numeroCaixa: true
+            }
           }
         }
-      }
-    });
-
-    // Após aplicar o adiantamento a uma caixa, recalcular o saldo da caixa
-    if (body.caixaViagemId) {
-      // Chamar a API de recálculo de saldos (pode implementar aqui ou chamar outra função)
-      // Este é apenas um exemplo - você pode adaptar de acordo com sua lógica existente
-      try {
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/caixaviagem/recalcularSaldos`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ caixaViagemId: body.caixaViagemId })
-        });
-      } catch (recalcError) {
-        console.error("Erro ao recalcular saldo:", recalcError);
-        // Não interromper o fluxo por causa do erro de recálculo
-      }
+      });
+      
+      // IMPORTANTE: Retornar o resultado
+      return NextResponse.json(adiantamentoAtualizado);
+      
+    } catch (updateError) {
+      console.error("Erro específico na operação de update:", updateError);
+      return NextResponse.json({ 
+        error: "Erro ao atualizar adiantamento", 
+        details: updateError instanceof Error ? updateError.message : "Erro desconhecido" 
+      }, { status: 500 });
     }
-
-    return NextResponse.json(adiantamentoAtualizado);
+    
   } catch (error) {
     console.error("Erro ao atualizar adiantamento:", error);
     return NextResponse.json({ error: "Erro ao atualizar adiantamento" }, { status: 500 });
@@ -199,8 +184,8 @@ export async function PUT(req: NextRequest) {
 }
 
 /**
- * DELETE - Excluir adiantamento
- * Só é possível excluir adiantamentos que não estejam vinculados a um caixa
+ * DELETE - "Excluir" adiantamento (na verdade, ocultar)
+ * Só é possível ocultar adiantamentos que não estejam vinculados a uma caixa
  */
 export async function DELETE(req: NextRequest) {
   try {
@@ -209,7 +194,7 @@ export async function DELETE(req: NextRequest) {
     if (!decodedToken) {
       return NextResponse.json({ error: "Token inválido ou expirado" }, { status: 401 });
     }
-
+    
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     
@@ -217,7 +202,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID do adiantamento é obrigatório" }, { status: 400 });
     }
     
-    // Verificar se o adiantamento existe
+    // Buscar adiantamento para verificar se existe
     const adiantamento = await prisma.adiantamento.findUnique({
       where: { id: Number(id) }
     });
@@ -226,25 +211,22 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Adiantamento não encontrado" }, { status: 404 });
     }
     
-    // Verificar permissão - apenas o proprietário ou admin pode excluir
-    if (adiantamento.userId !== decodedToken.id && decodedToken.role !== 'ADMIN') {
-      return NextResponse.json({ error: "Sem permissão para excluir este adiantamento" }, { status: 403 });
+    // Verificar se o adiantamento está aplicado a uma caixa
+    if (adiantamento.caixaViagemId) {
+      return NextResponse.json({ 
+        error: "Não é possível excluir um adiantamento aplicado a uma caixa. Remova o vínculo primeiro." 
+      }, { status: 400 });
     }
     
-    // Não permitir exclusão se estiver vinculado a um caixa
-    if (adiantamento.caixaViagemId) {
-      return NextResponse.json(
-        { error: "Este adiantamento está vinculado a um caixa. Desvinculá-lo primeiro." }, 
-        { status: 400 }
-      );
-    }
-
-    // Excluir o adiantamento
-    await prisma.adiantamento.delete({
-      where: { id: Number(id) }
+    // Remover a verificação de permissão - permitir que qualquer usuário oculte adiantamentos
+    
+    // Em vez de excluir, apenas marcar como oculto
+    const adiantamentoOcultado = await prisma.adiantamento.update({
+      where: { id: Number(id) },
+      data: { oculto: true }
     });
-
-    return NextResponse.json({ message: "Adiantamento excluído com sucesso" });
+    
+    return NextResponse.json(adiantamentoOcultado);
   } catch (error) {
     console.error("Erro ao excluir adiantamento:", error);
     return NextResponse.json({ error: "Erro ao excluir adiantamento" }, { status: 500 });

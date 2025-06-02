@@ -62,53 +62,7 @@ const CaixaViagemCard = ({
   
   // Usar o saldo da API diretamente, em vez de recalcular
   const calcularSaldo = () => {
-    // Usar o saldo já calculado pelo backend quando disponível
-    if (caixa.saldo !== undefined) {
-      // Calcular apenas entradas e saídas para exibição
-      let totalEntradas = 0;
-      let totalSaidas = 0;
-      let totalAdiantamentos = 0;
-      
-      // Calcular entradas e saídas para exibição nos cards
-      if (Array.isArray(caixa.lancamentos)) {
-        caixa.lancamentos.forEach((lancamento: Lancamento) => {
-          if (lancamento.entrada) {
-            const valorEntrada: number = parseFloat(String(lancamento.entrada).replace(/[^\d.,]/g, '').replace(',', '.'));
-            if (!isNaN(valorEntrada)) {
-              totalEntradas += valorEntrada;
-            }
-          }
-          if (lancamento.saida) {
-            const valorSaida: number = parseFloat(String(lancamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
-            if (!isNaN(valorSaida)) {
-              totalSaidas += valorSaida;
-            }
-          }
-        });
-      }
-
-      // Adicionar cálculo dos adiantamentos
-      if (Array.isArray(caixa.adiantamentos)) {
-        caixa.adiantamentos.forEach((adiantamento: Adiantamento) => {
-          if (adiantamento.saida) {
-            const valorAdiantamento: number = parseFloat(String(adiantamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
-            if (!isNaN(valorAdiantamento)) {
-              totalAdiantamentos += valorAdiantamento;
-            }
-          }
-        });
-      }
-      
-      // Retornar o saldo correto que já inclui adiantamentos conforme calculado pelo backend
-      return {
-        saldo: caixa.saldo,
-        entradas: totalEntradas,
-        saidas: totalSaidas + totalAdiantamentos // Incluir adiantamentos nas saídas apenas para exibição
-      };
-    }
-    
-    // Fallback para o cálculo local (caso o backend não tenha fornecido o saldo)
-    // Garantir que estamos trabalhando com números
+    // Calcular sempre localmente para garantir valores corretos
     const saldoAnterior = typeof caixa.saldoAnterior === 'number' 
       ? caixa.saldoAnterior 
       : parseFloat(String(caixa.saldoAnterior || 0));
@@ -117,7 +71,7 @@ const CaixaViagemCard = ({
     let totalSaidas = 0;
     let totalAdiantamentos = 0;
     
-    // Calcular entradas e saídas dos lançamentos
+    // Calcular entradas e saídas para exibição nos cards
     if (Array.isArray(caixa.lancamentos)) {
       caixa.lancamentos.forEach((lancamento: Lancamento) => {
         if (lancamento.entrada) {
@@ -134,24 +88,27 @@ const CaixaViagemCard = ({
         }
       });
     }
-    
+
     // Adicionar cálculo dos adiantamentos
     if (Array.isArray(caixa.adiantamentos)) {
       caixa.adiantamentos.forEach((adiantamento: Adiantamento) => {
         if (adiantamento.saida) {
           const valorAdiantamento: number = parseFloat(String(adiantamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
           if (!isNaN(valorAdiantamento)) {
-        totalAdiantamentos += valorAdiantamento;
+            totalAdiantamentos += valorAdiantamento;
           }
         }
       });
     }
     
-    // O saldo é a soma do saldo anterior com entradas menos saídas (incluindo adiantamentos)
+    // Calcular o saldo localmente
+    const saldoCalculado = saldoAnterior + totalEntradas - totalSaidas - totalAdiantamentos;
+    
+    // Retornar o saldo calculado localmente, ignorando caixa.saldo
     return {
-      saldo: saldoAnterior + totalEntradas - totalSaidas - totalAdiantamentos,
+      saldo: saldoCalculado, 
       entradas: totalEntradas,
-      saidas: totalSaidas + totalAdiantamentos // Incluir adiantamentos nas saídas
+      saidas: totalSaidas + totalAdiantamentos // Incluir adiantamentos nas saídas apenas para exibição
     };
   };
 

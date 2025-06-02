@@ -24,13 +24,15 @@ export async function GET(
         oculto: false
       },
       include: {
-        lancamentos: true
+        lancamentos: true,
+        adiantamentos: true
       }
     });
     
     // Calcular totais
     let totalEntradas = 0;
     let totalSaidas = 0;
+    let totalAdiantamentos = 0;
     
     // Agrupar informações por destino
     const porDestino: Record<string, { count: number, entradas: number, saidas: number }> = {};
@@ -59,6 +61,13 @@ export async function GET(
             totalSaidas += valorSaida;
           }
         }
+      }
+      
+      // Calcular adiantamentos
+      if (Array.isArray(caixa.adiantamentos)) {
+        caixa.adiantamentos.forEach(a => {
+          if (a.saida) totalAdiantamentos += parseFloat(String(a.saida));
+        });
       }
       
       // Atualizar contagem por destino
@@ -98,13 +107,14 @@ export async function GET(
       .slice(0, 5); // Pegar os 5 principais
     
     // Calcular saldo geral
-    const saldo = totalEntradas - totalSaidas;
+    const saldo = totalEntradas - totalSaidas - totalAdiantamentos;
     
     // Estruturar resposta
     const resumo = {
       totalEntradas,
       totalSaidas,
-      saldo,
+      totalAdiantamentos, // Incluir explicitamente no retorno
+      saldoGeral: saldo,
       totalCaixas: caixas.length,
       porDestino: Object.entries(porDestino).map(([destino, dados]) => ({
         destino,

@@ -183,24 +183,50 @@ export default function AdiantamentoModal({
         return;
       }
       
-      // Converter valor para formato aceito pela API (ponto como separador decimal)
-      const valorNumerico = formData.saida.replace(".", "").replace(",", ".");
+      // Formatar o valor corretamente para a API
+      let valorFormatado = formData.saida;
       
+      // Remover formatação R$ e pontos de milhar, substituir vírgula por ponto
+      valorFormatado = valorFormatado
+        .replace(/R\$\s*/g, '')      // Remove o símbolo R$ e espaços após ele
+        .replace(/\./g, '')          // Remove pontos de separação de milhar
+        .replace(',', '.')           // Substitui a vírgula decimal por ponto
+        .trim();
+      
+      // Formatar data como ISO String completo para o Prisma
+      let dataFormatada;
+      try {
+        // Converter YYYY-MM-DD para objeto Date e depois para ISO String
+        const [year, month, day] = formData.data.split('-').map(Number);
+        const dateObj = new Date(year, month - 1, day);
+        dataFormatada = dateObj.toISOString();
+      } catch (dateError) {
+        // Fallback: adicionar hora ao final da data
+        dataFormatada = `${formData.data}T00:00:00.000Z`;
+      }
+      
+      console.log("Data formatada para API:", dataFormatada);
+      console.log("Valor formatado para API:", valorFormatado);
+      
+      // Criar payload com base no modo (edição ou criação)
       const payload = isEditing
         ? {
             adiantamentoId: formData.id,
-            data: formData.data,
+            data: dataFormatada, // Usar data formatada como ISO
             nome: formData.nome,
-            observacao: formData.observacao,
-            saida: valorNumerico
+            observacao: formData.observacao || null,
+            saida: valorFormatado
           }
         : {
-            data: formData.data,
+            data: dataFormatada, // Usar data formatada como ISO
             nome: formData.nome,
-            observacao: formData.observacao,
-            saida: valorNumerico
+            observacao: formData.observacao || null,
+            saida: valorFormatado
           };
+    
+      console.log("Payload enviado para API:", payload);
       
+      // Usar a mesma rota, apenas alterar o método
       const response = await fetch(`/api/caixaviagem/adiantamento`, {
         method: isEditing ? "PUT" : "POST",
         headers: {
@@ -211,8 +237,16 @@ export default function AdiantamentoModal({
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Erro ao salvar adiantamento");
+        // Converter a resposta para ver detalhes do erro
+        const errorResponse = await response.text();
+        console.error("Erro na resposta da API:", errorResponse);
+        
+        try {
+          const errorData = JSON.parse(errorResponse);
+          throw new Error(errorData.error || "Erro ao salvar adiantamento");
+        } catch (parseError) {
+          throw new Error(`Erro ao salvar adiantamento: ${errorResponse}`);
+        }
       }
       
       toast.success(`Adiantamento ${isEditing ? "atualizado" : "criado"} com sucesso!`);
@@ -228,29 +262,64 @@ export default function AdiantamentoModal({
   };
 
   const handleEdit = (adiantamento: Adiantamento) => {
-    // Não permitir edição se o adiantamento já estiver vinculado a uma caixa
     if (adiantamento.caixaViagemId) {
       toast.info("Não é possível editar um adiantamento já aplicado a uma caixa. Remova o vínculo primeiro.");
       return;
     }
     
-    // Formatar o valor para exibição no input
-    const valorFormatado = parseFloat(adiantamento.saida)
-      .toLocaleString("pt-BR", {
-        minimumFractionDigits: 2, 
+    try {
+      // Formatar o valor para exibição no input
+      let valor = parseFloat(String(adiantamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
+    
+      if (isNaN(valor)) {
+        valor = 0;
+      }
+    
+      // Formatar o valor para exibição no formulário
+      const valorFormatado = valor.toLocaleString("pt-BR", {
+        minimumFractionDigits: 2,
         maximumFractionDigits: 2
       });
     
-    // Usar preserveLocalDate para garantir que a data esteja correta  
-    setFormData({
-      id: adiantamento.id,
-      data: preserveLocalDate(adiantamento.data),
-      nome: adiantamento.nome,
-      observacao: adiantamento.observacao || "",
-      saida: valorFormatado
-    });
+      console.log("Valor original:", adiantamento.saida);
+      console.log("Valor formatado para edição:", valorFormatado);
     
-    setIsEditing(true);
+      // Formatar a data corretamente para o formato YYYY-MM-DD
+      let dataFormatada = adiantamento.data;
+    
+      if (dataFormatada.includes('T')) {
+        dataFormatada = dataFormatada.split('T')[0]; // Se for ISO String, pegar só a parte da data
+      } else {
+        // Se for outro formato, converter para YYYY-MM-DD
+        const partes = dataFormatada.split('/');
+        if (partes.length === 3) {
+          dataFormatada = `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+        }
+      }
+    
+      console.log("Data original:", adiantamento.data);
+      console.log("Data formatada para formulário:", dataFormatada);
+    
+      // Configurar o formulário para edição
+      setFormData({
+        id: adiantamento.id,
+        data: dataFormatada,
+        nome: adiantamento.nome,
+        observacao: adiantamento.observacao || "",
+        saida: valorFormatado
+      });
+    
+      setIsEditing(true);
+    
+      // Dar foco ao primeiro campo do formulário
+      setTimeout(() => {
+        const firstInput = document.querySelector('input[name="nome"]') as HTMLInputElement;
+        if (firstInput) firstInput.focus();
+      }, 100);
+    } catch (error) {
+      console.error("Erro ao preparar formulário para edição:", error);
+      toast.error("Não foi possível editar este adiantamento. Tente novamente.");
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -261,7 +330,7 @@ export default function AdiantamentoModal({
       return;
     }
     
-    if (!confirm("Tem certeza que deseja excluir este adiantamento?")) return;
+    if (!confirm("Tem certeza que deseja excluir este adiantamento?")) return; // Mantém a mensagem de "excluir" para o usuário
     
     try {
       setIsLoading(true);
@@ -272,11 +341,17 @@ export default function AdiantamentoModal({
         return;
       }
       
-      const response = await fetch(`/api/caixaviagem/adiantamento?id=${id}`, {
-        method: "DELETE",
+      // Usar o método PUT para ocultar o adiantamento
+      const response = await fetch(`/api/caixaviagem/adiantamento`, {
+        method: "PUT", // Mudando de DELETE para PUT
         headers: {
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
-        }
+        },
+        body: JSON.stringify({
+          adiantamentoId: id, 
+          oculto: true
+        })
       });
       
       if (!response.ok) {
@@ -284,7 +359,7 @@ export default function AdiantamentoModal({
         throw new Error(errorData.error || "Erro ao excluir adiantamento");
       }
       
-      toast.success("Adiantamento excluído com sucesso!");
+      toast.success("Adiantamento excluído com sucesso!"); // Mantém a mensagem de "excluído" para o usuário
       fetchAdiantamentos();
       onAdiantamentosUpdated();
     } catch (error) {
@@ -591,7 +666,7 @@ export default function AdiantamentoModal({
                                 <button
                                   onClick={() => handleDelete(adiantamento.id)}
                                   className="p-1.5 bg-red-100 text-red-700 rounded-full hover:bg-red-200"
-                                  title="Excluir adiantamento"
+                                  title="Excluir adiantamento" 
                                   disabled={isLoading}
                                 >
                                   <Trash2 size={16} />
