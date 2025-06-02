@@ -1827,13 +1827,37 @@ export default function CaixaViagemTodosPage() {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {sortedCaixas.slice(0, visibleItems).map((caixa) => {
                       // Calcular totais para esta caixa
-                      const totalEntradas = caixa.lancamentos
-                        .filter(l => l.entrada)
-                        .reduce((sum, l) => sum + (parseFloat(String(l.entrada)) || 0), 0);
+                      const lancamentos = Array.isArray(caixa.lancamentos) ? caixa.lancamentos : [];
+                      
+                      // Calcular entradas dos lançamentos
+                      const entradas = lancamentos
+                        .filter(l => l?.entrada && !isNaN(parseFloat(String(l.entrada))))
+                        .reduce((sum, item) => sum + parseFloat(String(item.entrada || "0")), 0);
                         
-                      const totalSaidas = caixa.lancamentos
-                        .filter(l => l.saida)
-                        .reduce((sum, l) => sum + (parseFloat(String(l.saida)) || 0), 0);
+                      // Calcular saídas dos lançamentos
+                      const saidasLancamentos = lancamentos
+                        .filter(l => l?.saida && !isNaN(parseFloat(String(l.saida))))
+                        .reduce((sum, item) => sum + parseFloat(String(item.saida || "0")), 0);
+
+                      // Calcular total de adiantamentos
+                      let totalAdiantamentos = 0;
+                      if (Array.isArray(caixa.adiantamentos)) {
+                       
+                        caixa.adiantamentos.forEach(adiantamento => {
+                          if (adiantamento.saida) {
+                            const valor = parseFloat(String(adiantamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
+                            if (!isNaN(valor)) {
+                              totalAdiantamentos += valor;
+                            }
+                          }
+                        });
+                      }
+                      
+                      // Saídas totais incluem lançamentos de saída + adiantamentos
+                      const saidas = saidasLancamentos + totalAdiantamentos;
+                      
+                      // O saldo deve considerar entradas - saídas(incluindo adiantamentos)
+                      const saldo = entradas - saidas;
 
                       return (
                         <tr key={caixa.id} className={`hover:bg-gray-50 ${caixa.oculto ? 'bg-gray-50' : ''}`}>
@@ -1883,26 +1907,26 @@ export default function CaixaViagemTodosPage() {
                           {/* Coluna de Entradas */}
                           <td className="px-6 py-4 text-right whitespace-nowrap">
                             <div className="text-base text-green-600 font-medium">
-                              {formatCurrency(totalEntradas)}
+                              {formatCurrency(entradas)}
                             </div>
                           </td>
                           
-                          {/* Coluna de Saídas */}
+                          {/* Coluna de Saídas - Agora inclui adiantamentos */}
                           <td className="px-6 py-4 text-right whitespace-nowrap">
                             <div className="text-base text-red-600 font-medium">
-                              {formatCurrency(totalSaidas)}
+                              {formatCurrency(saidas)}
                             </div>
                           </td>
                           
-                          {/* Coluna de Saldo */}
+                          {/* Coluna de Saldo - Calculado com o valor atualizado de saídas */}
                           <td className="px-6 py-4 text-right whitespace-nowrap">
                             <div className={`text-base font-semibold ${
-                              caixa.saldo > 0 
+                              saldo > 0 
                                 ? 'text-green-600' 
-                                : caixa.saldo < 0 
+                                : saldo < 0 
                                   ? 'text-red-600' 
                                   : 'text-blue-600'}`}>
-                              {formatCurrency(caixa.saldo)}
+                              {formatCurrency(saldo)}
                             </div>
                           </td>
                           
