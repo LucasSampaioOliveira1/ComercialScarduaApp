@@ -13,7 +13,8 @@ export async function POST(req: NextRequest) {
         empresa: true,
         funcionario: true,
         veiculo: true,
-        lancamentos: true
+        lancamentos: true,
+        adiantamentos: true // Manter para cálculo do total
       },
     });
 
@@ -63,8 +64,7 @@ export async function POST(req: NextRequest) {
 
     y -= spacing * 2;
 
-    // Modificação da função formatDate para adicionar um dia a todas as datas
-
+    // Formatação de data
     const formatDate = (dateString?: string | Date | null) => {
       if (!dateString) return "";
       try {
@@ -145,6 +145,11 @@ export async function POST(req: NextRequest) {
     const dataAtual = new Date();
     const dataAtualFormatada = `${dataAtual.getDate().toString().padStart(2, '0')}/${(dataAtual.getMonth() + 1).toString().padStart(2, '0')}/${dataAtual.getFullYear()}`;
 
+    // Obter saldo anterior
+    const saldoAnterior = typeof caixa.saldoAnterior === 'number'
+      ? caixa.saldoAnterior
+      : parseFloat(String(caixa.saldoAnterior || 0));
+
     const infoLines = [
       `Empresa: ${empresaNome}`,
       `Data da Viagem: ${formatDate(caixa.data)}`,
@@ -159,6 +164,11 @@ export async function POST(req: NextRequest) {
 
     if (caixa.observacao) {
       infoLines.push(`Observações: ${caixa.observacao}`);
+    }
+
+    // Adicionar saldo anterior se existir
+    if (saldoAnterior !== 0) {
+      infoLines.push(`Saldo Anterior: ${formatCurrency(saldoAnterior)}`);
     }
 
     infoLines.forEach(line => {
@@ -182,8 +192,20 @@ export async function POST(req: NextRequest) {
 
     // Seção de lançamentos
     const lancamentos = Array.isArray(caixa.lancamentos) ? caixa.lancamentos : [];
+    const adiantamentos = Array.isArray(caixa.adiantamentos) ? caixa.adiantamentos : [];
     
+    // Cálculo do total de adiantamentos (fora do grid)
+    let totalAdiantamentos = 0;
+    if (adiantamentos.length > 0) {
+      adiantamentos.forEach(adiantamento => {
+        const valorAdiantamento = adiantamento.saida ? parseFloat(String(adiantamento.saida)) : 0;
+        totalAdiantamentos += valorAdiantamento;
+      });
+    }
+    
+    // Verificar se há lançamentos
     if (lancamentos.length > 0) {
+      // Título da seção ajustado (removendo referência a adiantamentos no grid)
       page.drawText("DETALHAMENTO DOS LANÇAMENTOS:", {
         x: 60,
         y,
@@ -208,7 +230,6 @@ export async function POST(req: NextRequest) {
       });
 
       // Cabeçalhos da tabela com "Custo" adicionado
-      // Reduzindo os nomes dos cabeçalhos para evitar sobreposição
       const headers = ["Data", "Documento", "Cliente/Forn.", "Custo", "Histórico", "Entrada", "Saída"];
 
       // Reajustando larguras para melhor distribuição do espaço
@@ -255,7 +276,17 @@ export async function POST(req: NextRequest) {
       // Dados dos lançamentos
       let lineHeight = spacing - 2;
       
+      // Processar lançamentos
+      let totalEntradas = 0;
+      let totalSaidas = 0;
+      
       lancamentos.forEach((lancamento, index) => {
+        // Calcular totais
+        const entrada = lancamento.entrada ? parseFloat(String(lancamento.entrada)) : 0;
+        const saida = lancamento.saida ? parseFloat(String(lancamento.saida)) : 0;
+        totalEntradas += entrada;
+        totalSaidas += saida;
+        
         // Verificar se precisamos de uma nova página
         if (y < 100) {
           // Fechar tabela atual
@@ -278,7 +309,7 @@ export async function POST(req: NextRequest) {
           page = pdfDoc.addPage([595, 842]);
           y = height - 50;
           
-          page.drawText("DETALHAMENTO DOS LANÇAMENTOS (continuação):", {
+          page.drawText("DETALHAMENTO (continuação):", {
             x: 60,
             y,
             size: fontSize,
@@ -455,7 +486,6 @@ export async function POST(req: NextRequest) {
         });
         
         // Entrada - alinhar à direita dentro da coluna para valores monetários
-        const entrada = lancamento.entrada ? parseFloat(String(lancamento.entrada)) : 0;
         if (entrada > 0) {
           const entradaText = formatCurrency(entrada);
           const textWidth = font.widthOfTextAtSize(entradaText, fontSize);
@@ -486,7 +516,6 @@ export async function POST(req: NextRequest) {
         });
         
         // Saída - também alinhar à direita na coluna
-        const saida = lancamento.saida ? parseFloat(String(lancamento.saida)) : 0;
         if (saida > 0) {
           const saidaText = formatCurrency(saida);
           const textWidth = font.widthOfTextAtSize(saidaText, fontSize);
@@ -519,37 +548,11 @@ export async function POST(req: NextRequest) {
         y -= lineHeight + 1;
       });
 
-      // Calcular totais
-      let totalEntradas = 0;
-      let totalSaidas = 0;
-
-      lancamentos.forEach(lancamento => {
-        const entrada = lancamento.entrada ? parseFloat(String(lancamento.entrada)) : 0;
-        const saida = lancamento.saida ? parseFloat(String(lancamento.saida)) : 0;
-        
-        totalEntradas += entrada;
-        totalSaidas += saida;
-      });
+      // Ajustar espaçamento vertical após todos os lançamentos
+      y -= 5;
       
-      // Ajustar espaçamento vertical após o último lançamento
-      y -= 5; // Pequeno espaço adicional para separar visualmente os lançamentos dos totais
-
-      // TOTAL (vem primeiro)
-      // Linhas verticais para manter o formato da tabela
-      let totalX = tableLeft;
-      for (let i = 0; i < headers.length - 1; i++) {
-        const xPos = totalX + colWidths[i];
-        page.drawLine({
-          start: { x: xPos, y: y + lineHeight },
-          end: { x: xPos, y: y - 5 },
-          thickness: 1,
-          color: BLACK,
-        });
-        totalX += colWidths[i];
-      }
-
-      // Texto "TOTAL:" em negrito
-      page.drawText("TOTAL:", {
+      // TOTAL LANÇAMENTOS - Fora do grid, apenas com linha abaixo
+      page.drawText("TOTAL LANÇAMENTOS:", {
         x: tableLeft + 3,
         y,
         size: fontSize,
@@ -589,12 +592,52 @@ export async function POST(req: NextRequest) {
         color: BLACK,
       });
       
-      // SALDO (vem depois do total)
-      y -= lineHeight + 3; // Aumentar espaçamento entre total e saldo
-      const textYSaldo = y - 2; // Mesmo ajuste fino
+      // Adicionar linha de total de adiantamentos se houver adiantamentos
+      y -= lineHeight + 3;
+      
+      if (totalAdiantamentos > 0) {
+        const textYAdiant = y - 2;
+        
+        // Texto "TOTAL ADIANTAMENTOS:" em negrito
+        page.drawText("TOTAL ADIANTAMENTOS:", {
+          x: tableLeft + 3,
+          y: textYAdiant,
+          size: fontSize,
+          font: boldFont,
+          color: BLACK,
+        });
+        
+        // Valor total de adiantamentos como NEGATIVO e alinhado à direita na coluna de saída
+        // Importante: mostrar como valor negativo (multiplicar por -1)
+        const totalAdiantamentosNegativo = -totalAdiantamentos; // Converter para valor negativo
+        const totalAdiantamentosText = formatCurrency(totalAdiantamentosNegativo);
+        const totalAdiantamentosWidth = boldFont.widthOfTextAtSize(totalAdiantamentosText, fontSize);
+        
+        page.drawText(totalAdiantamentosText, {
+          x: xSaida + colWidths[6] - totalAdiantamentosWidth - 3, // Alinhado à direita
+          y: textYAdiant,
+          size: fontSize,
+          font: boldFont,
+          color: rgb(0.8, 0, 0), // Vermelho para valores negativos
+        });
+        
+        // Linha abaixo do total de adiantamentos
+        page.drawLine({
+          start: { x: tableLeft, y: y - 5 },
+          end: { x: tableRight, y: y - 5 },
+          thickness: 1,
+          color: BLACK,
+        });
+        
+        y -= lineHeight + 3;
+      }
+      
+      // SALDO FINAL (considera saldo anterior + entradas - saídas - adiantamentos)
+      const textYSaldo = y - 2;
+      const saldoFinal = saldoAnterior + totalEntradas - totalSaidas - totalAdiantamentos;
 
-      // Texto "SALDO:" em negrito
-      page.drawText("SALDO:", {
+      // Texto "SALDO FINAL:" em negrito
+      page.drawText("SALDO FINAL:", {
         x: tableLeft + 3,
         y: textYSaldo,
         size: fontSize,
@@ -602,19 +645,95 @@ export async function POST(req: NextRequest) {
         color: BLACK,
       });
       
-      // Saldo final (alinhado à direita)
-      const saldo = totalEntradas - totalSaidas;
-      const saldoText = formatCurrency(saldo);
+      // Valor do saldo final (alinhado à direita)
+      const saldoText = formatCurrency(saldoFinal);
       const saldoWidth = boldFont.widthOfTextAtSize(saldoText, fontSize);
+      
+      // Determinar a cor com base no valor do saldo
+      const saldoColor = saldoFinal >= 0 ? BLACK : rgb(0.8, 0, 0); // Preto se positivo/zero, vermelho se negativo
+      
       page.drawText(saldoText, {
         x: xSaida + colWidths[6] - saldoWidth - 3, // Alinhado à direita
+        y: textYSaldo,
+        size: fontSize,
+        font: boldFont,
+        color: saldoColor,
+      });
+      
+      // Linha abaixo do saldo - Esta é a linha final da tabela
+      page.drawLine({
+        start: { x: tableLeft, y: y - 5 },
+        end: { x: tableRight, y: y - 5 },
+        thickness: 1,
+        color: BLACK,
+      });
+    } else if (adiantamentos.length > 0) {
+      // Se não há lançamentos, mas há adiantamentos, mostrar apenas os totais
+      const tableWidth = 475;
+      const tableLeft = 60;
+      const tableRight = tableLeft + tableWidth;
+      const colWidths = [60, 65, 80, 70, 80, 60, 60]; // Total = 475
+      const xEntrada = tableLeft + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4];
+      const xSaida = xEntrada + colWidths[5];
+      
+      page.drawText("TOTAL ADIANTAMENTOS:", {
+        x: tableLeft + 3,
+        y,
+        size: fontSize,
+        font: boldFont,
+        color: BLACK,
+      });
+      
+      // Valor total de adiantamentos como NEGATIVO
+      const totalAdiantamentosNegativo = -totalAdiantamentos;
+      const totalAdiantamentosText = formatCurrency(totalAdiantamentosNegativo);
+      const totalAdiantamentosWidth = boldFont.widthOfTextAtSize(totalAdiantamentosText, fontSize);
+      
+      page.drawText(totalAdiantamentosText, {
+        x: xSaida + colWidths[6] - totalAdiantamentosWidth - 3,
+        y,
+        size: fontSize,
+        font: boldFont,
+        color: rgb(0.8, 0, 0),
+      });
+      
+      // Linha abaixo do total de adiantamentos
+      page.drawLine({
+        start: { x: tableLeft, y: y - 5 },
+        end: { x: tableRight, y: y - 5 },
+        thickness: 1,
+        color: BLACK,
+      });
+      
+      y -= spacing + 2;
+      
+      // SALDO FINAL (com apenas adiantamentos)
+      const textYSaldo = y - 2;
+      const saldoFinal = saldoAnterior - totalAdiantamentos; // Apenas saldo anterior - adiantamentos
+
+      // Texto "SALDO FINAL:" em negrito
+      page.drawText("SALDO FINAL:", {
+        x: tableLeft + 3,
         y: textYSaldo,
         size: fontSize,
         font: boldFont,
         color: BLACK,
       });
       
-      // Linha abaixo do saldo - Esta é a linha final da tabela
+      // Valor do saldo final
+      const saldoText = formatCurrency(saldoFinal);
+      const saldoWidth = boldFont.widthOfTextAtSize(saldoText, fontSize);
+      const saldoColor = saldoFinal >= 0 ? BLACK : rgb(0.8, 0, 0);
+      
+      page.drawText(saldoText, {
+        x: xSaida + colWidths[6] - saldoWidth - 3,
+        y: textYSaldo,
+        size: fontSize,
+        font: boldFont,
+        color: saldoColor,
+      });
+      
+      // Linha abaixo do saldo
       page.drawLine({
         start: { x: tableLeft, y: y - 5 },
         end: { x: tableRight, y: y - 5 },
