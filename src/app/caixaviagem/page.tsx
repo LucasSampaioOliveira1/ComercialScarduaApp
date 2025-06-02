@@ -46,6 +46,7 @@ interface CaixaViagem {
   saldo?: number;
   numeroCaixa?: number;
   lancamentos: Lancamento[];
+  adiantamentos?: any[]; // Adicionando a propriedade adiantamentos
   user?: {
     id: string;
     nome: string;
@@ -1034,13 +1035,14 @@ export default function CaixaViagemPage() {
     }
   };
 
-  // Adicione este useMemo após a definição de sortedCaixas para calcular estatísticas baseadas nos filtros
+  // Modificar o useMemo que calcula as estatísticas filtradas
   const filteredStats = useMemo(() => {
     // Calcular estatísticas a partir das caixas filtradas
     const totalCaixas = filteredCaixas.length;
     
     let totalEntradas = 0;
     let totalSaidas = 0;
+    let totalAdiantamentos = 0;
     
     filteredCaixas.forEach(caixa => {
       // Calcular entradas e saídas dos lançamentos para cada caixa filtrada
@@ -1061,15 +1063,28 @@ export default function CaixaViagemPage() {
           }
         });
       }
+      
+      // Adicionar cálculo dos adiantamentos
+      if (Array.isArray(caixa.adiantamentos)) {
+        caixa.adiantamentos.forEach(adiantamento => {
+          if (adiantamento.saida) {
+            const valor = parseFloat(String(adiantamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
+            if (!isNaN(valor)) {
+              totalAdiantamentos += valor;
+            }
+          }
+        });
+      }
     });
     
-    // Calcular saldo geral
-    const saldoGeral = totalEntradas - totalSaidas;
+    // Calcular saldo geral (incluindo adiantamentos nas saídas)
+    const saldoGeral = totalEntradas - totalSaidas - totalAdiantamentos;
     
     return {
       totalCaixas,
       totalEntradas,
-      totalSaidas,
+      totalSaidas: totalSaidas + totalAdiantamentos,
+      totalAdiantamentos,
       saldoGeral
     };
   }, [filteredCaixas]);
@@ -1793,7 +1808,7 @@ export default function CaixaViagemPage() {
                                 <Edit size={18} />
                               </button>
                             )}
-                            
+
                             {userPermissions.canDelete && (
                               <button
                                 onClick={() => handleToggleVisibility(caixa)}

@@ -51,32 +51,40 @@ export async function GET(
       return NextResponse.json({ error: "ID de usuário não fornecido" }, { status: 400 });
     }
     
-    // Buscar todas as caixas de viagem do usuário
-    const caixasViagem = await prisma.caixaViagem.findMany({
+    // Buscar caixas do usuário incluindo adiantamentos
+    const caixas = await prisma.caixaViagem.findMany({
       where: {
         userId: params.id,
         oculto: false
       },
       include: {
-        empresa: true,
-        funcionario: true,
-        veiculo: {
+        lancamentos: true,
+        funcionario: {
           select: {
             id: true,
             nome: true,
-            modelo: true,
-            placa: true
+            sobrenome: true,
+            setor: true
           }
         },
-        lancamentos: true
+        empresa: true,
+        veiculo: true,
+        adiantamentos: true, // Incluir adiantamentos vinculados à caixa
+        user: {
+          select: {
+            id: true,
+            nome: true,
+            sobrenome: true,
+            email: true
+          }
+        }
       },
-      orderBy: [
-        { funcionarioId: 'asc' },
-        { numeroCaixa: 'desc' }  // Ordenação por número do caixa
-      ]
+      orderBy: {
+        createdAt: 'desc'
+      }
     });
 
-    return NextResponse.json(caixasViagem);
+    return NextResponse.json(caixas);
   } catch (error) {
     console.error("Erro ao buscar caixas de viagem:", error);
     return NextResponse.json(

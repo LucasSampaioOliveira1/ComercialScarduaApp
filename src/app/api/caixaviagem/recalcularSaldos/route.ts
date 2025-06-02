@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'ID do usuário é obrigatório' }, { status: 400 });
     }
     
-    // Buscar caixas para recalcular
+    // Buscar caixas para recalcular incluindo adiantamentos
     let caixas;
     
     if (funcionarioId) {
@@ -60,7 +60,10 @@ export async function POST(req: NextRequest) {
           oculto: false
         },
         orderBy: { numeroCaixa: 'asc' },
-        include: { lancamentos: true }
+        include: { 
+          lancamentos: true,
+          adiantamentos: true // Incluir adiantamentos 
+        }
       });
     } else {
       // Se não for fornecido funcionarioId, buscar todas as caixas
@@ -72,7 +75,10 @@ export async function POST(req: NextRequest) {
           { funcionarioId: 'asc' },
           { numeroCaixa: 'asc' }
         ],
-        include: { lancamentos: true }
+        include: { 
+          lancamentos: true,
+          adiantamentos: true // Incluir adiantamentos 
+        }
       });
     }
 
@@ -128,6 +134,7 @@ export async function POST(req: NextRequest) {
         // Calcular totais para esta caixa
         let totalEntradas = 0;
         let totalSaidas = 0;
+        let totalAdiantamentos = 0;
         
         // Somar lançamentos
         if (caixa.lancamentos) {
@@ -143,12 +150,12 @@ export async function POST(req: NextRequest) {
             });
         }
         
-        // Novo: somar adiantamentos vinculados a este caixa
-        let totalAdiantamentos = 0;
+        // Somar adiantamentos
         if (caixa.adiantamentos) {
             caixa.adiantamentos.forEach((adiantamento: { saida?: number | string | null }) => {
             if (adiantamento.saida) {
-              totalAdiantamentos += parseFloat(String(adiantamento.saida));
+              const valor = parseFloat(String(adiantamento.saida));
+              if (!isNaN(valor)) totalAdiantamentos += valor;
             }
             });
         }

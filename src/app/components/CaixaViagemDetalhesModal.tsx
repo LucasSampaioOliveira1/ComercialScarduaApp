@@ -441,6 +441,50 @@ const CaixaViagemDetalhesModal = ({
                     </div>
                   </div>
                 </div>
+                
+                {/* Adicionar uma nova seção para mostrar os adiantamentos vinculados */}
+                {Array.isArray(caixa.adiantamentos) && caixa.adiantamentos.length > 0 && (
+                  <div className="mt-6">
+                    <h3 className="font-medium text-gray-800 mb-3 text-sm">Adiantamentos Aplicados</h3>
+                    <div className="bg-red-50 rounded-lg border border-red-100 overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-red-200">
+                          <thead className="bg-red-50">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-red-700">Data</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-red-700">Nome</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-red-700">Observação</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-red-700">Valor</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-red-200">
+                            {caixa.adiantamentos.map((adiantamento: any) => (
+                              <tr key={adiantamento.id} className="bg-white hover:bg-red-50">
+                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{formatDate(adiantamento.data)}</td>
+                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{adiantamento.nome}</td>
+                                <td className="px-4 py-2 text-sm text-gray-500">{adiantamento.observacao || "-"}</td>
+                                <td className="px-4 py-2 whitespace-nowrap text-sm text-right font-medium text-red-600">
+                                  {formatCurrency(parseFloat(String(adiantamento.saida)))}
+                                </td>
+                              </tr>
+                            ))}
+                            <tr className="bg-red-50">
+                              <td colSpan={3} className="px-4 py-2 text-right text-sm font-medium text-red-700">Total de Adiantamentos:</td>
+                              <td className="px-4 py-2 text-right text-sm font-medium text-red-700">
+                                {formatCurrency(
+                                  caixa.adiantamentos.reduce((total: number, adiantamento: any) => {
+                                    const valor = parseFloat(String(adiantamento.saida));
+                                    return total + (isNaN(valor) ? 0 : valor);
+                                  }, 0)
+                                )}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             

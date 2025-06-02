@@ -23,6 +23,17 @@ interface CaixaViagemCardProps {
   canDelete: boolean;
 }
 
+// Atualizar a interface da caixa para incluir adiantamentos
+interface CaixaViagem {
+  // ...propriedades existentes
+  adiantamentos?: Adiantamento[];
+}
+
+interface Adiantamento {
+  id: number;
+  saida: string | number;
+}
+
 const CaixaViagemCard = ({ 
   caixa, 
   empresas,
@@ -56,6 +67,7 @@ const CaixaViagemCard = ({
       // Calcular apenas entradas e saídas para exibição
       let totalEntradas = 0;
       let totalSaidas = 0;
+      let totalAdiantamentos = 0;
       
       // Calcular entradas e saídas para exibição nos cards
       if (Array.isArray(caixa.lancamentos)) {
@@ -74,12 +86,24 @@ const CaixaViagemCard = ({
           }
         });
       }
+
+      // Adicionar cálculo dos adiantamentos
+      if (Array.isArray(caixa.adiantamentos)) {
+        caixa.adiantamentos.forEach((adiantamento: Adiantamento) => {
+          if (adiantamento.saida) {
+            const valorAdiantamento: number = parseFloat(String(adiantamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
+            if (!isNaN(valorAdiantamento)) {
+              totalAdiantamentos += valorAdiantamento;
+            }
+          }
+        });
+      }
       
-      // Retornar o saldo da API e os totais calculados
+      // Retornar o saldo da API, os totais calculados e o total de adiantamentos
       return {
         saldo: caixa.saldo, // Usar o valor calculado pelo backend
         entradas: totalEntradas,
-        saidas: totalSaidas
+        saidas: totalSaidas + totalAdiantamentos // Incluir adiantamentos nas saídas
       };
     }
     
@@ -91,8 +115,9 @@ const CaixaViagemCard = ({
     
     let totalEntradas = 0;
     let totalSaidas = 0;
+    let totalAdiantamentos = 0;
     
-    // Calcular entradas e saídas
+    // Calcular entradas e saídas dos lançamentos
     if (Array.isArray(caixa.lancamentos)) {
       caixa.lancamentos.forEach((lancamento: Lancamento) => {
         if (lancamento.entrada) {
@@ -110,11 +135,23 @@ const CaixaViagemCard = ({
       });
     }
     
-    // O saldo é a soma do saldo anterior com entradas menos saídas
+    // Adicionar cálculo dos adiantamentos
+    if (Array.isArray(caixa.adiantamentos)) {
+      caixa.adiantamentos.forEach((adiantamento: Adiantamento) => {
+        if (adiantamento.saida) {
+          const valorAdiantamento: number = parseFloat(String(adiantamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
+          if (!isNaN(valorAdiantamento)) {
+        totalAdiantamentos += valorAdiantamento;
+          }
+        }
+      });
+    }
+    
+    // O saldo é a soma do saldo anterior com entradas menos saídas (incluindo adiantamentos)
     return {
-      saldo: saldoAnterior + totalEntradas - totalSaidas,
+      saldo: saldoAnterior + totalEntradas - totalSaidas - totalAdiantamentos,
       entradas: totalEntradas,
-      saidas: totalSaidas
+      saidas: totalSaidas + totalAdiantamentos // Incluir adiantamentos nas saídas
     };
   };
 
@@ -340,6 +377,28 @@ const CaixaViagemCard = ({
             )}
           </div>
         </div>
+        
+        {/* Adicionar um badge ou indicador para mostrar quando há adiantamentos aplicados */}
+        {Array.isArray(caixa.adiantamentos) && caixa.adiantamentos.length > 0 && (
+          <div className="mt-2 flex items-center">
+            <div className="bg-red-50 border border-red-100 rounded-md p-2 w-full">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-medium text-red-600 flex items-center">
+                  <LinkIcon size={12} className="mr-1" />
+                  Adiantamentos aplicados
+                </span>
+                <span className="text-xs font-bold text-red-600">
+                    {formatCurrency(
+                    caixa.adiantamentos.reduce((total: number, adiantamento: Adiantamento) => {
+                      const valor: number = parseFloat(String(adiantamento.saida));
+                      return total + (isNaN(valor) ? 0 : valor);
+                    }, 0)
+                    )}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
