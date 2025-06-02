@@ -70,8 +70,17 @@ const CaixaViagemDetalhesModal = ({
   const totalSaidas: number = lancamentos
     .filter((l: Lancamento) => l?.saida && !isNaN(parseFloat(String(l.saida))))
     .reduce((sum: number, item: Lancamento) => sum + parseFloat(String(item.saida || "0")), 0);
+
+  // Calcular o total de adiantamentos
+  const totalAdiantamentos: number = Array.isArray(caixa.adiantamentos)
+    ? caixa.adiantamentos.reduce((sum: number, adiantamento: any) => {
+        const valor = parseFloat(String(adiantamento.saida || "0"));
+        return sum + (isNaN(valor) ? 0 : valor);
+      }, 0)
+    : 0;
   
-  const saldo = totalEntradas - totalSaidas;
+  // Calcular o saldo incluindo adiantamentos
+  const saldo = totalEntradas - totalSaidas - totalAdiantamentos;
 
   // Formatar valores para exibição
   const formatCurrency = (value: number) => {
@@ -305,8 +314,8 @@ const CaixaViagemDetalhesModal = ({
                   <div className="bg-red-50 p-3 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-xs font-medium text-gray-600">Saídas</p>
-                        <p className="text-lg font-bold text-red-600">{formatCurrency(totalSaidas)}</p>
+                        <p className="text-xs font-medium text-gray-600">Saídas + Adiantamentos</p>
+                        <p className="text-lg font-bold text-red-600">{formatCurrency(totalSaidas + totalAdiantamentos)}</p>
                       </div>
                       <div className="bg-red-100 rounded-full p-1.5">
                         <ArrowUpCircle size={16} className="text-red-600" />
@@ -527,14 +536,22 @@ const CaixaViagemDetalhesModal = ({
                         
                         {/* Linha de total */}
                         <tr className="bg-gray-50 font-medium">
-                          <td colSpan={5} className="px-6 py-3 text-right text-sm">Totais:</td>
+                          <td colSpan={5} className="px-6 py-3 text-right text-sm">Totais (Lançamentos):</td>
                           <td className="px-6 py-3 text-right text-green-600 font-semibold">{formatCurrency(totalEntradas)}</td>
                           <td className="px-6 py-3 text-right text-red-600 font-semibold">{formatCurrency(totalSaidas)}</td>
                         </tr>
                         
+                        {/* Adicionar linha para adiantamentos se existirem */}
+                        {totalAdiantamentos > 0 && (
+                          <tr className="bg-red-50 font-medium">
+                            <td colSpan={6} className="px-6 py-3 text-right text-sm">Total de Adiantamentos:</td>
+                            <td className="px-6 py-3 text-right text-red-600 font-semibold">{formatCurrency(totalAdiantamentos)}</td>
+                          </tr>
+                        )}
+
                         {/* Linha de saldo */}
                         <tr className="bg-gray-100">
-                          <td colSpan={5} className="px-6 py-3 text-right text-sm font-medium">Saldo:</td>
+                          <td colSpan={5} className="px-6 py-3 text-right text-sm font-medium">Saldo (incluindo adiantamentos):</td>
                           <td colSpan={2} className={`px-6 py-3 text-right font-semibold ${saldo >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
                             {formatCurrency(saldo)}
                           </td>

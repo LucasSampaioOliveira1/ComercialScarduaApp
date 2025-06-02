@@ -82,9 +82,16 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    // Calcular saldo para cada caixa
+    // Calcular saldo para cada caixa (na função GET)
     const caixasComSaldo = caixas.map(caixa => {
       let saldo = 0;
+      
+      // Adicionar saldo anterior
+      if (caixa.saldoAnterior) {
+        saldo += Number(caixa.saldoAnterior);
+      }
+      
+      // Calcular com base nos lançamentos
       caixa.lancamentos.forEach(lancamento => {
         if (lancamento.entrada) {
           saldo += parseFloat(lancamento.entrada);
@@ -93,6 +100,19 @@ export async function GET(req: NextRequest) {
           saldo -= parseFloat(lancamento.saida);
         }
       });
+      
+      // Subtrair os adiantamentos aplicados à caixa
+      let totalAdiantamentos = 0;
+      if (Array.isArray(caixa.adiantamentos)) {
+        caixa.adiantamentos.forEach(adiantamento => {
+          if (adiantamento.saida) {
+            totalAdiantamentos += parseFloat(String(adiantamento.saida));
+          }
+        });
+      }
+      
+      // Subtrair o total de adiantamentos do saldo
+      saldo -= totalAdiantamentos;
       
       return {
         ...caixa,

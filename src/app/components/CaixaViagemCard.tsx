@@ -99,11 +99,11 @@ const CaixaViagemCard = ({
         });
       }
       
-      // Retornar o saldo da API, os totais calculados e o total de adiantamentos
+      // Retornar o saldo correto que já inclui adiantamentos conforme calculado pelo backend
       return {
-        saldo: caixa.saldo, // Usar o valor calculado pelo backend
+        saldo: caixa.saldo,
         entradas: totalEntradas,
-        saidas: totalSaidas + totalAdiantamentos // Incluir adiantamentos nas saídas
+        saidas: totalSaidas + totalAdiantamentos // Incluir adiantamentos nas saídas apenas para exibição
       };
     }
     
