@@ -811,9 +811,18 @@ export default function ContaCorrentePage() {
   const formatDate = (dateString?: string) => {
     if (!dateString) return "";
     try {
+      // Se a data está no formato ISO (YYYY-MM-DD), criar a data sem problemas de timezone
+      if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
+        const [year, month, day] = dateString.split('T')[0].split('-');
+        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        return format(date, 'dd/MM/yyyy', { locale: ptBR });
+      }
+      
+      // Para outros formatos, tentar conversão normal
       const date = new Date(dateString);
       return format(date, 'dd/MM/yyyy', { locale: ptBR });
     } catch (error) {
+      console.error("Erro ao formatar data:", error);
       return dateString;
     }
   };

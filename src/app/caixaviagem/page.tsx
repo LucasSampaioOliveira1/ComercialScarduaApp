@@ -2148,22 +2148,27 @@ export default function CaixaViagemPage() {
             )}
       
                   {/* Modais de Adiantamento */}
-      {isAdiantamentoModalOpen && (
-        <AdiantamentoModal
-          isOpen={isAdiantamentoModalOpen}
-          onClose={() => setIsAdiantamentoModalOpen(false)}
-          onAdiantamentosUpdated={handleAdiantamentosUpdated}
-        />
-      )}
+        {isAdiantamentoModalOpen && (
+          <AdiantamentoModal
+            isOpen={isAdiantamentoModalOpen}
+            onClose={() => setIsAdiantamentoModalOpen(false)}
+            onAdiantamentosUpdated={handleAdiantamentosUpdated}
+            userPermissions={{
+              canCreate: userPermissions.canCreate,
+              canEdit: userPermissions.canEdit,
+              canDelete: userPermissions.canDelete
+            }}
+          />
+        )}
 
-      {isAplicarAdiantamentoModalOpen && selectedCaixa && (
-        <AplicarAdiantamentoModal
-          isOpen={isAplicarAdiantamentoModalOpen}
-          onClose={() => setIsAplicarAdiantamentoModalOpen(false)}
-          caixaViagem={selectedCaixa}
-          onAdiantamentoAplicado={handleAdiantamentosUpdated}
-        />
-      )}
+        {isAplicarAdiantamentoModalOpen && selectedCaixa && (
+          <AplicarAdiantamentoModal
+            isOpen={isAplicarAdiantamentoModalOpen}
+            onClose={() => setIsAplicarAdiantamentoModalOpen(false)}
+            caixaViagem={selectedCaixa}
+            onAdiantamentoAplicado={handleAdiantamentosUpdated}
+          />
+        )}
 
       <ToastContainer position="bottom-right" />
     </div>

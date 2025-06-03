@@ -333,13 +333,10 @@ export default function ContaCorrenteTodosPage() {
     setLoading(true);
     
     try {
-      // Importante: LOG para depuração
       console.log("Iniciando carregamento de dados com permissões:", userPermissions);
       
       await Promise.all([
-        // Usar a flag hasAllDataAccess para determinar o acesso a todos os dados
-        fetchContasCorrente(authToken).catch(() => []),
-        fetchEstatisticas(authToken).catch(() => null),
+        fetchContasCorrente(authToken).catch(() => []), // Já calcula estatísticas internamente
         fetchEmpresas(authToken).catch(() => []),
         fetchColaboradores(authToken).catch(() => []),
         fetchUsuarios(authToken).catch(() => [])
@@ -374,6 +371,10 @@ export default function ContaCorrenteTodosPage() {
       
       const contasArray = ensureArray<ContaCorrente>(data);
       setContasCorrente(contasArray);
+      
+      // IMPORTANTE: Calcular estatísticas imediatamente após carregar as contas
+      await fetchEstatisticas(authToken, contasArray);
+      
       return contasArray;
     } catch (error) {
       console.error("Erro ao buscar contas corrente:", error);
@@ -383,34 +384,76 @@ export default function ContaCorrenteTodosPage() {
     }
   };
 
-  const fetchEstatisticas = async (authToken: string) => {
+  const fetchEstatisticas = async (authToken: string, contasCarregadas?: ContaCorrente[]) => {
     try {
-      // Garantir que as estatísticas correspondam ao que está sendo exibido
-      const response = await fetch(`/api/contacorrente/stats?showHidden=${showHidden}`, {
-        headers: { Authorization: `Bearer ${authToken}` }
+      // Usar as contas passadas como parâmetro ou as já carregadas
+      const contasParaCalcular = contasCarregadas || contasCorrente;
+      
+      console.log("Calculando estatísticas para", contasParaCalcular.length, "contas");
+      
+      // Calcular estatísticas diretamente dos dados
+      let totalCreditos = 0;
+      let totalDebitos = 0;
+      let saldoGeral = 0;
+      let totalContasVisiveis = 0;
+      
+      contasParaCalcular.forEach(conta => {
+        // Filtrar contas ocultas se necessário
+        if (!showHidden && conta.oculto) return;
+        
+        totalContasVisiveis++;
+        
+        // Somar o saldo da conta
+        saldoGeral += conta.saldo || 0;
+        
+        // Calcular totais de créditos e débitos dos lançamentos
+        if (Array.isArray(conta.lancamentos)) {
+          conta.lancamentos.forEach(lancamento => {
+            // Processar créditos
+            if (lancamento.credito) {
+              const credito = parseFloat(String(lancamento.credito).replace(/[^\d.,]/g, '').replace(',', '.'));
+              if (!isNaN(credito)) {
+                totalCreditos += credito;
+              }
+            }
+            
+            // Processar débitos
+            if (lancamento.debito) {
+              const debito = parseFloat(String(lancamento.debito).replace(/[^\d.,]/g, '').replace(',', '.'));
+              if (!isNaN(debito)) {
+                totalDebitos += debito;
+              }
+            }
+          });
+        }
       });
       
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Erro ao buscar estatísticas");
-      }
-      
-      const data = await response.json();
-      
-      const resultadoPeriodo = (data.creditosMes || 0) - (data.debitosMes || 0);
-      
-      const estatisticasCompletas = {
-        ...data,
-        resultadoPeriodo,
-        // Usar o número correto de contas de acordo com a visibilidade
-        totalContas: showHidden ? (data.totalContasGeral || data.totalContas) : (data.totalContasVisiveis || data.totalContas)
+      const estatisticasCalculadas = {
+        totalContas: totalContasVisiveis,
+        saldoGeral: saldoGeral,
+        creditosMes: totalCreditos,
+        debitosMes: totalDebitos,
+        resultadoPeriodo: totalCreditos - totalDebitos
       };
       
-      setEstatisticas(estatisticasCompletas);
-      return estatisticasCompletas;
+      console.log("Estatísticas calculadas:", estatisticasCalculadas);
+      setEstatisticas(estatisticasCalculadas);
+      return estatisticasCalculadas;
+      
     } catch (error) {
-      console.error("Erro ao buscar estatísticas:", error);
-      throw error;
+      console.error("Erro ao calcular estatísticas:", error);
+      
+      // Em caso de erro, definir estatísticas zeradas
+      const estatisticasZeradas = {
+        totalContas: 0,
+        saldoGeral: 0,
+        creditosMes: 0,
+        debitosMes: 0,
+        resultadoPeriodo: 0
+      };
+      
+      setEstatisticas(estatisticasZeradas);
+      return estatisticasZeradas;
     }
   };
 
@@ -510,10 +553,8 @@ export default function ContaCorrenteTodosPage() {
   
   useEffect(() => {
     if (token) {
-      Promise.all([
-        fetchContasCorrente(token),
-        fetchEstatisticas(token)
-      ]).catch(error => {
+      // Só buscar contas corrente, que já vai calcular as estatísticas
+      fetchContasCorrente(token).catch(error => {
         console.error("Erro ao atualizar dados:", error);
       });
     }
@@ -832,6 +873,14 @@ export default function ContaCorrenteTodosPage() {
   const formatDate = (dateString: string) => {
     if (!dateString) return "";
     try {
+      // Se a data está no formato ISO (YYYY-MM-DD), criar a data sem problemas de timezone
+      if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
+        const [year, month, day] = dateString.split('T')[0].split('-');
+        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        return format(date, 'dd/MM/yyyy');
+      }
+      
+      // Para outros formatos, tentar conversão normal
       const date = new Date(dateString);
       return format(date, 'dd/MM/yyyy');
     } catch (error) {
@@ -1066,7 +1115,7 @@ export default function ContaCorrenteTodosPage() {
                 <div>
                   <p className="text-xs text-gray-500">Total de Contas</p>
                   <p className="text-lg font-bold text-gray-900">
-                    {loading ? "..." : estatisticas?.totalContas || 0}
+                    {loading ? "..." : (estatisticas?.totalContas ?? 0)}
                   </p>
                 </div>
                 <div className="rounded-full p-2 bg-blue-100 text-blue-600">
@@ -1083,7 +1132,7 @@ export default function ContaCorrenteTodosPage() {
                 <div>
                   <p className="text-xs text-gray-500">Total de Saídas</p>
                   <p className="text-lg font-bold text-red-600">
-                    {loading ? "..." : formatCurrency(estatisticas?.debitosMes || 0)}
+                    {loading ? "..." : formatCurrency(estatisticas?.debitosMes ?? 0)}
                   </p>
                 </div>
                 <div className="rounded-full p-2 bg-red-100 text-red-600">
@@ -1100,7 +1149,7 @@ export default function ContaCorrenteTodosPage() {
                 <div>
                   <p className="text-xs text-gray-500">Total de Entradas</p>
                   <p className="text-lg font-bold text-green-600">
-                    {loading ? "..." : formatCurrency(estatisticas?.creditosMes || 0)}
+                    {loading ? "..." : formatCurrency(estatisticas?.creditosMes ?? 0)}
                   </p>
                 </div>
                 <div className="rounded-full p-2 bg-green-100 text-green-600">
@@ -1116,11 +1165,11 @@ export default function ContaCorrenteTodosPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs text-gray-500">Saldo Geral</p>
-                  <p className={`text-lg font-bold ${estatisticas?.saldoGeral && estatisticas.saldoGeral >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {loading ? "..." : formatCurrency(estatisticas?.saldoGeral || 0)}
+                  <p className={`text-lg font-bold ${(estatisticas?.saldoGeral ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {loading ? "..." : formatCurrency(estatisticas?.saldoGeral ?? 0)}
                   </p>
                 </div>
-                <div className={`rounded-full p-2 ${estatisticas?.saldoGeral && estatisticas.saldoGeral >= 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                <div className={`rounded-full p-2 ${(estatisticas?.saldoGeral ?? 0) >= 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
                   <DollarSign size={20} />
                 </div>
               </div>
@@ -1442,135 +1491,137 @@ export default function ContaCorrenteTodosPage() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Usuário
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Conta
                       </th>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Fornecedor/Cliente
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Data
                       </th>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Tipo
                       </th>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Empresa/Fornecedor
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Setor
                       </th>
-                      <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Empresa
+                      </th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Créditos
+                      </th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Débitos
+                      </th>
+                      <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Saldo
                       </th>
-                      <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Lançamentos
-                      </th>
-                      <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Ações
                       </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredContas.map((conta) => (
-                      <tr key={conta.id} className={`hover:bg-gray-50 ${conta.oculto ? 'bg-gray-50' : ''}`}>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm">
-                          <div className="flex items-center">
-                            <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600">
-                              <UserCircle size={20} />
-                            </div>
-                            <div className="ml-2">
-                              <div className="font-medium text-gray-900">
-                                {conta.user?.nome} {conta.user?.sobrenome}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {conta.user?.email}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          {conta.fornecedorCliente || conta.observacao || `Conta #${conta.id}`}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                          {conta.tipo || '-'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-500">
-                          {conta.empresa?.nome || conta.fornecedorCliente || '-'}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-medium">
-                          <span className={
-                            conta.saldo > 0 
-                              ? 'text-green-600' 
-                              : conta.saldo < 0 
-                                ? 'text-red-600' 
-                                : 'text-blue-600'  // Cor azul para saldo zero (neutro)
-                          }>
-                            {formatCurrency(conta.saldo)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
-                          <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
-                            {conta.lancamentos.length}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
-                          {conta.oculto ? (
-                            <span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">
-                              Oculto
-                            </span>
-                          ) : (
-                            <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                              Visível
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
-                          <div className="flex items-center justify-center space-x-2">
-                            {/* Botão para gerar termo PDF - adicionar como primeiro botão */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // Aqui você precisaria criar uma função handleGeneratePdf
-                                // Semelhante ao que foi feito na página contacorrente
-                                handleGeneratePdf(conta);
-                              }}
-                              className="p-2 bg-orange-100 text-orange-600 rounded-full hover:bg-orange-200 transition-colors"
-                              title="Gerar Termo"
-                            >
-                              <FileText size={16} />
-                            </button>
-                            
-                            <button
-                              onClick={() => handleVerDetalhes(conta)}
-                              className="text-blue-600 hover:text-blue-800"
-                              title="Ver detalhes"
-                            >
-                              <Eye size={18} />
-                            </button>
+                    {filteredContas.map((conta) => {
+                      const lancamentos = Array.isArray(conta.lancamentos) ? conta.lancamentos : [];
+                      const creditos = lancamentos
+                        .filter((l) => l?.credito && !isNaN(parseFloat(String(l.credito))))
+                        .reduce((sum, item) => sum + parseFloat(String(item.credito || "0")), 0);
+                      const debitos = lancamentos
+                        .filter((l) => l?.debito && !isNaN(parseFloat(String(l.debito))))
+                        .reduce((sum, item) => sum + parseFloat(String(item.debito || "0")), 0);
+                      const saldo = creditos - debitos;
 
-                            {/* Mostrar botão de editar APENAS se tiver permissão */}
-                            {userPermissions.canEdit && (
+                      return (
+                        <tr key={conta.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {conta.fornecedorCliente || `Conta #${conta.id}`}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {conta.user ? `${conta.user.nome} ${conta.user.sobrenome || ''}` : 'Usuário não encontrado'}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              {lancamentos.length} lançamento(s)
+                            </div>
+                          </td>
+                          
+                          <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {formatDate(conta.data)}
+                          </td>
+                          
+                          <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {conta.tipo === 'EXTRA_CAIXA' ? 'Extra Caixa' : 
+                             conta.tipo === 'PERMUTA' ? 'Permuta' : 
+                             conta.tipo === 'DEVOLUCAO' ? 'Devolução' : conta.tipo}
+                          </td>
+
+                          <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {conta.setor || '-'}
+                          </td>
+                          
+                          <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {conta.empresa?.nome || 'Sem empresa'}
+                          </td>
+
+                          <td className="px-3 py-3 whitespace-nowrap text-right text-sm font-medium text-green-600">
+                            {formatCurrency(creditos)}
+                          </td>
+
+                          <td className="px-3 py-3 whitespace-nowrap text-right text-sm font-medium text-red-600">
+                            {formatCurrency(debitos)}
+                          </td>
+
+                          <td className="px-3 py-3 whitespace-nowrap text-right text-sm font-medium">
+                            <span className={saldo > 0 ? 'text-green-600' : saldo < 0 ? 'text-red-600' : 'text-blue-600'}>
+                              {formatCurrency(saldo)}
+                            </span>
+                          </td>
+
+                          <td className="px-3 py-3 whitespace-nowrap text-center">
+                            <div className="flex items-center justify-center space-x-2">
                               <button
-                                onClick={() => handleEditarConta(conta)}
-                                className="text-orange-600 hover:text-orange-800"
-                                title="Editar"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleGeneratePdf(conta);
+                                }}
+                                className="p-2 bg-orange-100 text-orange-600 rounded-full hover:bg-orange-200 transition-colors"
+                                title="Gerar Termo"
                               >
-                                <Edit size={18} />
+                                <FileText size={16} />
                               </button>
-                            )}
-                            
-                            {/* Mostrar botão de excluir APENAS se tiver permissão */}
-                            {userPermissions.canDelete && (
+                              
                               <button
-                                onClick={() => handleOcultarConta(conta.id)}
-                                className="text-red-600 hover:text-red-800"
-                                title="Excluir"
+                                onClick={() => handleVerDetalhes(conta)}
+                                className="text-blue-600 hover:text-blue-800"
+                                title="Ver detalhes"
                               >
-                                <Trash size={18} />
+                                <Eye size={16} />
                               </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                              
+                              {userPermissions.canEdit && (
+                                <button
+                                  onClick={() => handleEditarConta(conta)}
+                                  className="text-orange-600 hover:text-orange-800"
+                                  title="Editar"
+                                >
+                                  <Edit size={16} />
+                                </button>
+                              )}
+                              
+                              {userPermissions.canDelete && (
+                                <button
+                                  onClick={() => handleOcultarConta(conta.id)}
+                                  className="text-red-600 hover:text-red-800"
+                                  title="Excluir"
+                                >
+                                  <Trash size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1814,7 +1865,7 @@ export default function ContaCorrenteTodosPage() {
                     setContaForPdf(null);
                   }}
                   className="flex-1 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                  disabled={isGeneratingPdf}
+                                   disabled={isGeneratingPdf}
                 >
                   Cancelar
                 </button>

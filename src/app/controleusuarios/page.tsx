@@ -52,13 +52,15 @@ export default function ControleUsuarios() {
 
   // Páginas disponíveis no sistema
   const availablePages = [
-    { id: 'home', name: 'Home' },
-    { id: 'patrimonio', name: 'Controle de Patrimônio' },
-    { id: 'empresas', name: 'Empresas' },
-    { id: 'colaboradores', name: 'Colaboradores' },
-    { id: 'contacorrente', name: 'Conta Corrente' },
-    { id: 'contacorrentetodos', name: 'Gestão de Contas Corrente' },
-    { id: 'usuarios', name: 'Controle de Usuários' }
+    { id: 'home', name: 'Home', description: 'Página inicial do sistema' },
+    { id: 'patrimonio', name: 'Controle de Patrimônio', description: 'Gerenciamento de ativos e patrimônios' },
+    { id: 'empresas', name: 'Empresas', description: 'Cadastro e gestão de empresas' },
+    { id: 'colaboradores', name: 'Colaboradores', description: 'Cadastro e gestão de colaboradores' },
+    { id: 'contacorrente', name: 'Conta Corrente', description: 'Gestão das próprias contas correntes' },
+    { id: 'contacorrentetodos', name: 'Gestão de Contas Corrente', description: 'Visualização e gerenciamento de todas as contas correntes' },
+    { id: 'caixaviagem', name: 'Caixa de Viagem', description: 'Gestão das próprias caixas de viagem' },
+    { id: 'caixaviagemtodos', name: 'Gestão de Caixas de Viagem', description: 'Visualização e gerenciamento de todas as caixas de viagem' },
+    { id: 'usuarios', name: 'Controle de Usuários', description: 'Gerenciamento de usuários e permissões' }
   ];
 
   const router = useRouter();
@@ -288,6 +290,8 @@ export default function ControleUsuarios() {
         colaboradores: { canAccess: false, canEdit: false, canDelete: false },
         contacorrente: { canAccess: false, canEdit: false, canDelete: false },
         contacorrentetodos: { canAccess: false, canEdit: false, canDelete: false },
+        caixaviagem: { canAccess: false, canEdit: false, canDelete: false },
+        caixaviagemtodos: { canAccess: false, canEdit: false, canDelete: false },
         usuarios: { canAccess: false, canEdit: false, canDelete: false }
       };
       
@@ -1135,8 +1139,11 @@ const savePermissions = async () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {availablePages.map((page) => (
                     <tr key={page.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {page.name}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">{page.name}</div>
+                          <div className="text-xs text-gray-500">{page.description}</div>
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <div className="flex justify-center">

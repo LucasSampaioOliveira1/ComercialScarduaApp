@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       }
     });
     
-    // No backend, garantir que as permissões incluem 'contacorrentetodos'
+    // No backend, garantir que as permissões incluem todas as páginas do sistema
     const formattedPermissions: Record<string, {canAccess: boolean, canEdit: boolean, canDelete: boolean, canCreate?: boolean}> = {
       home: { canAccess: true, canEdit: false, canDelete: false },
       patrimonio: { canAccess: false, canEdit: false, canDelete: false },
@@ -44,7 +44,9 @@ export async function GET(request: NextRequest) {
       colaboradores: { canAccess: false, canEdit: false, canDelete: false },
       usuarios: { canAccess: false, canEdit: false, canDelete: false },
       contacorrente: { canAccess: false, canEdit: false, canDelete: false, canCreate: false },
-      contacorrentetodos: { canAccess: false, canEdit: false, canDelete: false, canCreate: false }
+      contacorrentetodos: { canAccess: false, canEdit: false, canDelete: false, canCreate: false },
+      caixaviagem: { canAccess: false, canEdit: false, canDelete: false, canCreate: false },
+      caixaviagemtodos: { canAccess: false, canEdit: false, canDelete: false, canCreate: false }
     };
     
     // Garantir que as permissões do banco são mapeadas corretamente
@@ -72,7 +74,9 @@ export async function GET(request: NextRequest) {
         colaboradores: { canAccess: false, canEdit: false, canDelete: false },
         usuarios: { canAccess: false, canEdit: false, canDelete: false },
         contacorrente: { canAccess: false, canEdit: false, canDelete: false, canCreate: false },
-        contacorrentetodos: { canAccess: false, canEdit: false, canDelete: false, canCreate: false }
+        contacorrentetodos: { canAccess: false, canEdit: false, canDelete: false, canCreate: false },
+        caixaviagem: { canAccess: false, canEdit: false, canDelete: false, canCreate: false },
+        caixaviagemtodos: { canAccess: false, canEdit: false, canDelete: false, canCreate: false }
       },
       error: "Erro ao obter permissões" 
     }, { status: 500 });

@@ -38,6 +38,11 @@ interface AdiantamentoModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdiantamentosUpdated: () => void;
+  userPermissions?: {
+    canEdit: boolean;
+    canDelete: boolean;
+    canCreate: boolean;
+  };
 }
 
 // Função para preservar a data local corretamente
@@ -72,7 +77,8 @@ const preserveLocalDate = (dateString?: string): string => {
 export default function AdiantamentoModal({
   isOpen,
   onClose,
-  onAdiantamentosUpdated
+  onAdiantamentosUpdated,
+  userPermissions = { canEdit: true, canDelete: true, canCreate: true }
 }: AdiantamentoModalProps) {
   const [adiantamentos, setAdiantamentos] = useState<Adiantamento[]>([]);
   const [filteredAdiantamentos, setFilteredAdiantamentos] = useState<Adiantamento[]>([]);
@@ -169,6 +175,17 @@ export default function AdiantamentoModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Verificar permissão para criar/editar
+    if (isEditing && !userPermissions.canEdit) {
+      toast.error("Você não tem permissão para editar adiantamentos.");
+      return;
+    }
+    
+    if (!isEditing && !userPermissions.canCreate) {
+      toast.error("Você não tem permissão para criar adiantamentos.");
+      return;
+    }
+    
     if (!formData.data || !formData.nome || !formData.saida) {
       toast.error("Data, nome e valor são campos obrigatórios.");
       return;
@@ -262,6 +279,12 @@ export default function AdiantamentoModal({
   };
 
   const handleEdit = (adiantamento: Adiantamento) => {
+    // Verificar permissão para editar
+    if (!userPermissions.canEdit) {
+      toast.error("Você não tem permissão para editar adiantamentos.");
+      return;
+    }
+
     if (adiantamento.caixaViagemId) {
       toast.info("Não é possível editar um adiantamento já aplicado a uma caixa. Remova o vínculo primeiro.");
       return;
@@ -323,6 +346,12 @@ export default function AdiantamentoModal({
   };
 
   const handleDelete = async (id: number) => {
+    // Verificar permissão para excluir
+    if (!userPermissions.canDelete) {
+      toast.error("Você não tem permissão para excluir adiantamentos.");
+      return;
+    }
+
     // Verificar se o adiantamento está aplicado
     const adiantamento = adiantamentos.find(a => a.id === id);
     if (adiantamento?.caixaViagemId) {
@@ -474,108 +503,110 @@ export default function AdiantamentoModal({
 
         {/* Conteúdo */}
         <div className="flex-1 overflow-y-auto p-6">
-          {/* Formulário de criação/edição */}
-          <form onSubmit={handleSubmit} className="bg-gray-50 rounded-lg p-5 border border-gray-200 mb-6">
-            <h3 className="text-lg font-medium mb-4 text-gray-800">{isEditing ? "Editar Adiantamento" : "Novo Adiantamento"}</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
-                <div className="relative">
-                  <Calendar size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="date"
-                    name="data"
-                    value={formData.data}
-                    onChange={handleInputChange}
-                    className="pl-10 w-full p-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
-                    required
-                    disabled={isSubmitting}
-                  />
+          {/* Formulário de criação/edição - só aparece se tiver permissão */}
+          {userPermissions.canCreate && (
+            <form onSubmit={handleSubmit} className="bg-gray-50 rounded-lg p-5 border border-gray-200 mb-6">
+              <h3 className="text-lg font-medium mb-4 text-gray-800">{isEditing ? "Editar Adiantamento" : "Novo Adiantamento"}</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
+                  <div className="relative">
+                    <Calendar size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="date"
+                      name="data"
+                      value={formData.data}
+                      onChange={handleInputChange}
+                      className="pl-10 w-full p-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
+                      required
+                      disabled={isSubmitting}
+                    />
+                  </div>
                 </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nome/Referência</label>
-                <input
-                  type="text"
-                  name="nome"
-                  value={formData.nome}
-                  onChange={handleInputChange}
-                  placeholder="Ex: Adiantamento João Silva"
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Valor de Saída (R$)</label>
-                <div className="relative">
-                  <DollarSign size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nome/Referência</label>
                   <input
                     type="text"
-                    name="saida"
-                    value={formData.saida}
-                    onChange={handleSaidaChange}
-                    placeholder="0,00"
-                    className="pl-10 w-full p-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
+                    name="nome"
+                    value={formData.nome}
+                    onChange={handleInputChange}
+                    placeholder="Ex: Adiantamento João Silva"
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
                     required
+                    disabled={isSubmitting}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Valor de Saída (R$)</label>
+                  <div className="relative">
+                    <DollarSign size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      name="saida"
+                      value={formData.saida}
+                      onChange={handleSaidaChange}
+                      placeholder="0,00"
+                      className="pl-10 w-full p-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
+                      required
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Observação</label>
+                  <textarea
+                    name="observacao"
+                    value={formData.observacao}
+                    onChange={handleInputChange}
+                    placeholder="Observações adicionais (opcional)"
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
+                    rows={1}
                     disabled={isSubmitting}
                   />
                 </div>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Observação</label>
-                <textarea
-                  name="observacao"
-                  value={formData.observacao}
-                  onChange={handleInputChange}
-                  placeholder="Observações adicionais (opcional)"
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
-                  rows={1}
-                  disabled={isSubmitting}
-                />
-              </div>
-            </div>
-            
-            <div className="mt-4 flex justify-end space-x-3">
-              {isEditing && (
+              <div className="mt-4 flex justify-end space-x-3">
+                {isEditing && (
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                    disabled={isSubmitting}
+                  >
+                    Cancelar
+                  </button>
+                )}
+                
                 <button
-                  type="button"
-                  onClick={resetForm}
-                  className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                  type="submit"
+                  className="px-4 py-2 text-white bg-[#344893] rounded-md hover:bg-[#263672] flex items-center"
                   disabled={isSubmitting}
                 >
-                  Cancelar
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 size={18} className="mr-2 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : isEditing ? (
+                    <>
+                      <Check size={18} className="mr-2" />
+                      Atualizar
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle size={18} className="mr-2" />
+                      Adicionar
+                    </>
+                  )}
                 </button>
-              )}
-              
-              <button
-                type="submit"
-                className="px-4 py-2 text-white bg-[#344893] rounded-md hover:bg-[#263672] flex items-center"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 size={18} className="mr-2 animate-spin" />
-                    Salvando...
-                  </>
-                ) : isEditing ? (
-                  <>
-                    <Check size={18} className="mr-2" />
-                    Atualizar
-                  </>
-                ) : (
-                  <>
-                    <PlusCircle size={18} className="mr-2" />
-                    Adicionar
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
+              </div>
+            </form>
+          )}
 
           {/* Barra de pesquisa */}
           <div className="mb-4 flex items-center">
@@ -599,7 +630,7 @@ export default function AdiantamentoModal({
             </div>
           </div>
 
-          {/* Tabela de adiantamentos - removida a coluna de Status */}
+          {/* Tabela de adiantamentos */}
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -609,7 +640,6 @@ export default function AdiantamentoModal({
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Observação</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Saída</th>
-                    {/* Coluna de Status removida */}
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                   </tr>
                 </thead>
@@ -639,38 +669,44 @@ export default function AdiantamentoModal({
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-red-600">
                           {formatarValor(adiantamento.saida)}
                         </td>
-                        {/* Coluna Status removida */}
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
                           <div className="flex items-center justify-center space-x-2">
                             {adiantamento.caixaViagemId ? (
-                              // Botão para desvincular
-                              <button
-                                onClick={() => handleDesvincular(adiantamento.id)}
-                                className="p-1.5 bg-amber-100 text-amber-700 rounded-full hover:bg-amber-200"
-                                title="Desvincular da caixa"
-                                disabled={isLoading}
-                              >
-                                <Link2Off size={16} />
-                              </button>
+                              // Botão para desvincular - só aparece se tiver permissão de editar
+                              userPermissions.canEdit && (
+                                <button
+                                  onClick={() => handleDesvincular(adiantamento.id)}
+                                  className="p-1.5 bg-amber-100 text-amber-700 rounded-full hover:bg-amber-200"
+                                  title="Desvincular da caixa"
+                                  disabled={isLoading}
+                                >
+                                  <Link2Off size={16} />
+                                </button>
+                              )
                             ) : (
-                              // Botões para editar e excluir
+                              // Botões para editar e excluir - controlados por permissões
                               <>
-                                <button
-                                  onClick={() => handleEdit(adiantamento)}
-                                  className="p-1.5 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200"
-                                  title="Editar adiantamento"
-                                  disabled={isLoading}
-                                >
-                                  <Edit size={16} />
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(adiantamento.id)}
-                                  className="p-1.5 bg-red-100 text-red-700 rounded-full hover:bg-red-200"
-                                  title="Excluir adiantamento" 
-                                  disabled={isLoading}
-                                >
-                                  <Trash2 size={16} />
-                                </button>
+                                {userPermissions.canEdit && (
+                                  <button
+                                    onClick={() => handleEdit(adiantamento)}
+                                    className="p-1.5 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200"
+                                    title="Editar adiantamento"
+                                    disabled={isLoading}
+                                  >
+                                    <Edit size={16} />
+                                  </button>
+                                )}
+                                
+                                {userPermissions.canDelete && (
+                                  <button
+                                    onClick={() => handleDelete(adiantamento.id)}
+                                    className="p-1.5 bg-red-100 text-red-700 rounded-full hover:bg-red-200"
+                                    title="Excluir adiantamento" 
+                                    disabled={isLoading}
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
                               </>
                             )}
                           </div>

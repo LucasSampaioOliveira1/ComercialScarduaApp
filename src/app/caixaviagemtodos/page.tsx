@@ -2221,6 +2221,11 @@ export default function CaixaViagemTodosPage() {
             isOpen={isAdiantamentoModalOpen}
             onClose={() => setIsAdiantamentoModalOpen(false)}
             onAdiantamentosUpdated={handleAdiantamentosUpdated}
+            userPermissions={{
+              canCreate: userPermissions.canCreate,
+              canEdit: userPermissions.canEdit,
+              canDelete: userPermissions.canDelete
+            }}
           />
         )}
 
