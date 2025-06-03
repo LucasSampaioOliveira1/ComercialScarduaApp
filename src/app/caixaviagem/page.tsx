@@ -543,7 +543,7 @@ export default function CaixaViagemPage() {
     setIsConfirmDeleteModalOpen(true);
   };
 
-  // Função para confirmar exclusão da caixa
+  // Função para confirmar exclusão da caixa - IGUAL AO CONTACORRENTE
   const handleConfirmDelete = async () => {
     if (!caixaToDelete) return;
     
@@ -552,26 +552,61 @@ export default function CaixaViagemPage() {
       
       console.log("Tentando ocultar caixa:", caixaToDelete.id);
       
+      // USAR A MESMA LÓGICA DO CONTACORRENTE - SEM TOKEN
       const response = await fetch('/api/caixaviagem/ocultar', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ 
-          id: caixaToDelete.id
+          id: caixaToDelete.id,
+          userId: userId  // Enviar o userId junto, igual ao contacorrente
         })
       });
       
+      // Para depuração - registrar o código de status da resposta
+      console.log("Código de status da resposta:", response.status);
+      
+      // Capture o texto da resposta para depuração, independente de ser OK ou não
+      const responseText = await response.text();
+      console.log("Resposta completa:", responseText);
+      
+      let responseData;
+      try {
+        // Tenta converter o texto para JSON
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        console.error("Erro ao parsear resposta como JSON:", e);
+        throw new Error("A resposta da API não está em formato JSON válido");
+      }
+      
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erro ao ocultar caixa: ${errorText}`);
+        throw new Error(responseData.error || "Erro ao atualizar caixa de viagem");
       }
       
       // Atualizar a lista de caixas localmente
       await buscarCaixasDoUsuario(userId || '');
-      await buscarResumoFinanceiro(userId || '');
       
-      toast.success("Caixa de viagem excluída com sucesso!");
+      toast.success(
+        <div className="flex items-center">
+          <div className="mr-3 bg-red-100 p-2 rounded-full">
+            <Check size={18} className="text-red-600" />
+          </div>
+          <div>
+            <p className="font-medium text-red-600">Caixa excluída com sucesso!</p>
+            <p className="text-sm text-red-500">
+              A caixa para{' '}
+              <strong>{caixaToDelete.destino}</strong>{' '}
+              foi excluída.
+            </p>
+          </div>
+        </div>,
+        {
+          icon: false,
+          closeButton: true,
+          className: "border-l-4 border-red-500"
+        }
+      );
       
       setIsConfirmDeleteModalOpen(false);
       setCaixaToDelete(null);

@@ -544,7 +544,7 @@ export default function CaixaViagemTodosPage() {
     setIsConfirmDeleteModalOpen(true);
   };
 
-  // Função para confirmar exclusão/ocultação da caixa
+  // Função para confirmar exclusão/ocultação da caixa - SIMPLIFICADA IGUAL AO CONTACORRENTE
   const handleConfirmDelete = async () => {
     if (!caixaToDelete) return;
     
@@ -553,13 +553,10 @@ export default function CaixaViagemTodosPage() {
       
       console.log("Tentando alterar visibilidade da caixa:", caixaToDelete.id);
       
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("Token não encontrado");
-      
-      const response = await fetch('/api/caixaviagem/todos', {
-        method: 'PUT',
+      // USAR A MESMA LÓGICA SIMPLES DO CONTACORRENTE
+      const response = await fetch('/api/caixaviagem/ocultar', {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ 
