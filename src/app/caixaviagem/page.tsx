@@ -467,13 +467,27 @@ export default function CaixaViagemPage() {
         console.error("Erro ao buscar empresas:", empresasResponse.status);
       }
       
-      // Fetch colaboradores
+      // Fetch colaboradores - CORRIGIDO para tratar espaços
       const funcionariosResponse = await fetch('/api/colaboradores', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (funcionariosResponse.ok) {
         const funcionariosData = await funcionariosResponse.json();
-        setFuncionarios(funcionariosData);
+        
+        // Normalizar os dados dos funcionários removendo espaços extras e ordenando corretamente
+        const funcionariosNormalizados = funcionariosData.map((funcionario: any) => ({
+          ...funcionario,
+          nome: funcionario.nome ? funcionario.nome.trim() : '', // Remove espaços do início e fim
+          sobrenome: funcionario.sobrenome ? funcionario.sobrenome.trim() : ''
+        }))
+        .sort((a: any, b: any) => {
+          // Ordenar alfabeticamente pelo nome completo (ignorando case)
+          const nomeCompletoA = `${a.nome} ${a.sobrenome || ''}`.trim().toLowerCase();
+          const nomeCompletoB = `${b.nome} ${b.sobrenome || ''}`.trim().toLowerCase();
+          return nomeCompletoA.localeCompare(nomeCompletoB, 'pt-BR');
+        });
+        
+        setFuncionarios(funcionariosNormalizados);
       }
 
       // Fetch veículos com melhor tratamento de erro
@@ -1053,36 +1067,36 @@ export default function CaixaViagemPage() {
     // Aplicar filtro por número da caixa
     if (filterNumeroCaixa && caixa.numeroCaixa !== Number(filterNumeroCaixa)) return false;
 
-    // Busca por termo
+    // Busca por termo - CORRIGIDO para ignorar espaços extras
     const search = searchTerm.toLowerCase();
     const matchesSearch = 
       (caixa.destino?.toLowerCase().includes(search) || false) ||
-      (caixa.funcionario?.nome?.toLowerCase().includes(search) || false) ||
+      (caixa.funcionario?.nome?.trim().toLowerCase().includes(search) || false) ||
       (caixa.empresa?.nome?.toLowerCase().includes(search) || false) ||
       (caixa.empresa?.nomeEmpresa?.toLowerCase().includes(search) || false) ||
       String(caixa.id).includes(search);
 
-    // Filtros específicos
-    if (filterDestino && filterDestino !== 'Todos' && caixa.destino !== filterDestino) return false;
-    if (filterEmpresa > 0 && caixa.empresaId !== filterEmpresa) return false;
+  // Filtros específicos
+  if (filterDestino && filterDestino !== 'Todos' && caixa.destino !== filterDestino) return false;
+  if (filterEmpresa > 0 && caixa.empresaId !== filterEmpresa) return false;
+  
+  if (filterDateRange.start || filterDateRange.end) {
+    const caixaDate = new Date(caixa.data);
     
-    if (filterDateRange.start || filterDateRange.end) {
-      const caixaDate = new Date(caixa.data);
-      
-      if (filterDateRange.start) {
-        const startDate = new Date(filterDateRange.start);
-        if (caixaDate < startDate) return false;
-      }
-      
-      if (filterDateRange.end) {
-        const endDate = new Date(filterDateRange.end);
-        endDate.setHours(23, 59, 59); // Final do dia
-        if (caixaDate > endDate) return false;
-      }
+    if (filterDateRange.start) {
+      const startDate = new Date(filterDateRange.start);
+      if (caixaDate < startDate) return false;
     }
     
-    return matchesSearch;
-  });
+    if (filterDateRange.end) {
+      const endDate = new Date(filterDateRange.end);
+      endDate.setHours(23, 59, 59); // Final do dia
+      if (caixaDate > endDate) return false;
+    }
+  }
+  
+  return matchesSearch;
+});
 
   // Ordenar caixas (mais recentes primeiro)
   const sortedCaixas = [...filteredCaixas].sort((a, b) => {
@@ -1561,7 +1575,7 @@ export default function CaixaViagemPage() {
                       </select>
                     </div>
                     
-                    {/* Novo filtro por funcionário */}
+                    {/* Novo filtro por funcionário - CORRIGIDO para mostrar nomes sem espaços extras */}
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-2">
                         Funcionário
@@ -1574,7 +1588,7 @@ export default function CaixaViagemPage() {
                         <option value={0}>Todos os funcionários</option>
                         {funcionarios.map((funcionario) => (
                           <option key={funcionario.id} value={funcionario.id}>
-                            {`${funcionario.nome} ${funcionario.sobrenome || ''}`.trim()}
+                            {`${funcionario.nome.trim()} ${funcionario.sobrenome?.trim() || ''}`.trim()}
                           </option>
                         ))}
                       </select>
@@ -1715,8 +1729,7 @@ export default function CaixaViagemPage() {
               
               {filterFuncionario > 0 && (
                 <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-800">
-                  Funcionário: {funcionarios.find(f => f.id === filterFuncionario)?.nome || 'Selecionado'} 
-                  {funcionarios.find(f => f.id === filterFuncionario)?.sobrenome || ''}
+                  Funcionário: {`${funcionarios.find(f => f.id === filterFuncionario)?.nome?.trim() || 'Selecionado'} ${funcionarios.find(f => f.id === filterFuncionario)?.sobrenome?.trim() || ''}`.trim()}
                   <button 
                     onClick={() => setFilterFuncionario(0)}
                     className="ml-2 text-blue-500 hover:text-blue-700"

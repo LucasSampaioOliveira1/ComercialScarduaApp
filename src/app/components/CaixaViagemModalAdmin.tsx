@@ -698,7 +698,7 @@ const CaixaViagemModalAdmin: React.FC<CaixaViagemModalAdminProps> = ({
                   <option value="">Selecione um funcionário</option>
                   {funcionarios.map(funcionario => (
                     <option key={funcionario.id} value={funcionario.id}>
-                      {funcionario.nome} {funcionario.sobrenome || ''}
+                      {`${funcionario.nome?.trim() || ''} ${funcionario.sobrenome?.trim() || ''}`.trim()}
                     </option>
                   ))}
                 </select>
@@ -837,7 +837,7 @@ const CaixaViagemModalAdmin: React.FC<CaixaViagemModalAdminProps> = ({
               <div className="bg-gray-50 p-3 mb-4 rounded-lg">
                 <div className="text-sm text-gray-600 mb-1">
                   <span className="font-medium">Caixa #{caixaData.numeroCaixa}</span> - 
-                  {funcionarios.find(f => f.id === caixaData.funcionarioId)?.nome || 'Funcionário'}
+                  {funcionarios.find(f => f.id === caixaData.funcionarioId)?.nome?.trim() || 'Funcionário'}
                 </div>
                 {caixaData.saldoAnterior !== 0 && (
                   <div className="text-sm flex justify-between items-center">

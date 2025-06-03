@@ -151,7 +151,7 @@ const CaixaViagemCard = ({
             <div className="ml-3 flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="text-base font-semibold text-gray-900 truncate">
-                  {funcionario?.nome || "Sem Funcionário"} {funcionario?.sobrenome || ""}
+                  {funcionario?.nome?.trim() || "Sem Funcionário"} {funcionario?.sobrenome?.trim() || ""}
                 </h3>
                 {caixa.numeroCaixa && (
                   <span className="bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs font-medium px-2 py-0.5 rounded-lg shadow-sm">
