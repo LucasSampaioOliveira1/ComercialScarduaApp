@@ -1033,10 +1033,18 @@ export default function CaixaViagemPage() {
       // Mostrar mensagem informativa ao usuário
       toast.info("Recalculando saldos entre caixas...");
       
+      // Adicionar token na requisição para autenticação
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Token de autenticação não encontrado");
+        return;
+      }
+      
       const response = await fetch('/api/caixaviagem/recalcularSaldos', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` // Adicionar token de autenticação
         },
         body: JSON.stringify({
           userId,
@@ -1050,7 +1058,7 @@ export default function CaixaViagemPage() {
         // Recarregar os dados após o recálculo
         await buscarCaixasDoUsuario(userId);
         
-        // NOVO: Atualizar também o resumo financeiro
+        // Atualizar também o resumo financeiro
         await buscarResumoFinanceiro(userId);
         
         toast.success("Saldos recalculados com sucesso!");
@@ -1232,6 +1240,7 @@ export default function CaixaViagemPage() {
             </div>
 
             <div className="mt-6 md:mt-0 flex items-center space-x-4">
+              {/* Botão "Nova Caixa de Viagem" só aparece se tiver permissão de criação */}
               {userPermissions.canCreate && (
                 <button
                   onClick={handleOpenNewCaixaModal}
@@ -1242,16 +1251,18 @@ export default function CaixaViagemPage() {
                 </button>
               )}
               
-              {/* Adicionar botão para gerenciar adiantamentos */}
-              <button
-                onClick={() => setIsAdiantamentoModalOpen(true)}
-                className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-3 text-base rounded-lg flex items-center transition-colors"
-              >
-                <Coins size={20} className="mr-2" />
-                Adiantamentos
-              </button>
+              {/* Botão de Adiantamentos só aparece se tiver permissão de criação */}
+              {userPermissions.canCreate && (
+                <button
+                  onClick={() => setIsAdiantamentoModalOpen(true)}
+                  className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-3 text-base rounded-lg flex items-center transition-colors"
+                >
+                  <Coins size={20} className="mr-2" />
+                  Adiantamentos
+                </button>
+              )}
               
-              {/* Botão de exportar só aparece quando há filtros aplicados ou busca */}
+              {/* Botão de exportar aparece independentemente das permissões */}
               {isFilterActive && filteredCaixas.length > 0 && (
                 <button
                   onClick={exportToExcel}
@@ -1390,19 +1401,21 @@ export default function CaixaViagemPage() {
               </div>
               
               <div className="flex space-x-3">
-                {/* Botão de Recalcular Saldos - Sempre visível */}
-                <button
-                  onClick={() => recalcularSaldos(filterFuncionario > 0 ? filterFuncionario : undefined)}
-                  disabled={loading}
-                  className={`p-3 rounded-lg border flex items-center ${
-                    loading 
-                      ? 'bg-gray-200 text-gray-500 border-gray-200' 
-                      : 'bg-green-600 text-white border-green-600 hover:bg-green-700'
-                  }`}
-                  title="Recalcular saldos das caixas"
-                >
-                  <RefreshCw size={22} className={loading ? "animate-spin" : ""} />
-                </button>
+                {/* Botão de Recalcular Saldos - Visível apenas se tiver permissão de edição */}
+                {userPermissions.canEdit && (
+                  <button
+                    onClick={() => recalcularSaldos(filterFuncionario > 0 ? filterFuncionario : undefined)}
+                    disabled={loading}
+                    className={`p-3 rounded-lg border flex items-center ${
+                      loading 
+                        ? 'bg-gray-200 text-gray-500 border-gray-200' 
+                        : 'bg-green-600 text-white border-green-600 hover:bg-green-700'
+                    }`}
+                    title="Recalcular saldos das caixas"
+                  >
+                    <RefreshCw size={22} className={loading ? "animate-spin" : ""} />
+                  </button>
+                )}
 
                 <button
                   onClick={() => setViewMode("grid")}
@@ -1955,10 +1968,10 @@ export default function CaixaViagemPage() {
                 funcionarios={funcionarios}
                 veiculos={veiculos}
                 onViewDetails={() => handleViewDetails(caixa)}
-                onEdit={() => handleOpenEditModal(caixa)}
-                onToggleVisibility={() => handleToggleVisibility(caixa)}
+                onEdit={() => userPermissions.canEdit && handleOpenEditModal(caixa)}
+                onToggleVisibility={() => userPermissions.canDelete && handleToggleVisibility(caixa)}
                 onGenerateTermo={() => handleGenerateTermoRequest(caixa)}
-                onAplicarAdiantamento={() => handleAplicarAdiantamento(caixa)} // Usar nova função
+                onAplicarAdiantamento={() => userPermissions.canEdit && handleAplicarAdiantamento(caixa)}
                 canEdit={userPermissions.canEdit}
                 canDelete={userPermissions.canDelete}
               />

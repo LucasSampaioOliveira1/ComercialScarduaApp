@@ -42,6 +42,7 @@ interface CaixaViagem {
   createdAt?: string;
   updatedAt?: string;
   saldo: number;
+  saldoAnterior?: number; // Adicionada a propriedade saldoAnterior
   numeroCaixa?: number;
   lancamentos: Lancamento[];
   adiantamentos?: any[]; // Adicionando a propriedade adiantamentos
@@ -289,7 +290,7 @@ export default function CaixaViagemTodosPage() {
         await fetchDadosAuxiliares();
       } else {
         // Para usuários normais, verificar permissões específicas
-        const permissionsResponse = await fetch(`/api/usuarios/permissions?userId=${statusData.user.id}&page=caixaviagem`, {
+        const permissionsResponse = await fetch(`/api/usuarios/permissions?userId=${statusData.user.id}&page=caixaviagemtodos`, {
           headers: { 
             Authorization: `Bearer ${authToken}`
           }
@@ -301,7 +302,7 @@ export default function CaixaViagemTodosPage() {
         
         const permissionsData = await permissionsResponse.json();
         
-        const canAccess = permissionsData.permissions?.caixaviagem?.canAccess || false;
+        const canAccess = permissionsData.permissions?.caixaviagemtodos?.canAccess || false;
         
         if (!canAccess) {
           // Redirecionar para a página de caixas pessoais se não tiver acesso a todas as caixas
@@ -312,9 +313,9 @@ export default function CaixaViagemTodosPage() {
         setUserPermissions({
           isAdmin: false,
           canAccess: true,
-          canCreate: permissionsData.permissions?.caixaviagem?.canCreate || false,
-          canEdit: permissionsData.permissions?.caixaviagem?.canEdit || false,
-          canDelete: permissionsData.permissions?.caixaviagem?.canDelete || false
+          canCreate: permissionsData.permissions?.caixaviagemtodos?.canCreate || false,
+          canEdit: permissionsData.permissions?.caixaviagemtodos?.canEdit || false,
+          canDelete: permissionsData.permissions?.caixaviagemtodos?.canDelete || false
         });
         
         // Se tem acesso, buscar os dados
@@ -983,11 +984,13 @@ export default function CaixaViagemTodosPage() {
   const [caixaToDownload, setCaixaToDownload] = useState<CaixaViagem | null>(null);
   const [isGeneratingTermo, setIsGeneratingTermo] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // No useEffect inicial, adicione:
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setToken(localStorage.getItem('token'));
+      setCurrentUserId(localStorage.getItem('userId'));
     }
   }, []);
 
@@ -1087,7 +1090,7 @@ export default function CaixaViagemTodosPage() {
 
   // Função para recalcular saldos baseada no usuário selecionado no filtro
   const recalcularSaldos = async () => {
-    // Se não tiver usuário selecionado, alertar e não prosseguir
+    // Verificar se há usuário selecionado no filtro
     if (!filterUsuario || filterUsuario === '') {
       toast.info("Selecione um usuário no filtro para recalcular os saldos");
       return;
@@ -1271,16 +1274,18 @@ export default function CaixaViagemTodosPage() {
                   </button>
                 )}
                 
-                {/* Adicionar botão para gerenciar adiantamentos */}
-                <button
-                  onClick={() => setIsAdiantamentoModalOpen(true)}
-                  className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-3 text-base rounded-lg flex items-center transition-colors"
-                >
-                  <Coins size={20} className="mr-2" />
-                  Adiantamentos
-                </button>
+                {/* Adicionar botão para gerenciar adiantamentos - apenas com permissão */}
+                {userPermissions.canEdit && (
+                  <button
+                    onClick={() => setIsAdiantamentoModalOpen(true)}
+                    className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-3 text-base rounded-lg flex items-center transition-colors"
+                  >
+                    <Coins size={20} className="mr-2" />
+                    Adiantamentos
+                  </button>
+                )}
                 
-                {/* Botão existente de exportação */}
+                {/* Botão de exportar aparece independentemente das permissões */}
                 {isFilterActive && filteredCaixas.length > 0 && (
                   <button
                     onClick={exportToExcel}
@@ -1393,17 +1398,17 @@ export default function CaixaViagemTodosPage() {
                 </div>
                 
                 <div className="flex space-x-3">
-                  {/* Botão de Recalcular Saldos - Só aparece quando um usuário está selecionado */}
-                  {filterUsuario && (
+                  {/* Botão de Recalcular Saldos - Visível apenas com permissão e quando um usuário está selecionado */}
+                  {userPermissions.canEdit && filterUsuario && (
                     <button
-                      onClick={recalcularSaldos}
+                      onClick={() => recalcularSaldos()}
                       disabled={loading}
                       className={`p-3 rounded-lg border flex items-center ${
                         loading 
                           ? 'bg-gray-200 text-gray-500 border-gray-200' 
                           : 'bg-green-600 text-white border-green-600 hover:bg-green-700'
                       }`}
-                      title={`Recalcular saldos para ${usuarios.find(u => u.id === filterUsuario)?.nome || 'usuário selecionado'}`}
+                      title="Recalcular saldos das caixas"
                     >
                       <RefreshCw size={22} className={loading ? "animate-spin" : ""} />
                     </button>
@@ -1829,6 +1834,11 @@ export default function CaixaViagemTodosPage() {
                       // Calcular totais para esta caixa
                       const lancamentos = Array.isArray(caixa.lancamentos) ? caixa.lancamentos : [];
                       
+                      // Obter o saldo anterior (se existir)
+                      const saldoAnterior = typeof caixa.saldoAnterior === 'number'
+                        ? caixa.saldoAnterior
+                        : parseFloat(String(caixa.saldoAnterior || 0));
+  
                       // Calcular entradas dos lançamentos
                       const entradas = lancamentos
                         .filter(l => l?.entrada && !isNaN(parseFloat(String(l.entrada))))
@@ -1842,7 +1852,6 @@ export default function CaixaViagemTodosPage() {
                       // Calcular total de adiantamentos
                       let totalAdiantamentos = 0;
                       if (Array.isArray(caixa.adiantamentos)) {
-                       
                         caixa.adiantamentos.forEach(adiantamento => {
                           if (adiantamento.saida) {
                             const valor = parseFloat(String(adiantamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
@@ -1856,8 +1865,8 @@ export default function CaixaViagemTodosPage() {
                       // Saídas totais incluem lançamentos de saída + adiantamentos
                       const saidas = saidasLancamentos + totalAdiantamentos;
                       
-                      // O saldo deve considerar entradas - saídas(incluindo adiantamentos)
-                      const saldo = entradas - saidas;
+                      // CORREÇÃO: Saldo correto deve considerar saldo anterior + entradas - saídas(lancamentos) - adiantamentos
+                      const saldo = saldoAnterior + entradas - saidasLancamentos - totalAdiantamentos;
 
                       return (
                         <tr key={caixa.id} className={`hover:bg-gray-50 ${caixa.oculto ? 'bg-gray-50' : ''}`}>
@@ -1925,27 +1934,26 @@ export default function CaixaViagemTodosPage() {
                                 ? 'text-green-600' 
                                 : saldo < 0 
                                   ? 'text-red-600' 
-                                  : 'text-blue-600'}`}>
+                                  : 'text-blue-600'
+                            }`}>
                               {formatCurrency(saldo)}
                             </div>
                           </td>
                           
                           {/* Coluna de Ações da visualização em tabela */}
                           <td className="px-6 py-4 text-center whitespace-nowrap">
-                            <div className="flex justify-center gap-3">
-                              {/* Botão para aplicar adiantamento */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleAplicarAdiantamento(caixa);
-                                }}
-                                className="p-2 bg-teal-100 text-teal-600 rounded-full hover:bg-teal-200 transition-colors"
-                                title="Aplicar Adiantamento"
-                              >
-                                <LinkIcon size={16} />
-                              </button>
+                            <div className="flex items-center justify-center space-x-2">
+                              {/* Botão para aplicar adiantamento - ADICIONADO */}
+                              {userPermissions.canEdit && caixa.funcionarioId && (
+                                <button
+                                  onClick={() => handleAplicarAdiantamento(caixa)}
+                                  className="p-2 bg-teal-100 text-teal-600 rounded-full hover:bg-teal-200 transition-colors"
+                                  title="Aplicar Adiantamento"
+                                >
+                                  <LinkIcon size={16} />
+                                </button>
+                              )}
                               
-                              {/* Botão para gerar termo PDF */}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -1965,7 +1973,7 @@ export default function CaixaViagemTodosPage() {
                                 <Eye size={18} />
                               </button>
                               
-                              {userPermissions.canEdit && (
+                              {(userPermissions.canEdit || caixa.userId === currentUserId) && (
                                 <button
                                   onClick={() => handleOpenEditModal(caixa)}
                                   className="text-amber-600 hover:text-amber-800"
@@ -1975,19 +1983,15 @@ export default function CaixaViagemTodosPage() {
                                 </button>
                               )}
                               
-                              {userPermissions.canDelete && (
-                                  <button
-                                    onClick={() => handleToggleVisibility(caixa)}
-                                    className="text-red-600 hover:text-red-800"
-                                    title={caixa.oculto ? "Restaurar caixa" : "Excluir caixa"}
-                                  >
-                                    {caixa.oculto ? (
-                                      <Check size={18} />
-                                    ) : (
-                                      <Trash2 size={18} />
-                                    )}
-                                  </button>
-                                )}
+                              {(userPermissions.canDelete || caixa.userId === currentUserId) && (
+                                <button
+                                  onClick={() => handleToggleVisibility(caixa)}
+                                  className="text-red-600 hover:text-red-800"
+                                  title="Excluir caixa"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -2018,14 +2022,14 @@ export default function CaixaViagemTodosPage() {
                   onViewDetails={() => handleViewDetails(caixa)}
                   onEdit={() => handleOpenEditModal(caixa)}
                   onToggleVisibility={() => handleToggleVisibility(caixa)}
-                  onGenerateTermo={() => handleGenerateTermoRequest(caixa)} // Nova prop para gerar termo
-                  onAplicarAdiantamento={() => handleAplicarAdiantamento(caixa)} // Nova propriedade
-                  canEdit={userPermissions.canEdit}
-                  canDelete={userPermissions.canDelete}
+                  onGenerateTermo={() => handleGenerateTermoRequest(caixa)}
+                  onAplicarAdiantamento={userPermissions.canEdit ? () => handleAplicarAdiantamento(caixa) : () => {}}
+                  canEdit={userPermissions.canEdit || caixa.userId === currentUserId}
+                  canDelete={userPermissions.canDelete || caixa.userId === currentUserId}
                 />
               ))}
               
-              {/* Botão para carregar mais itens - Melhorado espaço e aparência */}
+              {/* Botão para carregar mais itens */}
               {sortedCaixas.length > visibleItems && (
                 <div className="col-span-full mt-6">
                   <button
