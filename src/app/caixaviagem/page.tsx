@@ -259,10 +259,9 @@ export default function CaixaViagemPage() {
         });
       }
       
-      // Buscar dados após configurar permissões
-      buscarCaixasDoUsuario(userId);
-      buscarResumoFinanceiro(userId);
-      fetchDadosAuxiliares();
+      // CORREÇÃO: Buscar dados após configurar permissões, mas não chamar buscarResumoFinanceiro separadamente
+      await buscarCaixasDoUsuario(userId); // Esta função já vai calcular o resumo
+      await fetchDadosAuxiliares();
     } catch (error) {
       console.error("Erro ao verificar permissões:", error);
       toast.error("Erro ao verificar permissões");
@@ -295,39 +294,56 @@ export default function CaixaViagemPage() {
       const data = await response.json();
       console.log(`Recebidas ${data.length} caixas de viagem`);
       
-      // Processar os dados para calcular saldo
+      // CORREÇÃO: Processar os dados usando a mesma lógica da caixaviagemtodos
       const caixasProcessadas = data.map((caixa: CaixaViagem) => {
         const lancamentos = Array.isArray(caixa.lancamentos) ? caixa.lancamentos : [];
-        let totalEntradas = 0;
-        let totalSaidas = 0;
         
-        lancamentos.forEach((lanc) => {
-          if (lanc.entrada) {
-            const valorEntrada = parseFloat(String(lanc.entrada).replace(/[^\d.,]/g, '').replace(',', '.'));
-            if (!isNaN(valorEntrada)) {
-              totalEntradas += valorEntrada;
+        // Obter o saldo anterior
+        const saldoAnterior = typeof caixa.saldoAnterior === 'number'
+          ? caixa.saldoAnterior
+          : parseFloat(String(caixa.saldoAnterior || 0));
+
+        // Calcular entradas dos lançamentos
+        const entradas = lancamentos
+          .filter(l => l?.entrada && !isNaN(parseFloat(String(l.entrada))))
+          .reduce((sum, item) => sum + parseFloat(String(item.entrada || "0")), 0);
+        
+        // Calcular saídas dos lançamentos
+        const saidasLancamentos = lancamentos
+          .filter(l => l?.saida && !isNaN(parseFloat(String(l.saida))))
+          .reduce((sum, item) => sum + parseFloat(String(item.saida || "0")), 0);
+
+        // Calcular total de adiantamentos
+        let totalAdiantamentos = 0;
+        if (Array.isArray(caixa.adiantamentos)) {
+          caixa.adiantamentos.forEach(adiantamento => {
+            if (adiantamento.saida) {
+              const valor = parseFloat(String(adiantamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
+              if (!isNaN(valor)) {
+                totalAdiantamentos += valor;
+              }
             }
-          }
-          if (lanc.saida) {
-            const valorSaida = parseFloat(String(lanc.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
-            if (!isNaN(valorSaida)) {
-              totalSaidas += valorSaida;
-            }
-          }
-        });
+          });
+        }
+        
+        // CORREÇÃO: Saldo correto considera saldo anterior + entradas - saídas(lançamentos) - adiantamentos
+        const saldo = saldoAnterior + entradas - saidasLancamentos - totalAdiantamentos;
         
         return {
           ...caixa,
-          saldo: totalEntradas - totalSaidas
+          saldo: saldo
         };
       });
       
       setCaixasViagem(caixasProcessadas);
       
+      // CORREÇÃO: Calcular o resumo imediatamente com os dados processados
+      await buscarResumoFinanceiro(id, caixasProcessadas);
+      
       // Extrair lista de destinos únicos para filtros
-    const destinosUnicos: string[] = Array.from(
-      new Set(caixasProcessadas.map((c: CaixaViagem) => c.destino).filter(Boolean as unknown as ((value: string | undefined) => value is string)))
-    ).sort() as string[];
+      const destinosUnicos: string[] = Array.from(
+        new Set(caixasProcessadas.map((c: CaixaViagem) => c.destino).filter(Boolean as unknown as ((value: string | undefined) => value is string)))
+      ).sort() as string[];
       
       setDestinos(['Todos', ...destinosUnicos]);
       
@@ -341,57 +357,76 @@ export default function CaixaViagemPage() {
     }
   };
 
-  // Substitua a função buscarResumoFinanceiro por esta versão atualizada
-  const buscarResumoFinanceiro = async (id: string) => {
+  // Substituir a função buscarResumoFinanceiro por esta versão corrigida
+  const buscarResumoFinanceiro = async (id: string, caixasData?: CaixaViagem[]) => {
     try {
-      const response = await fetch(`/api/caixaviagem/resumo/${id}`);
+      // Usar as caixas passadas como parâmetro ou as já carregadas
+      const caixasParaCalcular = caixasData || caixasViagem;
       
-      if (!response.ok) {
-        console.error("Erro ao buscar resumo financeiro:", await response.text());
-        return;
-      }
+      console.log("Calculando resumo com", caixasParaCalcular.length, "caixas");
       
-      const resumoData = await response.json();
-      
-      // Calcular as estatísticas incluindo adiantamentos
       let totalEntradas = 0;
       let totalSaidas = 0;
       let totalAdiantamentos = 0;
+      let totalSaldoAnterior = 0;
       
-      // Use os dados do resumo para os valores básicos
-      totalEntradas = Number(resumoData.totalEntradas || 0);
-      totalSaidas = Number(resumoData.totalSaidas || 0);
-      totalAdiantamentos = Number(resumoData.totalAdiantamentos || 0);
-      
-      // Se o backend não fornecer o valor dos adiantamentos, calcule-o manualmente
-      if (totalAdiantamentos === 0 && Array.isArray(caixasViagem)) {
-        caixasViagem.forEach(caixa => {
-          if (Array.isArray(caixa.adiantamentos)) {
-            caixa.adiantamentos.forEach(adiantamento => {
-              if (adiantamento.saida) {
-                const valor = parseFloat(String(adiantamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
-                if (!isNaN(valor)) {
-                  totalAdiantamentos += valor;
-                }
+      // Usar as caixas já carregadas em vez de fazer nova requisição
+      caixasParaCalcular.forEach(caixa => {
+        // Ignorar caixas ocultas
+        if (caixa.oculto) return;
+        
+        // Acumular saldo anterior
+        const saldoAnterior = typeof caixa.saldoAnterior === 'number'
+          ? caixa.saldoAnterior
+          : parseFloat(String(caixa.saldoAnterior || 0));
+        
+        totalSaldoAnterior += saldoAnterior;
+        
+        // Calcular entradas e saídas dos lançamentos
+        if (Array.isArray(caixa.lancamentos)) {
+          caixa.lancamentos.forEach(lancamento => {
+            if (lancamento.entrada) {
+              const valor = parseFloat(String(lancamento.entrada).replace(/[^\d.,]/g, '').replace(',', '.'));
+              if (!isNaN(valor)) {
+                totalEntradas += valor;
               }
-            });
-          }
-        });
-      }
+            }
+            
+            if (lancamento.saida) {
+              const valor = parseFloat(String(lancamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
+              if (!isNaN(valor)) {
+                totalSaidas += valor;
+              }
+            }
+          });
+        }
+        
+        // Calcular adiantamentos
+        if (Array.isArray(caixa.adiantamentos)) {
+          caixa.adiantamentos.forEach(adiantamento => {
+            if (adiantamento.saida) {
+              const valor = parseFloat(String(adiantamento.saida).replace(/[^\d.,]/g, '').replace(',', '.'));
+              if (!isNaN(valor)) {
+                totalAdiantamentos += valor;
+              }
+            }
+          });
+        }
+      });
       
-      // Calcular o saldo geral incluindo adiantamentos
-      const saldoGeral = totalEntradas - totalSaidas - totalAdiantamentos;
+      // CORREÇÃO: Calcular saldo geral incluindo saldo anterior e subtraindo adiantamentos
+      const saldoGeral = totalSaldoAnterior + totalEntradas - totalSaidas - totalAdiantamentos;
       
       // Atualizar as estatísticas formatadas
       const resumoFormatado = {
-        totalCaixas: Number(resumoData.totalCaixas) || 0,
+        totalCaixas: caixasParaCalcular.filter(c => !c.oculto).length,
         totalEntradas: totalEntradas,
-        totalSaidas: totalSaidas + totalAdiantamentos,
+        totalSaidas: totalSaidas + totalAdiantamentos, // Para exibição, incluir adiantamentos nas saídas
         totalAdiantamentos: totalAdiantamentos,
         saldoGeral: saldoGeral
       };
       
-      console.log("Resumo financeiro formatado (incluindo adiantamentos):", resumoFormatado);
+      console.log("Resumo financeiro calculado:", resumoFormatado);
       setResumo(resumoFormatado);
     } catch (error) {
       console.error("Erro ao calcular resumo financeiro:", error);
@@ -1055,11 +1090,8 @@ export default function CaixaViagemPage() {
       if (response.ok) {
         const result = await response.json();
         
-        // Recarregar os dados após o recálculo
+        // CORREÇÃO: Recarregar os dados após o recálculo (isso já vai calcular o resumo)
         await buscarCaixasDoUsuario(userId);
-        
-        // Atualizar também o resumo financeiro
-        await buscarResumoFinanceiro(userId);
         
         toast.success("Saldos recalculados com sucesso!");
         
@@ -1084,7 +1116,7 @@ export default function CaixaViagemPage() {
     let totalEntradas = 0;
     let totalSaidas = 0;
     let totalAdiantamentos = 0;
-    let totalSaldoAnterior = 0;  // Novo: para acumular todos os saldos anteriores
+    let totalSaldoAnterior = 0;
     
     filteredCaixas.forEach(caixa => {
       // Acumular saldo anterior
@@ -1113,7 +1145,7 @@ export default function CaixaViagemPage() {
         });
       }
       
-      // Adicionar cálculo dos adiantamentos
+      // Calcular adiantamentos separadamente
       if (Array.isArray(caixa.adiantamentos)) {
         caixa.adiantamentos.forEach(adiantamento => {
           if (adiantamento.saida) {
@@ -1126,13 +1158,14 @@ export default function CaixaViagemPage() {
       }
     });
     
-    // Calcular saldo geral INCLUINDO saldos anteriores
+    // CORREÇÃO: Calcular saldo geral igual à caixaviagemtodos
+    // Saldo = saldoAnterior + entradas - saídas(lançamentos) - adiantamentos
     const saldoGeral = totalSaldoAnterior + totalEntradas - totalSaidas - totalAdiantamentos;
     
     return {
       totalCaixas,
       totalEntradas,
-      totalSaidas: totalSaidas + totalAdiantamentos,
+      totalSaidas: totalSaidas + totalAdiantamentos, // Para exibição, mostrar total de saídas incluindo adiantamentos
       totalAdiantamentos,
       saldoGeral
     };
@@ -1158,12 +1191,11 @@ export default function CaixaViagemPage() {
   // Função para atualizar dados após operações com adiantamentos
   const handleAdiantamentosUpdated = async () => {
     if (userId) {
-      // Primeiro recalcular os saldos para garantir consistência
+      // CORREÇÃO: Primeiro recalcular os saldos para garantir consistência
       await recalcularSaldos();
       
-      // Depois buscar os dados atualizados
-      await buscarCaixasDoUsuario(userId);
-      await buscarResumoFinanceiro(userId);
+      // Não precisa chamar buscarResumoFinanceiro separadamente porque
+      // recalcularSaldos já chama buscarCaixasDoUsuario que calcula o resumo
       
       toast.success('Dados atualizados com sucesso!');
     }
@@ -1795,14 +1827,16 @@ export default function CaixaViagemPage() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {sortedCaixas.map((caixa) => {
-                    // Calcular totais para esta caixa
+                    // Calcular totais para esta caixa usando a mesma lógica
                     const lancamentos = Array.isArray(caixa.lancamentos) ? caixa.lancamentos : [];
                     
-                    // Obter o saldo anterior (importante para o cálculo correto)
+                                       
+                    // Obter o saldo anterior
                     const saldoAnterior = typeof caixa.saldoAnterior === 'number'
                       ? caixa.saldoAnterior
+
                       : parseFloat(String(caixa.saldoAnterior || 0));
-                    
+
                     // Calcular entradas dos lançamentos
                     const entradas = lancamentos
                       .filter(l => l?.entrada && !isNaN(parseFloat(String(l.entrada))))
@@ -1890,7 +1924,6 @@ export default function CaixaViagemPage() {
                         {/* Coluna de Saldo (incluindo saldoAnterior + entradas - saídas - adiantamentos) */}
                         <td className="px-6 py-4 text-right whitespace-nowrap">
                           <div className={`text-base font-semibold ${
-                           
                             saldo > 0 
                               ? 'text-green-600' 
                               : saldo < 0 

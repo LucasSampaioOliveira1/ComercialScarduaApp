@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   X, Download, ArrowDownCircle, ArrowUpCircle, DollarSign, Edit, Trash2, 
-  MapPin, Building, Calendar, User, Truck, FileText // Adicionar FileText
+  MapPin, Building, Calendar, User, Truck, FileText 
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
@@ -9,7 +9,6 @@ import { ptBR } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
-// Atualizar a interface para incluir onGenerateTermo
 interface CaixaViagemDetalhesModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -19,7 +18,7 @@ interface CaixaViagemDetalhesModalProps {
   veiculos?: any[];
   onEdit?: (caixa: any) => void;
   onDelete?: (caixa: any) => void;
-  onGenerateTermo?: (caixa: any) => void; // Nova propriedade
+  onGenerateTermo?: (caixa: any) => void;
   canEdit: boolean;
   canDelete: boolean;
 }
@@ -33,7 +32,7 @@ const CaixaViagemDetalhesModal = ({
   veiculos,
   onEdit,
   onDelete,
-  onGenerateTermo, // Novo parâmetro
+  onGenerateTermo,
   canEdit,
   canDelete
 }: CaixaViagemDetalhesModalProps) => {
@@ -48,7 +47,7 @@ const CaixaViagemDetalhesModal = ({
   const funcionario = funcionarios?.find(func => func.id === caixa.funcionarioId);
   const veiculo = veiculos?.find(v => v.id === caixa.veiculoId) || caixa.veiculo;
 
-  // Calcular totais
+  // CORREÇÃO: Usar a mesma lógica da caixaviagemtodos
   interface Lancamento {
     id?: string | number;
     entrada?: string | number;
@@ -58,20 +57,26 @@ const CaixaViagemDetalhesModal = ({
     historico?: string;
     clienteFornecedor?: string;
     custo?: string;
-    // Campos alternativos para compatibilidade
     numeroDocumento?: string;
     historicoDoc?: string;
   }
 
+  // Obter o saldo anterior
+  const saldoAnterior = typeof caixa.saldoAnterior === 'number'
+    ? caixa.saldoAnterior
+    : parseFloat(String(caixa.saldoAnterior || 0));
+
+  // Calcular entradas dos lançamentos
   const totalEntradas: number = lancamentos
     .filter((l: Lancamento) => l?.entrada && !isNaN(parseFloat(String(l.entrada))))
     .reduce((sum: number, item: Lancamento) => sum + parseFloat(String(item.entrada || "0")), 0);
   
-  const totalSaidas: number = lancamentos
+  // Calcular saídas dos lançamentos (SEM incluir adiantamentos aqui)
+  const totalSaidasLancamentos: number = lancamentos
     .filter((l: Lancamento) => l?.saida && !isNaN(parseFloat(String(l.saida))))
     .reduce((sum: number, item: Lancamento) => sum + parseFloat(String(item.saida || "0")), 0);
 
-  // Calcular o total de adiantamentos
+  // Calcular o total de adiantamentos SEPARADAMENTE
   const totalAdiantamentos: number = Array.isArray(caixa.adiantamentos)
     ? caixa.adiantamentos.reduce((sum: number, adiantamento: any) => {
         const valor = parseFloat(String(adiantamento.saida || "0"));
@@ -79,8 +84,11 @@ const CaixaViagemDetalhesModal = ({
       }, 0)
     : 0;
   
-  // Calcular o saldo incluindo adiantamentos
-  const saldo = totalEntradas - totalSaidas - totalAdiantamentos;
+  // CORREÇÃO: Calcular o saldo correto (igual à caixaviagemtodos)
+  const saldo = saldoAnterior + totalEntradas - totalSaidasLancamentos - totalAdiantamentos;
+
+  // Para exibição, mostrar total de saídas incluindo adiantamentos
+  const totalSaidasParaExibicao = totalSaidasLancamentos + totalAdiantamentos;
 
   // Formatar valores para exibição
   const formatCurrency = (value: number) => {
@@ -90,25 +98,21 @@ const CaixaViagemDetalhesModal = ({
     }).format(value);
   };
 
-  // Modificar a função formatDate para ser mais robusta, como no ContaCorrenteDetalhesModal
   const formatDate = (dateString?: string) => {
     if (!dateString) return "";
     
     try {
-      // Abordagem direta: extrair componentes da data sem usar o construtor Date
       if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
         const [year, month, day] = dateString.split('-');
         return `${day}/${month}/${year}`;
       }
       
-      // Processamento seguro para outros formatos
       if (dateString.includes('T')) {
         const [datePart] = dateString.split('T');
         const [year, month, day] = datePart.split('-');
         return `${day}/${month}/${year}`;
       }
       
-      // Último recurso com o método tradicional
       const date = new Date(dateString);
       return format(date, 'dd/MM/yyyy', { locale: ptBR });
     } catch (error) {
@@ -120,7 +124,6 @@ const CaixaViagemDetalhesModal = ({
   // Função para exportar dados para Excel
   const exportToExcel = () => {
     try {
-      // Preparar dados da caixa para a planilha
       const caixaData = {
         'ID': caixa.id,
         'Destino': caixa.destino,
@@ -132,15 +135,16 @@ const CaixaViagemDetalhesModal = ({
           `${veiculo.modelo} - ${veiculo.placa}` : 'N/A',
         'Usuário': caixa.user ? 
           `${caixa.user.nome} ${caixa.user.sobrenome || ''}` : 'N/A',
+        'Saldo Anterior': formatCurrency(saldoAnterior),
         'Total Entradas': formatCurrency(totalEntradas),
-        'Total Saídas': formatCurrency(totalSaidas),
-        'Saldo': formatCurrency(saldo),
+        'Total Saídas (Lançamentos)': formatCurrency(totalSaidasLancamentos),
+        'Total Adiantamentos': formatCurrency(totalAdiantamentos),
+        'Saldo Final': formatCurrency(saldo),
         'Observação': caixa.observacao || 'N/A',
         'Criado em': formatDate(caixa.createdAt),
         'Atualizado em': formatDate(caixa.updatedAt)
       };
 
-      // Preparar dados dos lançamentos para a planilha
       const lancamentosData = lancamentos.map((lancamento: any, index: number) => ({
         '#': index + 1,
         'Data': formatDate(lancamento.data),
@@ -152,23 +156,18 @@ const CaixaViagemDetalhesModal = ({
         'Saída': lancamento.saida ? formatCurrency(parseFloat(String(lancamento.saida))) : ''
       }));
 
-      // Criar um novo workbook
       const wb = XLSX.utils.book_new();
       
-      // Adicionar a aba com os dados da caixa
       const wsCaixa = XLSX.utils.json_to_sheet([caixaData]);
       XLSX.utils.book_append_sheet(wb, wsCaixa, 'Detalhes da Caixa');
       
-      // Adicionar a aba com os lançamentos
       if (lancamentosData.length > 0) {
         const wsLancamentos = XLSX.utils.json_to_sheet(lancamentosData);
         XLSX.utils.book_append_sheet(wb, wsLancamentos, 'Lançamentos');
       }
       
-      // Gerar o nome do arquivo
       const fileName = `caixa-viagem-${caixa.id}-${caixa.destino.replace(/\s+/g, '-').toLowerCase()}.xlsx`;
       
-      // Criar o arquivo Excel e fazer o download
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const data = new Blob([excelBuffer], { type: 'application/octet-stream' });
       saveAs(data, fileName);
@@ -188,7 +187,7 @@ const CaixaViagemDetalhesModal = ({
           animate={{ opacity: 1, scale: 1 }}
           className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-4xl"
         >
-          {/* Cabeçalho Reformulado */}
+          {/* Cabeçalho */}
           <div className="bg-blue-50 p-4 rounded-t-lg relative border-b border-blue-100">
             <div className="sm:flex sm:items-start justify-between">
               <div className="flex items-center">
@@ -297,7 +296,7 @@ const CaixaViagemDetalhesModal = ({
           <div className="bg-white px-4 py-5 sm:p-6">
             {activeTab === 'detalhes' && (
               <div>
-                {/* Resumo financeiro em 3 colunas */}
+                {/* CORREÇÃO: Resumo financeiro atualizado */}
                 <div className="grid grid-cols-3 gap-4 mb-6">
                   <div className="bg-green-50 p-3 rounded-lg">
                     <div className="flex items-center justify-between">
@@ -315,7 +314,7 @@ const CaixaViagemDetalhesModal = ({
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-xs font-medium text-gray-600">Saídas + Adiantamentos</p>
-                        <p className="text-lg font-bold text-red-600">{formatCurrency(totalSaidas + totalAdiantamentos)}</p>
+                        <p className="text-lg font-bold text-red-600">{formatCurrency(totalSaidasParaExibicao)}</p>
                       </div>
                       <div className="bg-red-100 rounded-full p-1.5">
                         <ArrowUpCircle size={16} className="text-red-600" />
@@ -355,7 +354,6 @@ const CaixaViagemDetalhesModal = ({
                     </div>
                     <div className="p-4">
                       <div className="space-y-3">
-                        {/* Adicionando destino - agora como primeiro item */}
                         <div className="flex items-center">
                           <MapPin className="h-5 w-5 text-gray-500 mr-2" />
                           <div>
@@ -366,7 +364,6 @@ const CaixaViagemDetalhesModal = ({
                           </div>
                         </div>
                         
-                        {/* Adicionando data - agora como segundo item */}
                         <div className="flex items-center">
                           <Calendar className="h-5 w-5 text-gray-500 mr-2" />
                           <div>
@@ -403,7 +400,6 @@ const CaixaViagemDetalhesModal = ({
                         )}
                       </div>
                       
-                      {/* Observações */}
                       {caixa.observacao && (
                         <div className="mt-4 pt-3 border-t border-gray-200">
                           <div className="bg-blue-50 p-3 rounded border border-blue-100">
@@ -425,10 +421,10 @@ const CaixaViagemDetalhesModal = ({
                     </div>
                     <div className="p-4">
                       <div>
-                        {caixa.saldoAnterior !== 0 && caixa.saldoAnterior !== undefined && (
+                        {saldoAnterior !== 0 && (
                           <div className="flex justify-between items-center mb-2 pb-2 border-b border-gray-100">
                             <span className="text-sm text-gray-600">Saldo Inicial:</span>
-                            <span className="text-sm font-medium">{formatCurrency(Number(caixa.saldoAnterior))}</span>
+                            <span className="text-sm font-medium">{formatCurrency(saldoAnterior)}</span>
                           </div>
                         )}
                         
@@ -451,7 +447,7 @@ const CaixaViagemDetalhesModal = ({
                   </div>
                 </div>
                 
-                {/* Adicionar uma nova seção para mostrar os adiantamentos vinculados */}
+                {/* Seção de adiantamentos */}
                 {Array.isArray(caixa.adiantamentos) && caixa.adiantamentos.length > 0 && (
                   <div className="mt-6">
                     <h3 className="font-medium text-gray-800 mb-3 text-sm">Adiantamentos Aplicados</h3>
@@ -480,12 +476,7 @@ const CaixaViagemDetalhesModal = ({
                             <tr className="bg-red-50">
                               <td colSpan={3} className="px-4 py-2 text-right text-sm font-medium text-red-700">Total de Adiantamentos:</td>
                               <td className="px-4 py-2 text-right text-sm font-medium text-red-700">
-                                {formatCurrency(
-                                  caixa.adiantamentos.reduce((total: number, adiantamento: any) => {
-                                    const valor = parseFloat(String(adiantamento.saida));
-                                    return total + (isNaN(valor) ? 0 : valor);
-                                  }, 0)
-                                )}
+                                {formatCurrency(totalAdiantamentos)}
                               </td>
                             </tr>
                           </tbody>
@@ -534,14 +525,14 @@ const CaixaViagemDetalhesModal = ({
                           </tr>
                         ))}
                         
-                        {/* Linha de total */}
+                        {/* CORREÇÃO: Linha de total dos lançamentos apenas */}
                         <tr className="bg-gray-50 font-medium">
                           <td colSpan={5} className="px-6 py-3 text-right text-sm">Totais (Lançamentos):</td>
                           <td className="px-6 py-3 text-right text-green-600 font-semibold">{formatCurrency(totalEntradas)}</td>
-                          <td className="px-6 py-3 text-right text-red-600 font-semibold">{formatCurrency(totalSaidas)}</td>
+                          <td className="px-6 py-3 text-right text-red-600 font-semibold">{formatCurrency(totalSaidasLancamentos)}</td>
                         </tr>
                         
-                        {/* Adicionar linha para adiantamentos se existirem */}
+                        {/* Linha separada para adiantamentos */}
                         {totalAdiantamentos > 0 && (
                           <tr className="bg-red-50 font-medium">
                             <td colSpan={6} className="px-6 py-3 text-right text-sm">Total de Adiantamentos:</td>
@@ -549,9 +540,11 @@ const CaixaViagemDetalhesModal = ({
                           </tr>
                         )}
 
-                        {/* Linha de saldo */}
+                        {/* CORREÇÃO: Linha de saldo final */}
                         <tr className="bg-gray-100">
-                          <td colSpan={5} className="px-6 py-3 text-right text-sm font-medium">Saldo (incluindo adiantamentos):</td>
+                          <td colSpan={5} className="px-6 py-3 text-right text-sm font-medium">
+                            Saldo Final {saldoAnterior !== 0 && `(Inicial: ${formatCurrency(saldoAnterior)})`}:
+                          </td>
                           <td colSpan={2} className={`px-6 py-3 text-right font-semibold ${saldo >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
                             {formatCurrency(saldo)}
                           </td>
