@@ -9,7 +9,8 @@ import {
   Link,
   Search,
   Calendar,
-  DollarSign
+  DollarSign,
+  AlertTriangle
 } from "lucide-react";
 
 interface Adiantamento {
@@ -20,13 +21,23 @@ interface Adiantamento {
   saida: string;
   userId: string;
   caixaViagemId: number | null;
+  colaboradorId: number | null;
+  colaborador?: {
+    id: number;
+    nome: string;
+    sobrenome?: string;
+    setor?: string;
+    cargo?: string;
+  };
 }
 
 interface CaixaViagem {
   id: number;
   destino: string;
   numeroCaixa?: number;
+  funcionarioId?: number;
   funcionario?: {
+    id?: number;
     nome: string;
     sobrenome?: string;
   };
@@ -87,24 +98,33 @@ export default function AplicarAdiantamentoModal({
     }
   }, [isOpen]);
 
-  // Filtrar adiantamentos quando houver busca
+  // Filtrar adiantamentos quando houver busca ou mudança de dados
   useEffect(() => {
-    if (searchTerm.trim() === "") {
-      setFilteredAdiantamentos(adiantamentosDisponiveis);
-      return;
+    let adiantamentosFiltrados = adiantamentosDisponiveis;
+
+    // NOVA VALIDAÇÃO: Filtrar apenas adiantamentos do mesmo colaborador
+    const funcionarioIdCaixa = caixaViagem.funcionarioId || caixaViagem.funcionario?.id;
+    
+    if (funcionarioIdCaixa) {
+      adiantamentosFiltrados = adiantamentosFiltrados.filter(
+        a => a.colaboradorId === funcionarioIdCaixa
+      );
     }
 
-    const searchTermLower = searchTerm.toLowerCase();
-    const filtered = adiantamentosDisponiveis.filter(
-      a => 
-        a.nome.toLowerCase().includes(searchTermLower) ||
-        (a.observacao?.toLowerCase() || "").includes(searchTermLower) ||
-        formatarData(a.data).includes(searchTermLower) ||
-        a.saida.includes(searchTermLower)
-    );
+    // Aplicar filtro de busca se houver
+    if (searchTerm.trim() !== "") {
+      const searchTermLower = searchTerm.toLowerCase();
+      adiantamentosFiltrados = adiantamentosFiltrados.filter(
+        a => 
+          a.nome.toLowerCase().includes(searchTermLower) ||
+          (a.observacao?.toLowerCase() || "").includes(searchTermLower) ||
+          formatarData(a.data).includes(searchTermLower) ||
+          a.saida.includes(searchTermLower)
+      );
+    }
     
-    setFilteredAdiantamentos(filtered);
-  }, [searchTerm, adiantamentosDisponiveis]);
+    setFilteredAdiantamentos(adiantamentosFiltrados);
+  }, [searchTerm, adiantamentosDisponiveis, caixaViagem.funcionarioId, caixaViagem.funcionario?.id]);
 
   const fetchAdiantamentosDisponiveis = async () => {
     try {
@@ -132,7 +152,6 @@ export default function AplicarAdiantamentoModal({
       const disponiveis = data.filter((a: Adiantamento) => a.caixaViagemId === null);
       
       setAdiantamentosDisponiveis(disponiveis);
-      setFilteredAdiantamentos(disponiveis);
     } catch (error) {
       console.error("Erro ao buscar adiantamentos disponíveis:", error);
       toast.error("Não foi possível carregar os adiantamentos");
@@ -148,6 +167,15 @@ export default function AplicarAdiantamentoModal({
       const token = localStorage.getItem("token");
       if (!token) {
         toast.error("Sessão expirada. Faça login novamente.");
+        return;
+      }
+      
+      // NOVA VALIDAÇÃO: Verificar novamente no frontend antes de enviar
+      const adiantamento = adiantamentosDisponiveis.find(a => a.id === adiantamentoId);
+      const funcionarioIdCaixa = caixaViagem.funcionarioId || caixaViagem.funcionario?.id;
+      
+      if (adiantamento && funcionarioIdCaixa && adiantamento.colaboradorId !== funcionarioIdCaixa) {
+        toast.error("Este adiantamento não pode ser aplicado nesta caixa pois pertence a outro colaborador.");
         return;
       }
       
@@ -213,6 +241,12 @@ export default function AplicarAdiantamentoModal({
 
   if (!isOpen) return null;
 
+  // Verificar se há um funcionário definido na caixa
+  const funcionarioIdCaixa = caixaViagem.funcionarioId || caixaViagem.funcionario?.id;
+  const nomeFuncionario = caixaViagem.funcionario ? 
+    `${caixaViagem.funcionario.nome} ${caixaViagem.funcionario.sobrenome || ''}`.trim() : 
+    'Não definido';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-60">
       <motion.div
@@ -243,15 +277,23 @@ export default function AplicarAdiantamentoModal({
                 {caixaViagem.numeroCaixa ? `#${caixaViagem.numeroCaixa} - ` : ''}{caixaViagem.destino}
               </h3>
             </div>
-            {caixaViagem.funcionario && (
-              <div>
-                <span className="text-sm text-gray-500">Funcionário:</span>
-                <p className="font-medium text-gray-800">
-                  {caixaViagem.funcionario.nome} {caixaViagem.funcionario.sobrenome || ''}
-                </p>
-              </div>
-            )}
+            <div>
+              <span className="text-sm text-gray-500">Funcionário:</span>
+              <p className="font-medium text-gray-800">
+                {nomeFuncionario}
+              </p>
+            </div>
           </div>
+          
+          {/* Aviso se não há funcionário definido */}
+          {!funcionarioIdCaixa && (
+            <div className="mt-3 p-3 bg-yellow-100 border border-yellow-300 rounded-md flex items-center">
+              <AlertTriangle className="text-yellow-600 mr-2" size={18} />
+              <span className="text-yellow-800 text-sm">
+                Esta caixa não possui um funcionário definido. Não é possível aplicar adiantamentos.
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Conteúdo */}
@@ -266,6 +308,7 @@ export default function AplicarAdiantamentoModal({
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Buscar adiantamentos disponíveis..."
                 className="pl-10 w-full p-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
+                disabled={!funcionarioIdCaixa}
               />
               {searchTerm && (
                 <button
@@ -285,12 +328,19 @@ export default function AplicarAdiantamentoModal({
                 <Loader2 size={40} className="mx-auto animate-spin text-[#344893]" />
                 <p className="mt-4 text-gray-600">Carregando adiantamentos disponíveis...</p>
               </div>
+            ) : !funcionarioIdCaixa ? (
+              <div className="py-12 text-center">
+                <AlertTriangle size={40} className="mx-auto text-yellow-500 mb-4" />
+                <p className="text-gray-500">
+                  Não é possível aplicar adiantamentos nesta caixa pois ela não possui um funcionário definido.
+                </p>
+              </div>
             ) : filteredAdiantamentos.length === 0 ? (
               <div className="py-12 text-center">
                 <p className="text-gray-500">
                   {searchTerm ? 
                     "Nenhum adiantamento corresponde à sua pesquisa." : 
-                    "Não há adiantamentos disponíveis para aplicar. Crie novos adiantamentos na tela principal."}
+                    `Não há adiantamentos disponíveis para ${nomeFuncionario}. Os adiantamentos devem ser do mesmo colaborador da caixa de viagem.`}
                 </p>
               </div>
             ) : (

@@ -152,13 +152,61 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "ID do adiantamento é obrigatório" }, { status: 400 });
     }
 
-    // Buscar adiantamento para verificar se existe
+    // Buscar adiantamento para verificar se existe e incluir colaborador
     const adiantamento = await prisma.adiantamento.findUnique({
-      where: { id: Number(body.adiantamentoId) }
+      where: { id: Number(body.adiantamentoId) },
+      include: {
+        colaborador: {
+          select: {
+            id: true,
+            nome: true,
+            sobrenome: true
+          }
+        }
+      }
     });
     
     if (!adiantamento) {
       return NextResponse.json({ error: "Adiantamento não encontrado" }, { status: 404 });
+    }
+
+    // NOVA VALIDAÇÃO: Se está tentando vincular a uma caixa de viagem, 
+    // verificar se o colaborador do adiantamento é o mesmo da caixa
+    if (body.caixaViagemId !== undefined && body.caixaViagemId !== null) {
+      const caixaViagem = await prisma.caixaViagem.findUnique({
+        where: { id: Number(body.caixaViagemId) },
+        select: {
+          id: true,
+          funcionarioId: true,
+          destino: true,
+          funcionario: {
+            select: {
+              id: true,
+              nome: true,
+              sobrenome: true
+            }
+          }
+        }
+      });
+      
+      if (!caixaViagem) {
+        return NextResponse.json({ error: "Caixa de viagem não encontrada" }, { status: 404 });
+      }
+      
+      // Verificar se o colaborador do adiantamento é o mesmo da caixa de viagem
+      if (adiantamento.colaboradorId !== caixaViagem.funcionarioId) {
+        const nomeColaboradorAdiantamento = adiantamento.colaborador ? 
+          `${adiantamento.colaborador.nome} ${adiantamento.colaborador.sobrenome || ''}`.trim() : 
+          'Indefinido';
+        
+        const nomeColaboradorCaixa = caixaViagem.funcionario ? 
+          `${caixaViagem.funcionario.nome} ${caixaViagem.funcionario.sobrenome || ''}`.trim() : 
+          'Indefinido';
+          
+        return NextResponse.json({ 
+          error: `Não é possível aplicar este adiantamento. O adiantamento pertence a ${nomeColaboradorAdiantamento}, mas a caixa de viagem pertence a ${nomeColaboradorCaixa}. Adiantamentos só podem ser aplicados em caixas do mesmo colaborador.` 
+        }, { status: 400 });
+      }
     }
 
     // Preparar dados para atualização

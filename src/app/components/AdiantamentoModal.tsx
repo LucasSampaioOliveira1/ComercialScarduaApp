@@ -28,7 +28,7 @@ interface Adiantamento {
   saida: string;
   userId: string;
   caixaViagemId: number | null;
-  colaboradorId?: number | null; // Adicionar colaboradorId
+  colaboradorId?: number | null;
   colaborador?: {
     id: number;
     nome: string;
@@ -103,7 +103,7 @@ export default function AdiantamentoModal({
   const [formData, setFormData] = useState({
     id: 0,
     data: new Date().toISOString().split("T")[0],
-    colaboradorId: "", // Mudança: usar colaboradorId ao invés de nome
+    colaboradorId: "",
     observacao: "",
     saida: ""
   });
@@ -500,8 +500,8 @@ export default function AdiantamentoModal({
     try {
       // Usar a função format diretamente com a data correta
       if (data.includes('T')) {
-        const [dataPart] = data.split('T');
-        const [ano, mes, dia] = dataPart.split('-');
+        const [datePart] = data.split('T');
+        const [ano, mes, dia] = datePart.split('-');
         return `${dia}/${mes}/${ano}`;
       } else if (/^\d{4}-\d{2}-\d{2}$/.test(data)) {
         const [ano, mes, dia] = data.split('-');
@@ -542,40 +542,40 @@ export default function AdiantamentoModal({
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+        className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col"
       >
-        {/* Header */}
-        <div className="bg-gradient-to-r from-[#344893] to-[#4A5BC4] text-white p-4 flex justify-between items-center">
+        {/* Header - Mais compacto */}
+        <div className="bg-gradient-to-r from-[#344893] to-[#4A5BC4] text-white p-3 flex justify-between items-center">
           <div className="flex items-center">
-            <Coins size={24} className="mr-3" />
-            <h2 className="text-xl font-semibold">Gerenciar Adiantamentos</h2>
+            <Coins size={20} className="mr-2" />
+            <h2 className="text-lg font-semibold">Gerenciar Adiantamentos</h2>
           </div>
           <button
             onClick={onClose}
-            className="text-white hover:text-gray-200 transition-colors"
+            className="text-white hover:text-gray-200 transition-colors p-1"
           >
-            <X size={24} />
+            <X size={20} />
           </button>
         </div>
 
         {/* Conteúdo */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {/* Formulário de criação/edição - só aparece se tiver permissão */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {/* Formulário de criação/edição - Mais compacto */}
           {userPermissions.canCreate && (
-            <form onSubmit={handleSubmit} className="bg-gray-50 rounded-lg p-5 border border-gray-200 mb-6">
-              <h3 className="text-lg font-medium mb-4 text-gray-800">{isEditing ? "Editar Adiantamento" : "Novo Adiantamento"}</h3>
+            <form onSubmit={handleSubmit} className="bg-gray-50 rounded-lg p-4 border border-gray-200 mb-4">
+              <h3 className="text-base font-medium mb-3 text-gray-800">{isEditing ? "Editar Adiantamento" : "Novo Adiantamento"}</h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Data</label>
                   <div className="relative">
-                    <Calendar size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <Calendar size={16} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     <input
                       type="date"
                       name="data"
                       value={formData.data}
                       onChange={handleInputChange}
-                      className="pl-10 w-full p-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
+                      className="pl-8 w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
                       required
                       disabled={isSubmitting}
                     />
@@ -583,14 +583,14 @@ export default function AdiantamentoModal({
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Colaborador</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Colaborador</label>
                   <div className="relative">
-                    <User size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <User size={16} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     <select
                       name="colaboradorId"
                       value={formData.colaboradorId}
                       onChange={handleInputChange}
-                      className="pl-10 w-full p-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
+                      className="pl-8 w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
                       required
                       disabled={isSubmitting}
                     >
@@ -606,16 +606,16 @@ export default function AdiantamentoModal({
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Valor do Adiantamento</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Valor do Adiantamento</label>
                   <div className="relative">
-                    <DollarSign size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <DollarSign size={16} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     <input
                       type="text"
                       name="saida"
                       value={formData.saida}
                       onChange={handleSaidaChange}
                       placeholder="0,00"
-                      className="pl-10 w-full p-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
+                      className="pl-8 w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
                       required
                       disabled={isSubmitting}
                     />
@@ -623,25 +623,25 @@ export default function AdiantamentoModal({
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Observação</label>
-                  <textarea
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Observação</label>
+                  <input
+                    type="text"
                     name="observacao"
                     value={formData.observacao}
                     onChange={handleInputChange}
-                    placeholder="Observações adicionais (opcional)"
-                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
-                    rows={1}
+                    placeholder="Observações (opcional)"
+                    className="w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
                     disabled={isSubmitting}
                   />
                 </div>
               </div>
               
-              <div className="mt-4 flex justify-end space-x-3">
+              <div className="mt-3 flex justify-end space-x-2">
                 {isEditing && (
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                    className="px-3 py-1.5 text-sm text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
                     disabled={isSubmitting}
                   >
                     Cancelar
@@ -650,23 +650,23 @@ export default function AdiantamentoModal({
                 
                 <button
                   type="submit"
-                  className="px-4 py-2 text-white bg-[#344893] rounded-md hover:bg-[#263672] flex items-center"
+                  className="px-3 py-1.5 text-sm text-white bg-[#344893] rounded-md hover:bg-[#263672] flex items-center"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2 size={18} className="mr-2 animate-spin" />
+                      <Loader2 size={14} className="mr-1 animate-spin" />
                       Salvando...
                     </>
                   ) : isEditing ? (
                     <>
-                      <Check size={18} className="mr-2" />
+                      <Check size={14} className="mr-1" />
                       Atualizar
                     </>
                   ) : (
                     <>
-                      <PlusCircle size={18} className="mr-2" />
-                      Criar Adiantamento
+                      <PlusCircle size={14} className="mr-1" />
+                      Criar
                     </>
                   )}
                 </button>
@@ -674,108 +674,108 @@ export default function AdiantamentoModal({
             </form>
           )}
 
-          {/* Barra de busca */}
-          <div className="mb-4">
+          {/* Barra de busca - Mais compacta */}
+          <div className="mb-3">
             <div className="relative">
-              <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <Search size={16} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Buscar por colaborador, data, valor ou observação..."
+                placeholder="Buscar por colaborador, data, valor..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 w-full p-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
+                className="pl-8 w-full p-2 text-sm border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
               />
             </div>
           </div>
 
-          {/* Lista de adiantamentos */}
-          <div className="space-y-4">
+          {/* Lista de adiantamentos - Mais compacta */}
+          <div className="space-y-2">
             {isLoading ? (
-              <div className="flex justify-center items-center py-8">
-                <Loader2 size={32} className="animate-spin text-[#344893]" />
-                <span className="ml-2 text-gray-600">Carregando adiantamentos...</span>
+              <div className="flex justify-center items-center py-6">
+                <Loader2 size={24} className="animate-spin text-[#344893]" />
+                <span className="ml-2 text-sm text-gray-600">Carregando...</span>
               </div>
             ) : filteredAdiantamentos.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Coins size={48} className="mx-auto mb-4 text-gray-300" />
-                <p>Nenhum adiantamento encontrado</p>
+              <div className="text-center py-6 text-gray-500">
+                <Coins size={32} className="mx-auto mb-2 text-gray-300" />
+                <p className="text-sm">Nenhum adiantamento encontrado</p>
               </div>
             ) : (
               filteredAdiantamentos.map((adiantamento) => (
                 <div
                   key={adiantamento.id}
-                  className={`bg-white border rounded-lg p-4 hover:shadow-md transition-shadow ${
+                  className={`bg-white border rounded-lg p-3 hover:shadow-sm transition-shadow ${
                     adiantamento.caixaViagemId ? 'border-green-200 bg-green-50' : 'border-gray-200'
                   }`}
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
-                      <div className="flex items-center mb-2">
-                        <User size={16} className="text-gray-400 mr-2" />
-                        <span className="font-medium text-gray-900">
+                      <div className="flex items-center mb-1">
+                        <User size={14} className="text-gray-400 mr-1" />
+                        <span className="font-medium text-sm text-gray-900">
                           {adiantamento.colaborador 
                             ? `${adiantamento.colaborador.nome} ${adiantamento.colaborador.sobrenome || ''}`.trim()
                             : adiantamento.nome}
                         </span>
                         {adiantamento.caixaViagemId && (
-                          <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full flex items-center">
-                            <Link size={12} className="mr-1" />
+                          <span className="ml-2 px-1.5 py-0.5 bg-green-100 text-green-800 text-xs rounded-full flex items-center">
+                            <Link size={10} className="mr-0.5" />
                             Aplicado
                           </span>
                         )}
                       </div>
                       
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-gray-600">
-                        <div>
-                          <Calendar size={14} className="inline mr-1" />
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-gray-600">
+                        <div className="flex items-center">
+                          <Calendar size={12} className="mr-1" />
                           {formatarData(adiantamento.data)}
                         </div>
-                        <div>
-                          <DollarSign size={14} className="inline mr-1" />
+                        <div className="flex items-center">
+                          <DollarSign size={12} className="mr-1" />
                           {formatarValor(adiantamento.saida)}
                         </div>
                         {adiantamento.caixaViagem && (
-                          <div className="md:col-span-2">
-                            <FileText size={14} className="inline mr-1" />
-                            Caixa {adiantamento.caixaViagem.numeroCaixa} - {adiantamento.caixaViagem.destino}
+                          <div className="flex items-center">
+                            <FileText size={12} className="mr-1" />
+                            Caixa {adiantamento.caixaViagem.numeroCaixa}
                           </div>
                         )}
                       </div>
                       
                       {adiantamento.observacao && (
-                        <div className="mt-2 text-sm text-gray-600">
+                        <div className="mt-1 text-xs text-gray-600">
                           <span className="font-medium">Obs:</span> {adiantamento.observacao}
                         </div>
                       )}
                     </div>
                     
-                    <div className="flex space-x-2 ml-4">
+                    <div className="flex space-x-1 ml-2">
                       {adiantamento.caixaViagemId ? (
                         <button
                           onClick={() => handleDesvincular(adiantamento.id)}
-                          className="p-2 text-orange-600 hover:bg-orange-50 rounded-md transition-colors"
+                          className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-md transition-colors"
                           title="Desvincular da caixa"
                         >
-                          <Link2Off size={16} />
+                          <Link2Off size={14} />
                         </button>
                       ) : (
                         <>
                           {userPermissions.canEdit && (
                             <button
                               onClick={() => handleEdit(adiantamento)}
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                               title="Editar adiantamento"
                             >
-                              <Edit size={16} />
+                              <Edit size={14} />
                             </button>
                           )}
                           {userPermissions.canDelete && (
                             <button
                               onClick={() => handleDelete(adiantamento.id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors"
                               title="Excluir adiantamento"
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={14} />
                             </button>
                           )}
                         </>
