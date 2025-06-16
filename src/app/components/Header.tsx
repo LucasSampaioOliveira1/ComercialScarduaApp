@@ -346,13 +346,13 @@ function HeaderContent() {
       type: 'dropdown',
       children: [
         { 
-          name: 'Minhas Caixas', 
+          name: 'Meus Caixas', 
           path: '/caixaviagem', 
           icon: <Plane size={16} />, 
           pageName: 'caixaviagem' 
         },
         { 
-          name: 'Todas Caixas', 
+          name: 'Todos os Caixas', 
           path: '/caixaviagemtodos', 
           icon: <Plane size={16} />, 
           pageName: 'caixaviagemtodos' 

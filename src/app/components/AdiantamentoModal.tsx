@@ -186,8 +186,8 @@ export default function AdiantamentoModal({
       return;
     }
     
-    if (!formData.data || !formData.nome || !formData.saida) {
-      toast.error("Data, nome e valor são campos obrigatórios.");
+    if (!formData.data || !formData.nome || formData.saida === undefined) {
+      toast.error("Data, nome e valor do adiantamento são campos obrigatórios.");
       return;
     }
     
@@ -540,7 +540,7 @@ export default function AdiantamentoModal({
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Valor de Saída (R$)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Valor do Adiantamento</label>
                   <div className="relative">
                     <DollarSign size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     <input
@@ -639,7 +639,7 @@ export default function AdiantamentoModal({
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Observação</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Saída</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                   </tr>
                 </thead>
@@ -666,7 +666,7 @@ export default function AdiantamentoModal({
                         <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" title={adiantamento.observacao || ""}>
                           {adiantamento.observacao || "-"}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-red-600">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-green-600">
                           {formatarValor(adiantamento.saida)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-center">

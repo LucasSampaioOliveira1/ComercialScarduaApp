@@ -89,12 +89,12 @@ const CaixaViagemCard = ({
       });
     }
     
-    const saldoCalculado = saldoAnterior + totalEntradas - totalSaidas - totalAdiantamentos;
+    const saldoCalculado = saldoAnterior + totalEntradas + totalAdiantamentos - totalSaidas;
     
     return {
       saldo: saldoCalculado, 
-      entradas: totalEntradas,
-      saidas: totalSaidas + totalAdiantamentos,
+      entradas: totalEntradas + totalAdiantamentos, // Incluir adiantamentos nas entradas totais
+      saidas: totalSaidas, // Manter apenas saídas dos lançamentos
       saldoAnterior: saldoAnterior,
       totalAdiantamentos: totalAdiantamentos
     };
@@ -193,10 +193,11 @@ const CaixaViagemCard = ({
           )}
           
           <div className="grid grid-cols-2 gap-2">
+            {/* ALTERAÇÃO: Entradas agora incluem adiantamentos e mantém cor verde */}
             <div className="bg-green-50 border border-green-100 rounded-lg p-2 transition-all duration-200 group-hover:bg-green-100/50">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-green-700 flex items-center">
-                  <ArrowDownCircle size={10} className="mr-1" />
+                  <ArrowUpCircle size={10} className="mr-1" />
                   Entradas
                 </span>
                 <span className="text-green-600 font-medium text-xs">
@@ -205,10 +206,11 @@ const CaixaViagemCard = ({
               </div>
             </div>
             
+            {/* Saídas mantém apenas os lançamentos de saída */}
             <div className="bg-red-50 border border-red-100 rounded-lg p-2 transition-all duration-200 group-hover:bg-red-100/50">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-red-700 flex items-center">
-                  <ArrowUpCircle size={10} className="mr-1" />
+                  <ArrowDownCircle size={10} className="mr-1" />
                   Saídas
                 </span>
                 <span className="text-red-600 font-medium text-xs">
@@ -253,17 +255,20 @@ const CaixaViagemCard = ({
           </div>
         </div>
         
-        {/* Badge Adiantamentos Compacto */}
+        {/* ALTERAÇÃO: Badge Adiantamentos agora em verde (entrada positiva) */}
         {Array.isArray(caixa.adiantamentos) && caixa.adiantamentos.length > 0 && (
-          <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg p-2 mb-3">
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-2 mb-3">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-medium text-orange-700 flex items-center">
-                <LinkIcon size={10} className="mr-1" />
+              <span className="text-xs font-medium text-green-700 flex items-center">
+                <ArrowUpCircle size={10} className="mr-1" />
                 Adiantamentos
               </span>
-              <span className="text-xs font-bold text-orange-600">
+              <span className="text-xs font-bold text-green-600">
                 {formatCurrency(totalAdiantamentos)}
               </span>
+            </div>
+            <div className="text-xs text-green-600 mt-1 opacity-75">
+              {caixa.adiantamentos.length} adiantamento{caixa.adiantamentos.length !== 1 ? 's' : ''}
             </div>
           </div>
         )}

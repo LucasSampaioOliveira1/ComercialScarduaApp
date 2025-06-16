@@ -327,7 +327,7 @@ export default function CaixaViagemPage() {
         }
         
         // CORREÇÃO: Saldo correto considera saldo anterior + entradas - saídas(lançamentos) - adiantamentos
-        const saldo = saldoAnterior + entradas - saidasLancamentos - totalAdiantamentos;
+        const saldo = saldoAnterior + entradas + totalAdiantamentos - saidasLancamentos;
         
         return {
           ...caixa,
@@ -415,13 +415,13 @@ export default function CaixaViagemPage() {
       });
       
       // CORREÇÃO: Calcular saldo geral incluindo saldo anterior e subtraindo adiantamentos
-      const saldoGeral = totalSaldoAnterior + totalEntradas - totalSaidas - totalAdiantamentos;
+      const saldoGeral = totalSaldoAnterior + totalEntradas + totalAdiantamentos - totalSaidas;
       
       // Atualizar as estatísticas formatadas
       const resumoFormatado = {
         totalCaixas: caixasParaCalcular.filter(c => !c.oculto).length,
-        totalEntradas: totalEntradas,
-        totalSaidas: totalSaidas + totalAdiantamentos, // Para exibição, incluir adiantamentos nas saídas
+        totalEntradas: totalEntradas + totalAdiantamentos, // Incluir adiantamentos nas entradas
+        totalSaidas: totalSaidas, // Manter saídas apenas como saídas dos lançamentos
         totalAdiantamentos: totalAdiantamentos,
         saldoGeral: saldoGeral
       };
@@ -1209,12 +1209,12 @@ export default function CaixaViagemPage() {
     
     // CORREÇÃO: Calcular saldo geral igual à caixaviagemtodos
     // Saldo = saldoAnterior + entradas - saídas(lançamentos) - adiantamentos
-    const saldoGeral = totalSaldoAnterior + totalEntradas - totalSaidas - totalAdiantamentos;
+    const saldoGeral = totalSaldoAnterior + totalEntradas + totalAdiantamentos - totalSaidas;
     
     return {
       totalCaixas,
-      totalEntradas,
-      totalSaidas: totalSaidas + totalAdiantamentos, // Para exibição, mostrar total de saídas incluindo adiantamentos
+      totalEntradas: totalEntradas + totalAdiantamentos, // Incluir adiantamentos nas entradas
+      totalSaidas: totalSaidas, // Manter saídas apenas como saídas dos lançamentos
       totalAdiantamentos,
       saldoGeral
     };
@@ -1290,12 +1290,12 @@ export default function CaixaViagemPage() {
     });
     
     // Calcular saldo geral (incluindo adiantamentos nas saídas)
-    const saldoGeral = totalEntradas - totalSaidas - totalAdiantamentos;
+    const saldoGeral = totalEntradas + totalAdiantamentos - totalSaidas;
     
     return {
       totalCaixas: caixas.length,
-      totalEntradas,
-      totalSaidas: totalSaidas + totalAdiantamentos,
+      totalEntradas: totalEntradas + totalAdiantamentos, // Incluir adiantamentos nas entradas
+      totalSaidas: totalSaidas, // Manter saídas apenas como saídas dos lançamentos
       totalAdiantamentos,
       saldoGeral
     };
@@ -1333,6 +1333,7 @@ export default function CaixaViagemPage() {
               )}
               
               {/* Botão de Adiantamentos só aparece se tiver permissão de criação */}
+              {/* 
               {userPermissions.canCreate && (
                 <button
                   onClick={() => setIsAdiantamentoModalOpen(true)}
@@ -1342,6 +1343,7 @@ export default function CaixaViagemPage() {
                   Adiantamentos
                 </button>
               )}
+              */}
               
               {/* Botão de exportar aparece independentemente das permissões */}
               {isFilterActive && filteredCaixas.length > 0 && (
@@ -1878,15 +1880,13 @@ export default function CaixaViagemPage() {
                     // Calcular totais para esta caixa usando a mesma lógica
                     const lancamentos = Array.isArray(caixa.lancamentos) ? caixa.lancamentos : [];
                     
-                                       
                     // Obter o saldo anterior
                     const saldoAnterior = typeof caixa.saldoAnterior === 'number'
                       ? caixa.saldoAnterior
-
                       : parseFloat(String(caixa.saldoAnterior || 0));
 
                     // Calcular entradas dos lançamentos
-                    const entradas = lancamentos
+                    const entradasLancamentos = lancamentos
                       .filter(l => l?.entrada && !isNaN(parseFloat(String(l.entrada))))
                       .reduce((sum, item) => sum + parseFloat(String(item.entrada || "0")), 0);
 
@@ -1895,7 +1895,7 @@ export default function CaixaViagemPage() {
                       .filter(l => l?.saida && !isNaN(parseFloat(String(l.saida))))
                       .reduce((sum, item) => sum + parseFloat(String(item.saida || "0")), 0);
 
-                    // Calcular total de adiantamentos
+                    // ALTERAÇÃO: Calcular total de adiantamentos como entrada positiva
                     let totalAdiantamentos = 0;
                     if (Array.isArray(caixa.adiantamentos)) {
                       caixa.adiantamentos.forEach(adiantamento => {
@@ -1908,11 +1908,14 @@ export default function CaixaViagemPage() {
                       });
                     }
                     
-                    // Saídas totais incluem lançamentos de saída + adiantamentos
-                    const saidas = saidasLancamentos + totalAdiantamentos;
+                    // ALTERAÇÃO: Entradas totais incluem lançamentos + adiantamentos
+                    const entradas = entradasLancamentos + totalAdiantamentos;
                     
-                    // CORREÇÃO: Saldo correto considera saldo anterior + entradas - saídas - adiantamentos
-                    const saldo = saldoAnterior + entradas - saidasLancamentos - totalAdiantamentos;
+                    // Saídas são apenas os lançamentos de saída
+                    const saidas = saidasLancamentos;
+                    
+                    // ALTERAÇÃO: Saldo correto = saldoAnterior + entradas + adiantamentos - saídas
+                    const saldo = saldoAnterior + entradasLancamentos + totalAdiantamentos - saidasLancamentos;
                     
                     return (
                       <tr key={caixa.id} className="hover:bg-gray-50">
@@ -1955,21 +1958,21 @@ export default function CaixaViagemPage() {
                           </div>
                         </td>
                         
-                        {/* Coluna de Entradas */}
+                        {/* Coluna de Entradas - ALTERADA para incluir adiantamentos */}
                         <td className="px-6 py-4 text-right whitespace-nowrap">
                           <div className="text-base text-green-600 font-medium">
                             {formatCurrency(entradas)}
                           </div>
                         </td>
                         
-                        {/* Coluna de Saídas (incluindo adiantamentos) */}
+                        {/* Coluna de Saídas - ALTERADA para mostrar apenas lançamentos de saída */}
                         <td className="px-6 py-4 text-right whitespace-nowrap">
                           <div className="text-base text-red-600 font-medium">
                             {formatCurrency(saidas)}
                           </div>
                         </td>
                         
-                        {/* Coluna de Saldo (incluindo saldoAnterior + entradas - saídas - adiantamentos) */}
+                        {/* Coluna de Saldo - ALTERADA para usar o cálculo corrigido */}
                         <td className="px-6 py-4 text-right whitespace-nowrap">
                           <div className={`text-base font-semibold ${
                             saldo > 0 

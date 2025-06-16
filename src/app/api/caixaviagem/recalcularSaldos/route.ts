@@ -160,8 +160,9 @@ export async function POST(req: NextRequest) {
             });
         }
         
-        // Calcular saldo considerando adiantamentos
-        const saldoFinal = saldoAnterior + totalEntradas - totalSaidas - totalAdiantamentos;
+        // CORREÇÃO: Calcular saldo considerando adiantamentos como ENTRADAS (valor positivo)
+        // Antes: const saldoFinal = saldoAnterior + totalEntradas - totalSaidas - totalAdiantamentos;
+        const saldoFinal = saldoAnterior + totalEntradas + totalAdiantamentos - totalSaidas;
         
         // Armazenar o saldo para a próxima caixa
         saldoAnterior = saldoFinal;
@@ -173,6 +174,7 @@ export async function POST(req: NextRequest) {
           saldoAnterior: caixa.saldoAnterior,
           totalEntradas,
           totalSaidas,
+          totalAdiantamentos, // Incluir no retorno para debug
           saldoFinal
         });
       }

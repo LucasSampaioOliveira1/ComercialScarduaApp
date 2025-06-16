@@ -301,7 +301,7 @@ export default function AplicarAdiantamentoModal({
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Observação</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Saída</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ação</th>
                     </tr>
                   </thead>
@@ -319,7 +319,7 @@ export default function AplicarAdiantamentoModal({
                         <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" title={adiantamento.observacao || ""}>
                           {adiantamento.observacao || "-"}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-red-600">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-green-600">
                           <div className="flex items-center justify-end">
                             <DollarSign size={16} className="text-gray-400 mr-1" />
                             {formatarValor(adiantamento.saida)}
