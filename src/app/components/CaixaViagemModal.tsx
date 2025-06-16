@@ -107,6 +107,29 @@ interface CaixaViagemModalProps {
   isLoading: boolean;
 }
 
+const OPCOES_CUSTO = [
+  'ALIMENTAÇÃO',
+  'HOSPEDAGEM',
+  'COMBUSTIVEL',
+  'TRANSPORTE',
+  'LAZER',
+  'TELEFONE',
+  'ADIANTAMENTO DE VIAGEM',
+  'PEÇAS',
+  'ADIANTAMENTO DE SALARIOS',
+  'AD. SALARIO',
+  'SERVIÇOS DE TERCEIROS',
+  'PEDAGIO/ESTACIONAMENTO',
+  'MANUTENÇÃO VEICULOS',
+  'CORREIOS',
+  'INSUMOS / PEÇAS / OFICINA',
+  'PAPELARIA',
+  'ENTREGA COLETIVA',
+  'ALUGUEL ESTAND',
+  'TRANSFERENCIA ENTRE CAIXAS',
+  'DIVERSOS'
+];
+
 const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
   isOpen,
   onClose,
@@ -854,15 +877,20 @@ const CaixaViagemModal: React.FC<CaixaViagemModalProps> = ({
                         />
                       </td>
                       <td className="px-2 py-2">
-                        {/* Campo com maior largura e altura fixa */}
-                        <input
-                          type="text"
+                        <select
                           value={lancamento.custo}
                           onChange={(e) => atualizarLinha(index, 'custo', e.target.value)}
                           className="block w-full px-2 py-2 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="Tipo de custo"
                           disabled={isLoading}
-                        />
+                          required
+                        >
+                          <option value="">Selecione o tipo de custo</option>
+                          {OPCOES_CUSTO.map((opcao) => (
+                            <option key={opcao} value={opcao}>
+                              {opcao}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-2 py-2">
                         {/* Campo com maior largura e altura fixa */}
