@@ -34,13 +34,22 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get('userId') || decodedToken.id;
     
-    // Buscar adiantamentos
+    // Buscar adiantamentos incluindo informações do colaborador
     const adiantamentos = await prisma.adiantamento.findMany({
       where: {
         userId: userId as string,
         oculto: false // Não mostrar adiantamentos ocultos
       },
       include: {
+        colaborador: {
+          select: {
+            id: true,
+            nome: true,
+            sobrenome: true,
+            setor: true,
+            cargo: true
+          }
+        },
         caixaViagem: {
           select: {
             id: true,
@@ -75,19 +84,44 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     
     // Validar campos obrigatórios
-    if (!body.data || !body.nome || body.saida === undefined) {
-      return NextResponse.json({ error: "Data, nome e valor de saída são obrigatórios" }, { status: 400 });
+    if (!body.data || !body.colaboradorId || body.saida === undefined) {
+      return NextResponse.json({ error: "Data, colaborador e valor de saída são obrigatórios" }, { status: 400 });
     }
+    
+    // Verificar se o colaborador existe
+    const colaborador = await prisma.colaborador.findUnique({
+      where: { id: Number(body.colaboradorId) },
+      select: { id: true, nome: true, sobrenome: true }
+    });
+    
+    if (!colaborador) {
+      return NextResponse.json({ error: "Colaborador não encontrado" }, { status: 404 });
+    }
+    
+    // Usar o nome do colaborador se não foi fornecido um nome específico
+    const nomeAdiantamento = body.nome || `${colaborador.nome} ${colaborador.sobrenome || ''}`.trim();
     
     // Criar o adiantamento - sempre sem vínculo com caixaViagem inicialmente
     const novoAdiantamento = await prisma.adiantamento.create({
       data: {
         data: new Date(body.data),
-        nome: body.nome,
+        nome: nomeAdiantamento,
         observacao: body.observacao || null,
         saida: String(body.saida), // Converte para string para ficar consistente com outros modelos financeiros
         userId: decodedToken.id,
+        colaboradorId: Number(body.colaboradorId), // Adicionar relacionamento com colaborador
         caixaViagemId: null // Inicialmente não vinculado a nenhum caixa
+      },
+      include: {
+        colaborador: {
+          select: {
+            id: true,
+            nome: true,
+            sobrenome: true,
+            setor: true,
+            cargo: true
+          }
+        }
       }
     });
 
@@ -131,11 +165,30 @@ export async function PUT(req: NextRequest) {
     const updateData: any = {};
     
     // Campos que podem ser atualizados
-    if (body.data !== undefined) updateData.data = body.data;
+    if (body.data !== undefined) updateData.data = new Date(body.data);
     if (body.nome !== undefined) updateData.nome = body.nome;
     if (body.observacao !== undefined) updateData.observacao = body.observacao;
     if (body.saida !== undefined) updateData.saida = body.saida;
     if (body.oculto !== undefined) updateData.oculto = body.oculto;
+    if (body.colaboradorId !== undefined) {
+      // Verificar se o colaborador existe antes de atualizar
+      if (body.colaboradorId !== null) {
+        const colaborador = await prisma.colaborador.findUnique({
+          where: { id: Number(body.colaboradorId) },
+          select: { id: true, nome: true, sobrenome: true }
+        });
+        
+        if (!colaborador) {
+          return NextResponse.json({ error: "Colaborador não encontrado" }, { status: 404 });
+        }
+        
+        updateData.colaboradorId = Number(body.colaboradorId);
+        // Atualizar o nome automaticamente quando mudar o colaborador
+        updateData.nome = body.nome || `${colaborador.nome} ${colaborador.sobrenome || ''}`.trim();
+      } else {
+        updateData.colaboradorId = null;
+      }
+    }
     if (body.caixaViagemId !== undefined) {
       updateData.caixaViagemId = body.caixaViagemId === null ? null : Number(body.caixaViagemId);
     }
@@ -154,6 +207,15 @@ export async function PUT(req: NextRequest) {
         where: { id: Number(body.adiantamentoId) },
         data: updateData,
         include: {
+          colaborador: {
+            select: {
+              id: true,
+              nome: true,
+              sobrenome: true,
+              setor: true,
+              cargo: true
+            }
+          },
           caixaViagem: {
             select: {
               id: true,

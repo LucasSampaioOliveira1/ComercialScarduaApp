@@ -16,7 +16,8 @@ import {
   Link2Off,
   Check,
   FileText,
-  Search
+  Search,
+  User
 } from "lucide-react";
 
 interface Adiantamento {
@@ -27,11 +28,25 @@ interface Adiantamento {
   saida: string;
   userId: string;
   caixaViagemId: number | null;
+  colaboradorId?: number | null; // Adicionar colaboradorId
+  colaborador?: {
+    id: number;
+    nome: string;
+    sobrenome?: string;
+  } | null;
   caixaViagem?: {
     id: number;
     destino: string;
     numeroCaixa?: number;
   } | null;
+}
+
+interface Colaborador {
+  id: number;
+  nome: string;
+  sobrenome?: string;
+  setor?: string;
+  cargo?: string;
 }
 
 interface AdiantamentoModalProps {
@@ -82,12 +97,13 @@ export default function AdiantamentoModal({
 }: AdiantamentoModalProps) {
   const [adiantamentos, setAdiantamentos] = useState<Adiantamento[]>([]);
   const [filteredAdiantamentos, setFilteredAdiantamentos] = useState<Adiantamento[]>([]);
+  const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [formData, setFormData] = useState({
     id: 0,
     data: new Date().toISOString().split("T")[0],
-    nome: "",
+    colaboradorId: "", // Mudança: usar colaboradorId ao invés de nome
     observacao: "",
     saida: ""
   });
@@ -98,6 +114,7 @@ export default function AdiantamentoModal({
   useEffect(() => {
     if (isOpen) {
       fetchAdiantamentos();
+      fetchColaboradores();
     }
   }, [isOpen]);
 
@@ -112,6 +129,8 @@ export default function AdiantamentoModal({
     const filtered = adiantamentos.filter(
       a => 
         a.nome.toLowerCase().includes(searchTermLower) ||
+        (a.colaborador?.nome?.toLowerCase() || "").includes(searchTermLower) ||
+        (a.colaborador?.sobrenome?.toLowerCase() || "").includes(searchTermLower) ||
         (a.observacao?.toLowerCase() || "").includes(searchTermLower) ||
         formatarData(a.data).includes(searchTermLower) ||
         a.saida.includes(searchTermLower) ||
@@ -120,6 +139,33 @@ export default function AdiantamentoModal({
     
     setFilteredAdiantamentos(filtered);
   }, [searchTerm, adiantamentos]);
+
+  // Buscar colaboradores
+  const fetchColaboradores = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Sessão expirada. Faça login novamente.");
+        return;
+      }
+      
+      const response = await fetch('/api/colaboradores', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar colaboradores: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      setColaboradores(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Erro ao buscar colaboradores:", error);
+      toast.error("Não foi possível carregar os colaboradores");
+    }
+  };
 
   const fetchAdiantamentos = async () => {
     try {
@@ -152,7 +198,7 @@ export default function AdiantamentoModal({
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
   };
@@ -186,8 +232,8 @@ export default function AdiantamentoModal({
       return;
     }
     
-    if (!formData.data || !formData.nome || formData.saida === undefined) {
-      toast.error("Data, nome e valor do adiantamento são campos obrigatórios.");
+    if (!formData.data || !formData.colaboradorId || formData.saida === undefined) {
+      toast.error("Data, colaborador e valor do adiantamento são campos obrigatórios.");
       return;
     }
     
@@ -199,6 +245,12 @@ export default function AdiantamentoModal({
         toast.error("Sessão expirada. Faça login novamente.");
         return;
       }
+      
+      // Buscar o nome do colaborador selecionado
+      const colaboradorSelecionado = colaboradores.find(c => c.id === parseInt(formData.colaboradorId));
+      const nomeColaborador = colaboradorSelecionado 
+        ? `${colaboradorSelecionado.nome} ${colaboradorSelecionado.sobrenome || ''}`.trim()
+        : '';
       
       // Formatar o valor corretamente para a API
       let valorFormatado = formData.saida;
@@ -224,19 +276,22 @@ export default function AdiantamentoModal({
       
       console.log("Data formatada para API:", dataFormatada);
       console.log("Valor formatado para API:", valorFormatado);
+      console.log("Colaborador selecionado:", colaboradorSelecionado);
       
       // Criar payload com base no modo (edição ou criação)
       const payload = isEditing
         ? {
             adiantamentoId: formData.id,
-            data: dataFormatada, // Usar data formatada como ISO
-            nome: formData.nome,
+            data: dataFormatada,
+            nome: nomeColaborador, // Manter o nome para compatibilidade
+            colaboradorId: parseInt(formData.colaboradorId), // Adicionar colaboradorId
             observacao: formData.observacao || null,
             saida: valorFormatado
           }
         : {
-            data: dataFormatada, // Usar data formatada como ISO
-            nome: formData.nome,
+            data: dataFormatada,
+            nome: nomeColaborador, // Manter o nome para compatibilidade
+            colaboradorId: parseInt(formData.colaboradorId), // Adicionar colaboradorId
             observacao: formData.observacao || null,
             saida: valorFormatado
           };
@@ -260,9 +315,9 @@ export default function AdiantamentoModal({
         
         try {
           const errorData = JSON.parse(errorResponse);
-          throw new Error(errorData.error || "Erro ao salvar adiantamento");
+          throw new Error(errorData.error || errorData.message || "Erro desconhecido na API");
         } catch (parseError) {
-          throw new Error(`Erro ao salvar adiantamento: ${errorResponse}`);
+          throw new Error(`Erro na API: ${response.status} - ${errorResponse}`);
         }
       }
       
@@ -316,18 +371,20 @@ export default function AdiantamentoModal({
         // Se for outro formato, converter para YYYY-MM-DD
         const partes = dataFormatada.split('/');
         if (partes.length === 3) {
-          dataFormatada = `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+          const [dia, mes, ano] = partes;
+          dataFormatada = `${ano}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
         }
       }
     
       console.log("Data original:", adiantamento.data);
       console.log("Data formatada para formulário:", dataFormatada);
+      console.log("Colaborador do adiantamento:", adiantamento.colaborador);
     
       // Configurar o formulário para edição
       setFormData({
         id: adiantamento.id,
         data: dataFormatada,
-        nome: adiantamento.nome,
+        colaboradorId: adiantamento.colaboradorId ? String(adiantamento.colaboradorId) : "",
         observacao: adiantamento.observacao || "",
         saida: valorFormatado
       });
@@ -336,8 +393,8 @@ export default function AdiantamentoModal({
     
       // Dar foco ao primeiro campo do formulário
       setTimeout(() => {
-        const firstInput = document.querySelector('input[name="nome"]') as HTMLInputElement;
-        if (firstInput) firstInput.focus();
+        const firstSelect = document.querySelector('select[name="colaboradorId"]') as HTMLSelectElement;
+        if (firstSelect) firstSelect.focus();
       }, 100);
     } catch (error) {
       console.error("Erro ao preparar formulário para edição:", error);
@@ -471,7 +528,7 @@ export default function AdiantamentoModal({
     setFormData({
       id: 0,
       data: new Date().toISOString().split("T")[0],
-      nome: "",
+      colaboradorId: "",
       observacao: "",
       saida: ""
     });
@@ -487,15 +544,15 @@ export default function AdiantamentoModal({
         animate={{ opacity: 1, y: 0 }}
         className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
       >
-        {/* Cabeçalho */}
-        <div className="flex justify-between items-center p-5 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-800 flex items-center">
-            <Coins className="mr-2 text-[#344893]" size={24} />
-            Gerenciar Adiantamentos
-          </h2>
+        {/* Header */}
+        <div className="bg-gradient-to-r from-[#344893] to-[#4A5BC4] text-white p-4 flex justify-between items-center">
+          <div className="flex items-center">
+            <Coins size={24} className="mr-3" />
+            <h2 className="text-xl font-semibold">Gerenciar Adiantamentos</h2>
+          </div>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 focus:outline-none"
+            className="text-white hover:text-gray-200 transition-colors"
           >
             <X size={24} />
           </button>
@@ -526,17 +583,26 @@ export default function AdiantamentoModal({
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nome/Referência</label>
-                  <input
-                    type="text"
-                    name="nome"
-                    value={formData.nome}
-                    onChange={handleInputChange}
-                    placeholder="Ex: Adiantamento João Silva"
-                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
-                    required
-                    disabled={isSubmitting}
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Colaborador</label>
+                  <div className="relative">
+                    <User size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <select
+                      name="colaboradorId"
+                      value={formData.colaboradorId}
+                      onChange={handleInputChange}
+                      className="pl-10 w-full p-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
+                      required
+                      disabled={isSubmitting}
+                    >
+                      <option value="">Selecione um colaborador</option>
+                      {colaboradores.map((colaborador) => (
+                        <option key={colaborador.id} value={colaborador.id}>
+                          {colaborador.nome} {colaborador.sobrenome || ''} 
+                          {colaborador.setor && ` - ${colaborador.setor}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 
                 <div>
@@ -600,7 +666,7 @@ export default function AdiantamentoModal({
                   ) : (
                     <>
                       <PlusCircle size={18} className="mr-2" />
-                      Adicionar
+                      Criar Adiantamento
                     </>
                   )}
                 </button>
@@ -608,127 +674,117 @@ export default function AdiantamentoModal({
             </form>
           )}
 
-          {/* Barra de pesquisa */}
-          <div className="mb-4 flex items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+          {/* Barra de busca */}
+          <div className="mb-4">
+            <div className="relative">
+              <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
+                placeholder="Buscar por colaborador, data, valor ou observação..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar adiantamentos..."
                 className="pl-10 w-full p-2 border border-gray-300 rounded-md focus:ring-[#344893] focus:border-[#344893]"
               />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm("")}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            </div>
+          </div>
+
+          {/* Lista de adiantamentos */}
+          <div className="space-y-4">
+            {isLoading ? (
+              <div className="flex justify-center items-center py-8">
+                <Loader2 size={32} className="animate-spin text-[#344893]" />
+                <span className="ml-2 text-gray-600">Carregando adiantamentos...</span>
+              </div>
+            ) : filteredAdiantamentos.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Coins size={48} className="mx-auto mb-4 text-gray-300" />
+                <p>Nenhum adiantamento encontrado</p>
+              </div>
+            ) : (
+              filteredAdiantamentos.map((adiantamento) => (
+                <div
+                  key={adiantamento.id}
+                  className={`bg-white border rounded-lg p-4 hover:shadow-md transition-shadow ${
+                    adiantamento.caixaViagemId ? 'border-green-200 bg-green-50' : 'border-gray-200'
+                  }`}
                 >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Tabela de adiantamentos */}
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Observação</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
-                  </tr>
-                </thead>
-                
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {isLoading && !filteredAdiantamentos.length ? (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-4 text-center">
-                        <Loader2 size={30} className="mx-auto animate-spin text-[#344893]" />
-                        <p className="mt-2 text-gray-500">Carregando adiantamentos...</p>
-                      </td>
-                    </tr>
-                  ) : filteredAdiantamentos.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                        {searchTerm ? "Nenhum adiantamento corresponde à sua pesquisa." : "Nenhum adiantamento registrado."}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredAdiantamentos.map((adiantamento) => (
-                      <tr key={adiantamento.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatarData(adiantamento.data)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{adiantamento.nome}</td>
-                        <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" title={adiantamento.observacao || ""}>
-                          {adiantamento.observacao || "-"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-green-600">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center mb-2">
+                        <User size={16} className="text-gray-400 mr-2" />
+                        <span className="font-medium text-gray-900">
+                          {adiantamento.colaborador 
+                            ? `${adiantamento.colaborador.nome} ${adiantamento.colaborador.sobrenome || ''}`.trim()
+                            : adiantamento.nome}
+                        </span>
+                        {adiantamento.caixaViagemId && (
+                          <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full flex items-center">
+                            <Link size={12} className="mr-1" />
+                            Aplicado
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-gray-600">
+                        <div>
+                          <Calendar size={14} className="inline mr-1" />
+                          {formatarData(adiantamento.data)}
+                        </div>
+                        <div>
+                          <DollarSign size={14} className="inline mr-1" />
                           {formatarValor(adiantamento.saida)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                          <div className="flex items-center justify-center space-x-2">
-                            {adiantamento.caixaViagemId ? (
-                              // Botão para desvincular - só aparece se tiver permissão de editar
-                              userPermissions.canEdit && (
-                                <button
-                                  onClick={() => handleDesvincular(adiantamento.id)}
-                                  className="p-1.5 bg-amber-100 text-amber-700 rounded-full hover:bg-amber-200"
-                                  title="Desvincular da caixa"
-                                  disabled={isLoading}
-                                >
-                                  <Link2Off size={16} />
-                                </button>
-                              )
-                            ) : (
-                              // Botões para editar e excluir - controlados por permissões
-                              <>
-                                {userPermissions.canEdit && (
-                                  <button
-                                    onClick={() => handleEdit(adiantamento)}
-                                    className="p-1.5 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200"
-                                    title="Editar adiantamento"
-                                    disabled={isLoading}
-                                  >
-                                    <Edit size={16} />
-                                  </button>
-                                )}
-                                
-                                {userPermissions.canDelete && (
-                                  <button
-                                    onClick={() => handleDelete(adiantamento.id)}
-                                    className="p-1.5 bg-red-100 text-red-700 rounded-full hover:bg-red-200"
-                                    title="Excluir adiantamento" 
-                                    disabled={isLoading}
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                )}
-                              </>
-                            )}
+                        </div>
+                        {adiantamento.caixaViagem && (
+                          <div className="md:col-span-2">
+                            <FileText size={14} className="inline mr-1" />
+                            Caixa {adiantamento.caixaViagem.numeroCaixa} - {adiantamento.caixaViagem.destino}
                           </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Rodapé */}
-        <div className="p-4 border-t border-gray-200 bg-gray-50">
-          <div className="flex justify-end">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
-            >
-              Fechar
-            </button>
+                        )}
+                      </div>
+                      
+                      {adiantamento.observacao && (
+                        <div className="mt-2 text-sm text-gray-600">
+                          <span className="font-medium">Obs:</span> {adiantamento.observacao}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex space-x-2 ml-4">
+                      {adiantamento.caixaViagemId ? (
+                        <button
+                          onClick={() => handleDesvincular(adiantamento.id)}
+                          className="p-2 text-orange-600 hover:bg-orange-50 rounded-md transition-colors"
+                          title="Desvincular da caixa"
+                        >
+                          <Link2Off size={16} />
+                        </button>
+                      ) : (
+                        <>
+                          {userPermissions.canEdit && (
+                            <button
+                              onClick={() => handleEdit(adiantamento)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                              title="Editar adiantamento"
+                            >
+                              <Edit size={16} />
+                            </button>
+                          )}
+                          {userPermissions.canDelete && (
+                            <button
+                              onClick={() => handleDelete(adiantamento.id)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                              title="Excluir adiantamento"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </motion.div>
