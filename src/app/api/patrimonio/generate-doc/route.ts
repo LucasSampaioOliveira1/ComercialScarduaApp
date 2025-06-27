@@ -416,7 +416,7 @@ export async function POST(req: NextRequest) {
       y -= spacing * 2;
 
       // Texto principal atualizado
-      const texto = `Eu, ${patrimonio.responsavel.nome} ${patrimonio.responsavel.sobrenome}, colaborador da COMERCIAL SCARDUA LTDA, inscrito no CPF sob o n° ${patrimonio.responsavel.cpf}, DECLARO que estou recebendo um aparelho notebook, bem como os seus acessórios, em perfeito estado, abaixo discriminado, de posse e propriedade da COMERCIAL SCARDUA LTDA, empresa com sede a Rod. Governador Mario Covas, nº 4251- Planalto de Carapina – Serra – Espírito Santo – CNPJ 28.482.230/0011-25.`;
+      const texto = `Eu, ${patrimonio.responsavel.nome} ${patrimonio.responsavel.sobrenome}, colaborador da COMERCIAL SCARDUA LTDA, inscrito no CPF sob o n° ${patrimonio.responsavel.cpf}, DECLARO que estou recebendo um aparelho, bem como os seus acessórios, em perfeito estado, abaixo discriminado, de posse e propriedade da COMERCIAL SCARDUA LTDA, empresa com sede a Rod. Governador Mario Covas, nº 4251- Planalto de Carapina – Serra – Espírito Santo – CNPJ 28.482.230/0011-25.`;
 
       // Quebrar o texto em linhas
       const words = texto.split(' ');
@@ -460,8 +460,8 @@ export async function POST(req: NextRequest) {
 
       y -= spacing;
 
-      // Notebook
-      page.drawText("Notebook", {
+      // Nome do Patrimônio
+      page.drawText(patrimonio.nome, {
         x: 50,
         y,
         size: fontSize,
