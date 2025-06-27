@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     // Criar um novo documento PDF
     const pdfDoc = await PDFDocument.create();
-    let page = pdfDoc.addPage([595, 842]); // Tamanho A4
+    let page = pdfDoc.addPage([842, 595]); // Tamanho A4 paisagem
     const { height, width } = page.getSize();
 
     // Adicionar fonte
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
 
     y -= spacing * 2;
 
-    // Formatação de data
+    // Formatação de data (mantém igual)
     const formatDate = (dateString?: string | Date | null) => {
       if (!dateString) return "";
       try {
@@ -84,10 +84,8 @@ export async function POST(req: NextRequest) {
           
           // Para strings de data simples YYYY-MM-DD
           if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-            // Criar uma data usando meio-dia para evitar problemas de fuso horário
             const [year, month, day] = dateString.split('-').map(Number);
             const date = new Date(year, month - 1, day, 12, 0, 0);
-            // Adicionar um dia para corrigir o problema
             date.setDate(date.getDate() + 1);
             return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
           }
@@ -96,15 +94,13 @@ export async function POST(req: NextRequest) {
         // Para objetos Date
         if (dateString instanceof Date) {
           const dateCopy = new Date(dateString);
-          // Adicionar um dia para corrigir o problema
           dateCopy.setDate(dateCopy.getDate() + 1);
           return `${dateCopy.getDate().toString().padStart(2, '0')}/${(dateCopy.getMonth() + 1).toString().padStart(2, '0')}/${dateCopy.getFullYear()}`;
         }
         
-        // Último recurso - tentar criar um objeto Date
+        // Último recurso
         const date = new Date(dateString);
         if (!isNaN(date.getTime())) {
-          // Adicionar um dia para corrigir o problema
           date.setDate(date.getDate() + 1);
           return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
         }
@@ -116,11 +112,14 @@ export async function POST(req: NextRequest) {
       }
     };
 
-    // Formatação de moeda
+    // Formatação de moeda com separador de milhares
     const formatCurrency = (value: any) => {
       if (!value) return "R$ 0,00";
       const numValue = parseFloat(String(value).replace(',', '.'));
-      return isNaN(numValue) ? "R$ 0,00" : `R$ ${numValue.toFixed(2).replace('.', ',')}`;
+      if (isNaN(numValue)) return "R$ 0,00";
+      
+      // Formatar com separador de milhares (ponto) e decimais (vírgula)
+      return `R$ ${numValue.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`;
     };
 
     // Seção de informações da viagem
@@ -141,7 +140,7 @@ export async function POST(req: NextRequest) {
     
     const empresaNome = caixa.empresa?.nomeEmpresa || 'Empresa não especificada';
 
-    // Data atual
+    // Data atual formatada para exibição
     const dataAtual = new Date();
     const dataAtualFormatada = `${dataAtual.getDate().toString().padStart(2, '0')}/${(dataAtual.getMonth() + 1).toString().padStart(2, '0')}/${dataAtual.getFullYear()}`;
 
@@ -150,30 +149,42 @@ export async function POST(req: NextRequest) {
       ? caixa.saldoAnterior
       : parseFloat(String(caixa.saldoAnterior || 0));
 
-    const infoLines = [
+    // Organizar informações em duas colunas para aproveitar o espaço horizontal
+    const leftColumn = [
       `Empresa: ${empresaNome}`,
       `Data da Viagem: ${formatDate(caixa.data)}`,
       `Data de Emissão: ${dataAtualFormatada}`,
-      `Destino: ${caixa.destino || "Não informado"}`,
+      `Destino: ${caixa.destino || "Não informado"}`
+    ];
+
+    const rightColumn = [
       `Funcionário: ${funcionarioNome}`,
     ];
 
     if (caixa.veiculo) {
-      infoLines.push(`Veículo: ${caixa.veiculo.modelo || ''} ${caixa.veiculo.placa ? `- ${caixa.veiculo.placa}` : ''}`);
+      rightColumn.push(`Veículo: ${caixa.veiculo.modelo || ''} ${caixa.veiculo.placa ? `- ${caixa.veiculo.placa}` : ''}`);
     }
 
+    // Remover o saldo anterior daqui - será movido para a tabela
+
+    // Adicionar observação se existir
     if (caixa.observacao) {
-      infoLines.push(`Observações: ${caixa.observacao}`);
+      if (rightColumn.length < leftColumn.length) {
+        rightColumn.push(`Observações: ${caixa.observacao}`);
+      } else {
+        leftColumn.push(`Observações: ${caixa.observacao}`);
+      }
     }
 
-    // Adicionar saldo anterior se existir
-    if (saldoAnterior !== 0) {
-      infoLines.push(`Saldo Anterior: ${formatCurrency(saldoAnterior)}`);
-    }
+    // Desenhar colunas lado a lado
+    const initialY = y;
+    const leftX = 80;
+    const rightX = 420; // Posição da segunda coluna
 
-    infoLines.forEach(line => {
+    // Coluna esquerda
+    leftColumn.forEach(line => {
       page.drawText(line, {
-        x: 80,
+        x: leftX,
         y,
         size: fontSize,
         font: font,
@@ -182,11 +193,30 @@ export async function POST(req: NextRequest) {
       y -= spacing;
     });
 
-    y -= spacing;
+    // Resetar Y para a coluna direita
+    y = initialY;
+    
+    // Coluna direita
+    rightColumn.forEach(line => {
+      page.drawText(line, {
+        x: rightX,
+        y,
+        size: fontSize,
+        font: font,
+        color: BLACK,
+      });
+      y -= spacing;
+    });
+
+    // Ajustar Y para continuar após a maior coluna
+    y = initialY - Math.max(leftColumn.length, rightColumn.length) * spacing;
+
+    // Adicionar espaçamento extra entre as seções
+    y -= 15;
 
     // Verificar se precisamos de uma nova página para os lançamentos
     if (y < 350) {
-      page = pdfDoc.addPage([595, 842]); // Tamanho A4
+      page = pdfDoc.addPage([842, 595]); // Tamanho A4 paisagem
       y = height - 50;
     }
 
@@ -194,7 +224,7 @@ export async function POST(req: NextRequest) {
     const lancamentos = Array.isArray(caixa.lancamentos) ? caixa.lancamentos : [];
     const adiantamentos = Array.isArray(caixa.adiantamentos) ? caixa.adiantamentos : [];
     
-    // Cálculo do total de adiantamentos (fora do grid)
+    // Cálculo do total de adiantamentos (AGORA COMO VALOR POSITIVO)
     let totalAdiantamentos = 0;
     if (adiantamentos.length > 0) {
       adiantamentos.forEach(adiantamento => {
@@ -202,10 +232,8 @@ export async function POST(req: NextRequest) {
         totalAdiantamentos += valorAdiantamento;
       });
     }
-    
-    // Verificar se há lançamentos
+
     if (lancamentos.length > 0) {
-      // Título da seção ajustado (removendo referência a adiantamentos no grid)
       page.drawText("DETALHAMENTO DOS LANÇAMENTOS:", {
         x: 60,
         y,
@@ -216,8 +244,8 @@ export async function POST(req: NextRequest) {
 
       y -= spacing;
 
-      // Linha superior da tabela
-      const tableWidth = 475;
+      // Definir dimensões da tabela - aproveitar melhor o espaço paisagem
+      const tableWidth = 720; // Aumentar largura da tabela
       const tableLeft = 60;
       const tableRight = tableLeft + tableWidth;
       
@@ -229,11 +257,9 @@ export async function POST(req: NextRequest) {
         color: BLACK,
       });
 
-      // Cabeçalhos da tabela com "Custo" adicionado
+      // Cabeçalhos da tabela
       const headers = ["Data", "Documento", "Cliente/Forn.", "Custo", "Histórico", "Entrada", "Saída"];
-
-      // Reajustando larguras para melhor distribuição do espaço
-      const colWidths = [60, 65, 80, 70, 80, 60, 60]; // Total = 475
+      const colWidths = [80, 90, 120, 100, 150, 90, 90]; // Total = 720 - mais espaço
       
       let currentX = tableLeft;
       headers.forEach((header, index) => {
@@ -242,7 +268,7 @@ export async function POST(req: NextRequest) {
         const centerX = currentX + (colWidths[index] - headerWidth) / 2;
         
         page.drawText(header, {
-          x: centerX, // Centraliza o texto na coluna para evitar sobreposição
+          x: centerX,
           y: y - 12,
           size: fontSize,
           font: boldFont,
@@ -275,15 +301,13 @@ export async function POST(req: NextRequest) {
 
       // Dados dos lançamentos
       let lineHeight = spacing - 2;
-      
-      // Processar lançamentos
       let totalEntradas = 0;
       let totalSaidas = 0;
       
       lancamentos.forEach((lancamento, index) => {
-        // Calcular totais
         const entrada = lancamento.entrada ? parseFloat(String(lancamento.entrada)) : 0;
         const saida = lancamento.saida ? parseFloat(String(lancamento.saida)) : 0;
+        
         totalEntradas += entrada;
         totalSaidas += saida;
         
@@ -306,10 +330,10 @@ export async function POST(req: NextRequest) {
           });
           
           // Adicionar nova página
-          page = pdfDoc.addPage([595, 842]);
+          page = pdfDoc.addPage([842, 595]);
           y = height - 50;
           
-          page.drawText("DETALHAMENTO (continuação):", {
+          page.drawText("DETALHAMENTO DOS LANÇAMENTOS (continuação):", {
             x: 60,
             y,
             size: fontSize,
@@ -334,7 +358,7 @@ export async function POST(req: NextRequest) {
             const centerX = currentX + (colWidths[index] - headerWidth) / 2;
             
             page.drawText(header, {
-              x: centerX, // Centralização do texto
+              x: centerX,
               y: y - 12,
               size: fontSize,
               font: boldFont,
@@ -369,9 +393,9 @@ export async function POST(req: NextRequest) {
         currentX = tableLeft;
         
         // Melhorar o posicionamento vertical do texto para evitar sobreposição com linhas
-        const textY = y - 2; // Ajuste fino para posicionar melhor o texto
+        const textY = y - 2;
         
-        // Data - com formatação corrigida
+        // Data
         const formattedDate = formatDate(lancamento.data);
         page.drawText(formattedDate, {
           x: currentX + 3,
@@ -382,7 +406,7 @@ export async function POST(req: NextRequest) {
         });
         currentX += colWidths[0];
         
-        // Vertical line
+        // Linha vertical
         page.drawLine({
           start: { x: currentX, y: y + lineHeight },
           end: { x: currentX, y: y - 5 },
@@ -390,9 +414,9 @@ export async function POST(req: NextRequest) {
           color: BLACK,
         });
         
-        // Documento - reduzir truncamento para evitar sobreposição
+        // Documento
         const docText = lancamento.numeroDocumento || "-";
-        const maxLengthDoc = 7;
+        const maxLengthDoc = 12; // Mais espaço para documento
         const truncatedDoc = docText.length > maxLengthDoc ? 
           docText.substring(0, maxLengthDoc) + ".." : docText;
         
@@ -405,7 +429,7 @@ export async function POST(req: NextRequest) {
         });
         currentX += colWidths[1];
         
-        // Vertical line
+        // Linha vertical
         page.drawLine({
           start: { x: currentX, y: y + lineHeight },
           end: { x: currentX, y: y - 5 },
@@ -413,9 +437,9 @@ export async function POST(req: NextRequest) {
           color: BLACK,
         });
         
-        // Cliente/Fornecedor - diminuir tamanho máximo para evitar sobreposição
+        // Cliente/Fornecedor
         const clienteFornecedor = lancamento.clienteFornecedor || "-";
-        const maxLengthCF = 7; // Reduzir para evitar sobreposição
+        const maxLengthCF = 15; // Mais espaço
         const cfText = clienteFornecedor.length > maxLengthCF ? 
           clienteFornecedor.substring(0, maxLengthCF) + ".." : clienteFornecedor;
           
@@ -428,7 +452,7 @@ export async function POST(req: NextRequest) {
         });
         currentX += colWidths[2];
         
-        // Vertical line
+        // Linha vertical
         page.drawLine({
           start: { x: currentX, y: y + lineHeight },
           end: { x: currentX, y: y - 5 },
@@ -436,12 +460,12 @@ export async function POST(req: NextRequest) {
           color: BLACK,
         });
         
-        // Custo - melhorar exibição
+        // Custo
         const custoStr = typeof lancamento.custo === 'number' ? 
           formatCurrency(lancamento.custo) : 
           (lancamento.custo || "-");
         
-        const maxLengthCusto = 8;
+        const maxLengthCusto = 12;
         const custoText = custoStr.length > maxLengthCusto ? 
           custoStr.substring(0, maxLengthCusto) + ".." : custoStr;
           
@@ -454,7 +478,7 @@ export async function POST(req: NextRequest) {
         });
         currentX += colWidths[3];
         
-        // Vertical line
+        // Linha vertical
         page.drawLine({
           start: { x: currentX, y: y + lineHeight },
           end: { x: currentX, y: y - 5 },
@@ -462,9 +486,9 @@ export async function POST(req: NextRequest) {
           color: BLACK,
         });
         
-        // Histórico - diminuir tamanho para evitar sobreposição
+        // Histórico
         const historico = lancamento.historicoDoc || "-";
-        const maxLengthHist = 9;
+        const maxLengthHist = 20; // Muito mais espaço para histórico
         const histText = historico.length > maxLengthHist ? 
           historico.substring(0, maxLengthHist) + ".." : historico;
           
@@ -477,7 +501,7 @@ export async function POST(req: NextRequest) {
         });
         currentX += colWidths[4];
         
-        // Vertical line
+        // Linha vertical
         page.drawLine({
           start: { x: currentX, y: y + lineHeight },
           end: { x: currentX, y: y - 5 },
@@ -485,12 +509,12 @@ export async function POST(req: NextRequest) {
           color: BLACK,
         });
         
-        // Entrada - alinhar à direita dentro da coluna para valores monetários
+        // Entrada (alinhado à direita dentro da coluna)
         if (entrada > 0) {
           const entradaText = formatCurrency(entrada);
           const textWidth = font.widthOfTextAtSize(entradaText, fontSize);
           page.drawText(entradaText, {
-            x: currentX + colWidths[5] - textWidth - 3, // Alinhamento à direita
+            x: currentX + colWidths[5] - textWidth - 3,
             y: textY,
             size: fontSize,
             font: font,
@@ -498,7 +522,7 @@ export async function POST(req: NextRequest) {
           });
         } else {
           page.drawText("-", {
-            x: currentX + colWidths[5]/2, // Centralizar quando é só um hífen
+            x: currentX + colWidths[5]/2,
             y: textY,
             size: fontSize,
             font: font,
@@ -507,7 +531,7 @@ export async function POST(req: NextRequest) {
         }
         currentX += colWidths[5];
         
-        // Vertical line
+        // Linha vertical
         page.drawLine({
           start: { x: currentX, y: y + lineHeight },
           end: { x: currentX, y: y - 5 },
@@ -515,12 +539,12 @@ export async function POST(req: NextRequest) {
           color: BLACK,
         });
         
-        // Saída - também alinhar à direita na coluna
+        // Saída (alinhado à direita dentro da coluna) com formatação negativa
         if (saida > 0) {
-          const saidaText = formatCurrency(saida);
+          const saidaText = `- ${formatCurrency(saida)}`; // Sinal negativo com espaço
           const textWidth = font.widthOfTextAtSize(saidaText, fontSize);
           page.drawText(saidaText, {
-            x: currentX + colWidths[6] - textWidth - 3, // Alinhamento à direita
+            x: currentX + colWidths[6] - textWidth - 3,
             y: textY,
             size: fontSize,
             font: font,
@@ -528,7 +552,7 @@ export async function POST(req: NextRequest) {
           });
         } else {
           page.drawText("-", {
-            x: currentX + colWidths[6]/2, // Centralizar quando é só um hífen
+            x: currentX + colWidths[6]/2,
             y: textY,
             size: fontSize,
             font: font,
@@ -544,15 +568,28 @@ export async function POST(req: NextRequest) {
           color: BLACK,
         });
         
-        // Aumentar levemente o espaçamento para evitar sobreposição
         y -= lineHeight + 1;
       });
-
-      // Ajustar espaçamento vertical após todos os lançamentos
-      y -= 5;
       
-      // TOTAL LANÇAMENTOS - Fora do grid, apenas com linha abaixo
-      page.drawText("TOTAL LANÇAMENTOS:", {
+      // Ajustar espaçamento vertical após o último lançamento
+      y -= 5;
+
+      // TOTAL
+      // Linhas verticais para manter o formato da tabela
+      let totalX = tableLeft;
+      for (let i = 0; i < headers.length - 1; i++) {
+        const xPos = totalX + colWidths[i];
+        page.drawLine({
+          start: { x: xPos, y: y + lineHeight },
+          end: { x: xPos, y: y - 5 },
+          thickness: 1,
+          color: BLACK,
+        });
+        totalX += colWidths[i];
+      }
+
+      // Texto "TOTAL LANÇ.:" em negrito
+      page.drawText("TOTAL LANÇ.:", {
         x: tableLeft + 3,
         y,
         size: fontSize,
@@ -565,19 +602,19 @@ export async function POST(req: NextRequest) {
       const totalEntradasText = formatCurrency(totalEntradas);
       const totalEntradasWidth = boldFont.widthOfTextAtSize(totalEntradasText, fontSize);
       page.drawText(totalEntradasText, {
-        x: xEntrada + colWidths[5] - totalEntradasWidth - 3, // Alinhado à direita
+        x: xEntrada + colWidths[5] - totalEntradasWidth - 3,
         y,
         size: fontSize,
         font: boldFont,
         color: BLACK,
       });
       
-      // Valor total de saídas (alinhado à direita)
+      // Valor total de saídas (alinhado à direita) com formatação negativa
       const xSaida = xEntrada + colWidths[5];
-      const totalSaidasText = formatCurrency(totalSaidas);
+      const totalSaidasText = `- ${formatCurrency(totalSaidas)}`;
       const totalSaidasWidth = boldFont.widthOfTextAtSize(totalSaidasText, fontSize);
       page.drawText(totalSaidasText, {
-        x: xSaida + colWidths[6] - totalSaidasWidth - 3, // Alinhado à direita
+        x: xSaida + colWidths[6] - totalSaidasWidth - 3,
         y,
         size: fontSize,
         font: boldFont,
@@ -592,14 +629,89 @@ export async function POST(req: NextRequest) {
         color: BLACK,
       });
       
-      // Adicionar linha de total de adiantamentos se houver adiantamentos
-      y -= lineHeight + 3;
+      // SALDO ANTERIOR (se existir)
+      if (saldoAnterior !== 0) {
+        y -= lineHeight + 3;
+        const textYSaldoAnt = y - 2;
+        
+        // Linhas verticais para manter o formato da tabela
+        let saldoAntX = tableLeft;
+        for (let i = 0; i < headers.length - 1; i++) {
+          const xPos = saldoAntX + colWidths[i];
+          page.drawLine({
+            start: { x: xPos, y: y + lineHeight },
+            end: { x: xPos, y: y - 5 },
+            thickness: 1,
+            color: BLACK,
+          });
+          saldoAntX += colWidths[i];
+        }
+        
+        // Texto "SALDO ANT.:" em negrito
+        page.drawText("SALDO ANT.:", {
+          x: tableLeft + 3,
+          y: textYSaldoAnt,
+          size: fontSize,
+          font: boldFont,
+          color: BLACK,
+        });
+        
+        // Valor do saldo anterior posicionado na coluna correta baseado no sinal
+        if (saldoAnterior >= 0) {
+          // Saldo positivo vai na coluna de Entrada
+          const saldoAntText = formatCurrency(saldoAnterior);
+          const saldoAntWidth = boldFont.widthOfTextAtSize(saldoAntText, fontSize);
+          
+          page.drawText(saldoAntText, {
+            x: xEntrada + colWidths[5] - saldoAntWidth - 3, // Coluna de entrada
+            y,
+            size: fontSize,
+            font: boldFont,
+            color: BLACK,
+          });
+        } else {
+          // Saldo negativo vai na coluna de Saída
+          const saldoAntText = `- ${formatCurrency(Math.abs(saldoAnterior))}`;
+          const saldoAntWidth = boldFont.widthOfTextAtSize(saldoAntText, fontSize);
+          
+          page.drawText(saldoAntText, {
+            x: xEntrada + colWidths[5] + colWidths[6] - saldoAntWidth - 3, // Coluna de saída
+            y,
+            size: fontSize,
+            font: boldFont,
+            color: BLACK,
+          });
+        }
+        
+        // Linha abaixo do saldo anterior
+        page.drawLine({
+          start: { x: tableLeft, y: y - 5 },
+          end: { x: tableRight, y: y - 5 },
+          thickness: 1,
+          color: BLACK,
+        });
+      }
       
+      // TOTAL ADIANTAMENTOS (AGORA COMO VALOR POSITIVO)
       if (totalAdiantamentos > 0) {
+        y -= lineHeight + 3;
         const textYAdiant = y - 2;
         
-        // Texto "TOTAL ADIANTAMENTOS:" em negrito
-        page.drawText("TOTAL ADIANTAMENTOS:", {
+        // Linhas verticais para manter o formato da tabela
+        let adiantX = tableLeft;
+        for (let i = 0; i < headers.length - 1; i++) {
+          const xPos = adiantX + colWidths[i];
+          page.drawLine({
+            start: { x: xPos, y: y + lineHeight },
+            end: { x: xPos, y: y - 5 },
+            thickness: 1,
+            color: BLACK,
+          });
+          adiantX += colWidths[i];
+        }
+        
+        // Texto "TOTAL ADIANT.:" em negrito
+        page.drawText("TOTAL ADIA.:", {
           x: tableLeft + 3,
           y: textYAdiant,
           size: fontSize,
@@ -607,18 +719,16 @@ export async function POST(req: NextRequest) {
           color: BLACK,
         });
         
-        // Valor total de adiantamentos como NEGATIVO e alinhado à direita na coluna de saída
-        // Importante: mostrar como valor negativo (multiplicar por -1)
-        const totalAdiantamentosNegativo = -totalAdiantamentos; // Converter para valor negativo
-        const totalAdiantamentosText = formatCurrency(totalAdiantamentosNegativo);
+        // Valor total de adiantamentos como POSITIVO na coluna de entrada
+        const totalAdiantamentosText = formatCurrency(totalAdiantamentos);
         const totalAdiantamentosWidth = boldFont.widthOfTextAtSize(totalAdiantamentosText, fontSize);
         
         page.drawText(totalAdiantamentosText, {
-          x: xSaida + colWidths[6] - totalAdiantamentosWidth - 3, // Alinhado à direita
+          x: xEntrada + colWidths[5] - totalAdiantamentosWidth - 3, // Na coluna de entrada
           y: textYAdiant,
           size: fontSize,
           font: boldFont,
-          color: rgb(0.8, 0, 0), // Vermelho para valores negativos
+          color: BLACK,
         });
         
         // Linha abaixo do total de adiantamentos
@@ -629,12 +739,13 @@ export async function POST(req: NextRequest) {
           color: BLACK,
         });
         
-        y -= lineHeight + 3;
+        y -= lineHeight + 3; // Atualizar Y após adiantamentos
       }
       
-      // SALDO FINAL (considera saldo anterior + entradas - saídas - adiantamentos)
+      // SALDO FINAL (agora considera adiantamentos como positivos)
+      y -= lineHeight + 3; // Adicionar espaçamento antes do saldo final
       const textYSaldo = y - 2;
-      const saldoFinal = saldoAnterior + totalEntradas - totalSaidas - totalAdiantamentos;
+      const saldoFinal = saldoAnterior + totalEntradas + totalAdiantamentos - totalSaidas; // Adiantamentos agora somam
 
       // Texto "SALDO FINAL:" em negrito
       page.drawText("SALDO FINAL:", {
@@ -646,70 +757,102 @@ export async function POST(req: NextRequest) {
       });
       
       // Valor do saldo final (alinhado à direita)
-      const saldoText = formatCurrency(saldoFinal);
+      const saldoText = saldoFinal >= 0 ? formatCurrency(saldoFinal) : `- ${formatCurrency(Math.abs(saldoFinal))}`;
       const saldoWidth = boldFont.widthOfTextAtSize(saldoText, fontSize);
       
-      // Determinar a cor com base no valor do saldo
-      const saldoColor = saldoFinal >= 0 ? BLACK : rgb(0.8, 0, 0); // Preto se positivo/zero, vermelho se negativo
-      
+      // Posicionar o saldo no final da tabela
       page.drawText(saldoText, {
-        x: xSaida + colWidths[6] - saldoWidth - 3, // Alinhado à direita
+        x: tableRight - saldoWidth - 3,
         y: textYSaldo,
         size: fontSize,
         font: boldFont,
-        color: saldoColor,
+        color: BLACK,
       });
       
-      // Linha abaixo do saldo - Esta é a linha final da tabela
+      // Linha abaixo do saldo
       page.drawLine({
         start: { x: tableLeft, y: y - 5 },
         end: { x: tableRight, y: y - 5 },
         thickness: 1,
         color: BLACK,
       });
-    } else if (adiantamentos.length > 0) {
-      // Se não há lançamentos, mas há adiantamentos, mostrar apenas os totais
-      const tableWidth = 475;
+    } else if (adiantamentos.length > 0 || saldoAnterior !== 0) {
+      // Se não há lançamentos, mas há adiantamentos ou saldo anterior, mostrar os totais
+      const tableWidth = 720;
       const tableLeft = 60;
       const tableRight = tableLeft + tableWidth;
-      const colWidths = [60, 65, 80, 70, 80, 60, 60]; // Total = 475
+      const colWidths = [80, 90, 120, 100, 150, 90, 90];
       const xEntrada = tableLeft + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4];
-      const xSaida = xEntrada + colWidths[5];
       
-      page.drawText("TOTAL ADIANTAMENTOS:", {
-        x: tableLeft + 3,
-        y,
-        size: fontSize,
-        font: boldFont,
-        color: BLACK,
-      });
+      // SALDO ANTERIOR (se existir)
+      if (saldoAnterior !== 0) {
+        page.drawText("SALDO ANTERIOR:", {
+          x: tableLeft + 3,
+          y,
+          size: fontSize,
+          font: boldFont,
+          color: BLACK,
+        });
+        
+        // Valor do saldo anterior
+        const saldoAntText = saldoAnterior >= 0 ? formatCurrency(saldoAnterior) : `- ${formatCurrency(Math.abs(saldoAnterior))}`;
+        const saldoAntWidth = boldFont.widthOfTextAtSize(saldoAntText, fontSize);
+        
+        page.drawText(saldoAntText, {
+          x: tableRight - saldoAntWidth - 3,
+          y,
+          size: fontSize,
+          font: boldFont,
+          color: BLACK,
+        });
+        
+        // Linha abaixo do saldo anterior
+        page.drawLine({
+          start: { x: tableLeft, y: y - 5 },
+          end: { x: tableRight, y: y - 5 },
+          thickness: 1,
+          color: BLACK,
+        });
+        
+        y -= spacing + 2;
+      }
       
-      // Valor total de adiantamentos como NEGATIVO
-      const totalAdiantamentosNegativo = -totalAdiantamentos;
-      const totalAdiantamentosText = formatCurrency(totalAdiantamentosNegativo);
-      const totalAdiantamentosWidth = boldFont.widthOfTextAtSize(totalAdiantamentosText, fontSize);
+      // TOTAL ADIANTAMENTOS (se existir)
+      if (totalAdiantamentos > 0) {
+        page.drawText("TOTAL ADIA.:", {
+          x: tableLeft + 3,
+          y,
+          size: fontSize,
+          font: boldFont,
+          color: BLACK,
+        });
+        
+        // Valor total de adiantamentos como POSITIVO
+        const totalAdiantamentosText = formatCurrency(totalAdiantamentos);
+        const totalAdiantamentosWidth = boldFont.widthOfTextAtSize(totalAdiantamentosText, fontSize);
+        
+        page.drawText(totalAdiantamentosText, {
+          x: xEntrada + colWidths[5] - totalAdiantamentosWidth - 3,
+          y,
+          size: fontSize,
+          font: boldFont,
+          color: BLACK,
+        });
+        
+        // Linha abaixo do total de adiantamentos
+        page.drawLine({
+          start: { x: tableLeft, y: y - 5 },
+          end: { x: tableRight, y: y - 5 },
+          thickness: 1,
+          color: BLACK,
+        });
+        
+        y -= spacing + 2;
+      }
       
-      page.drawText(totalAdiantamentosText, {
-        x: xSaida + colWidths[6] - totalAdiantamentosWidth - 3,
-        y,
-        size: fontSize,
-        font: boldFont,
-        color: rgb(0.8, 0, 0),
-      });
-      
-      // Linha abaixo do total de adiantamentos
-      page.drawLine({
-        start: { x: tableLeft, y: y - 5 },
-        end: { x: tableRight, y: y - 5 },
-        thickness: 1,
-        color: BLACK,
-      });
-      
-      y -= spacing + 2;
-      
-      // SALDO FINAL (com apenas adiantamentos)
+      // SALDO FINAL (com adiantamentos como positivos)
       const textYSaldo = y - 2;
-      const saldoFinal = saldoAnterior - totalAdiantamentos; // Apenas saldo anterior - adiantamentos
+      const saldoFinal = saldoAnterior + totalAdiantamentos; // Adiantamentos agora somam
 
       // Texto "SALDO FINAL:" em negrito
       page.drawText("SALDO FINAL:", {
@@ -721,16 +864,15 @@ export async function POST(req: NextRequest) {
       });
       
       // Valor do saldo final
-      const saldoText = formatCurrency(saldoFinal);
+      const saldoText = saldoFinal >= 0 ? formatCurrency(saldoFinal) : `- ${formatCurrency(Math.abs(saldoFinal))}`;
       const saldoWidth = boldFont.widthOfTextAtSize(saldoText, fontSize);
-      const saldoColor = saldoFinal >= 0 ? BLACK : rgb(0.8, 0, 0);
       
       page.drawText(saldoText, {
-        x: xSaida + colWidths[6] - saldoWidth - 3,
+        x: tableRight - saldoWidth - 3,
         y: textYSaldo,
         size: fontSize,
         font: boldFont,
-        color: saldoColor,
+        color: BLACK,
       });
       
       // Linha abaixo do saldo
@@ -742,10 +884,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Data atual formatada
+    // Data e local para assinatura
     y -= spacing * 3;
     
-    // Utilizar o mesmo formatador para garantir consistência
+    // Utilizar formatação mais elegante para a data
     const dataAssinatura = new Date();
     const dataFormatada = `${caixa.destino || 'Governador Valadares'}, ${dataAssinatura.getDate().toString().padStart(2, '0')} de ${
       ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'][dataAssinatura.getMonth()]
@@ -759,7 +901,7 @@ export async function POST(req: NextRequest) {
       color: BLACK,
     });
 
-    // Linha para assinatura do responsável
+    // Linha para assinatura
     y -= spacing * 3;
     
     const lineWidth = 250;

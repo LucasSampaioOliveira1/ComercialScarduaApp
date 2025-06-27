@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     // Criar um novo documento PDF
     const pdfDoc = await PDFDocument.create();
-    let page = pdfDoc.addPage([595, 842]); // Tamanho A4
+    let page = pdfDoc.addPage([842, 595]); // Tamanho A4 paisagem
     const { height, width } = page.getSize();
 
     // Adicionar fonte
@@ -115,7 +115,10 @@ export async function POST(req: NextRequest) {
     const formatCurrency = (value: any) => {
       if (!value) return "R$ 0,00";
       const numValue = parseFloat(String(value).replace(',', '.'));
-      return isNaN(numValue) ? "R$ 0,00" : `R$ ${numValue.toFixed(2).replace('.', ',')}`;
+      if (isNaN(numValue)) return "R$ 0,00";
+      
+      // Formatar com separador de milhares (ponto) e decimais (vírgula)
+      return `R$ ${numValue.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`;
     };
 
     // Seção de informações da conta
@@ -140,23 +143,38 @@ export async function POST(req: NextRequest) {
     const dataAtual = new Date();
     const dataAtualFormatada = `${dataAtual.getDate().toString().padStart(2, '0')}/${(dataAtual.getMonth() + 1).toString().padStart(2, '0')}/${dataAtual.getFullYear()}`;
 
-    const infoLines = [
+    // Organizar informações em duas colunas para aproveitar o espaço horizontal
+    const leftColumn = [
       `Empresa: ${empresaNome}`,
       `Data da Conta: ${formatDate(conta.data)}`,
       `Data de Emissão: ${dataAtualFormatada}`,
-      `Fornecedor/Cliente: ${conta.fornecedorCliente || "Não informado"}`,
+      `Fornecedor/Cliente: ${conta.fornecedorCliente || "Não informado"}`
+    ];
+
+    const rightColumn = [
       `Colaborador: ${colaboradorNome}`,
       `Tipo: ${conta.tipo === 'EXTRA_CAIXA' ? 'Extra Caixa' : conta.tipo === 'PERMUTA' ? 'Permuta' : conta.tipo === 'DEVOLUCAO' ? 'Devolução' : conta.tipo || "Não informado"}`,
       `Setor: ${conta.setor || "Não informado"}`,
     ];
 
+    // Adicionar observação se existir
     if (conta.observacao) {
-      infoLines.push(`Observações: ${conta.observacao}`);
+      if (rightColumn.length < leftColumn.length) {
+        rightColumn.push(`Observações: ${conta.observacao}`);
+      } else {
+        leftColumn.push(`Observações: ${conta.observacao}`);
+      }
     }
 
-    infoLines.forEach(line => {
+    // Desenhar colunas lado a lado
+    const initialY = y;
+    const leftX = 80;
+    const rightX = 420; // Posição da segunda coluna
+
+    // Coluna esquerda
+    leftColumn.forEach(line => {
       page.drawText(line, {
-        x: 80,
+        x: leftX,
         y,
         size: fontSize,
         font: font,
@@ -165,11 +183,30 @@ export async function POST(req: NextRequest) {
       y -= spacing;
     });
 
-    y -= spacing;
+    // Resetar Y para a coluna direita
+    y = initialY;
+    
+    // Coluna direita
+    rightColumn.forEach(line => {
+      page.drawText(line, {
+        x: rightX,
+        y,
+        size: fontSize,
+        font: font,
+        color: BLACK,
+      });
+      y -= spacing;
+    });
+
+    // Ajustar Y para continuar após a maior coluna
+    y = initialY - Math.max(leftColumn.length, rightColumn.length) * spacing;
+
+    // Adicionar espaçamento extra entre as seções para melhor separação visual (reduzido)
+    y -= 15; // Espaçamento mais moderado entre INFORMAÇÕES DA CONTA e DETALHAMENTO DOS LANÇAMENTOS
 
     // Verificar se precisamos de uma nova página para os lançamentos
     if (y < 350) {
-      page = pdfDoc.addPage([595, 842]); // Tamanho A4
+      page = pdfDoc.addPage([842, 595]); // Tamanho A4 paisagem
       y = height - 50;
     }
 
@@ -187,8 +224,8 @@ export async function POST(req: NextRequest) {
 
       y -= spacing;
 
-      // Definir dimensões da tabela
-      const tableWidth = 475;
+      // Definir dimensões da tabela - aproveitar melhor o espaço paisagem
+      const tableWidth = 720; // Aumentar largura da tabela
       const tableLeft = 60;
       const tableRight = tableLeft + tableWidth;
       
@@ -202,7 +239,7 @@ export async function POST(req: NextRequest) {
 
       // Cabeçalhos da tabela
       const headers = ["Data", "Documento", "Observação", "Crédito", "Débito"];
-      const colWidths = [80, 80, 155, 80, 80]; // Total = 475
+      const colWidths = [100, 120, 280, 110, 110]; // Total = 720 - mais espaço para observações
       
       let currentX = tableLeft;
       headers.forEach((header, index) => {
@@ -273,7 +310,7 @@ export async function POST(req: NextRequest) {
           });
           
           // Adicionar nova página
-          page = pdfDoc.addPage([595, 842]);
+          page = pdfDoc.addPage([842, 595]);
           y = height - 50;
           
           page.drawText("DETALHAMENTO DOS LANÇAMENTOS (continuação):", {
@@ -359,7 +396,7 @@ export async function POST(req: NextRequest) {
         
         // Documento
         const docText = lancamento.numeroDocumento || "-";
-        const maxLengthDoc = 10;
+        const maxLengthDoc = 15; // Mais espaço para documento
         const truncatedDoc = docText.length > maxLengthDoc ? 
           docText.substring(0, maxLengthDoc) + ".." : docText;
         
@@ -382,7 +419,7 @@ export async function POST(req: NextRequest) {
         
         // Observação
         const observacao = lancamento.observacao || "-";
-        const maxLengthObs = 20;
+        const maxLengthObs = 35; // Muito mais espaço para observações
         const obsText = observacao.length > maxLengthObs ? 
           observacao.substring(0, maxLengthObs) + ".." : observacao;
           
@@ -405,14 +442,14 @@ export async function POST(req: NextRequest) {
         
         // Crédito (alinhado à direita dentro da coluna)
         if (credito > 0) {
-          const creditoText = formatCurrency(credito);
+          const creditoText = formatCurrency(credito); // Sem sinal de +
           const textWidth = font.widthOfTextAtSize(creditoText, fontSize);
           page.drawText(creditoText, {
             x: currentX + colWidths[3] - textWidth - 3,
             y: textY,
             size: fontSize,
             font: font,
-            color: BLACK,
+            color: BLACK, // Cor preta
           });
         } else {
           page.drawText("-", {
@@ -435,14 +472,14 @@ export async function POST(req: NextRequest) {
         
         // Débito (alinhado à direita dentro da coluna)
         if (debito > 0) {
-          const debitoText = formatCurrency(debito);
+          const debitoText = `- ${formatCurrency(debito)}`; // Sinal negativo com espaço antes do R$
           const textWidth = font.widthOfTextAtSize(debitoText, fontSize);
           page.drawText(debitoText, {
             x: currentX + colWidths[4] - textWidth - 3,
             y: textY,
             size: fontSize,
             font: font,
-            color: BLACK,
+            color: BLACK, // Cor preta
           });
         } else {
           page.drawText("-", {
@@ -493,26 +530,26 @@ export async function POST(req: NextRequest) {
 
       // Valor total de créditos (alinhado à direita)
       const xCredito = tableLeft + colWidths[0] + colWidths[1] + colWidths[2];
-      const totalCreditosText = formatCurrency(totalCreditos);
+      const totalCreditosText = formatCurrency(totalCreditos); // Sem sinal de +
       const totalCreditosWidth = boldFont.widthOfTextAtSize(totalCreditosText, fontSize);
       page.drawText(totalCreditosText, {
         x: xCredito + colWidths[3] - totalCreditosWidth - 3,
         y,
         size: fontSize,
         font: boldFont,
-        color: BLACK,
+        color: BLACK, // Cor preta
       });
       
       // Valor total de débitos (alinhado à direita)
       const xDebito = xCredito + colWidths[3];
-      const totalDebitosText = formatCurrency(totalDebitos);
+      const totalDebitosText = `- ${formatCurrency(totalDebitos)}`; // Sinal negativo com espaço antes do R$
       const totalDebitosWidth = boldFont.widthOfTextAtSize(totalDebitosText, fontSize);
       page.drawText(totalDebitosText, {
         x: xDebito + colWidths[4] - totalDebitosWidth - 3,
         y,
         size: fontSize,
         font: boldFont,
-        color: BLACK,
+        color: BLACK, // Cor preta
       });
       
       // Linha abaixo do total
@@ -538,7 +575,7 @@ export async function POST(req: NextRequest) {
       
       // Saldo final (alinhado à direita)
       const saldo = totalCreditos - totalDebitos;
-      const saldoText = formatCurrency(saldo);
+      const saldoText = saldo >= 0 ? formatCurrency(saldo) : `- ${formatCurrency(Math.abs(saldo))}`; // Positivo normal, negativo com - R$
       const saldoWidth = boldFont.widthOfTextAtSize(saldoText, fontSize);
       
       // Posicionar o saldo no final da tabela
@@ -547,7 +584,7 @@ export async function POST(req: NextRequest) {
         y: textYSaldo,
         size: fontSize,
         font: boldFont,
-        color: BLACK,
+        color: BLACK, // Cor preta
       });
       
       // Linha abaixo do saldo

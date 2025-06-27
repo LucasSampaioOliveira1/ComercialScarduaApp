@@ -472,29 +472,66 @@ export async function POST(req: NextRequest) {
       y -= spacing;
 
       // Detalhes em linha
-      page.drawText(`N° de série: ${patrimonio.numeroSerie || '_________'}`, {
-        x: 50,
-        y,
-        size: fontSize,
-        font: font,
-        color: rgb(0, 0, 0),
-      });
+      // Detalhes - Verificar se o número de série é muito longo
+      const numeroSerie = patrimonio.numeroSerie || '_________';
+      const numeroSerieText = `N° de série: ${numeroSerie}`;
+      const numeroSerieWidth = font.widthOfTextAtSize(numeroSerieText, fontSize);
+      const maxWidthForInline = 200; // Largura máxima para ficar na mesma linha
+      
+      if (numeroSerieWidth > maxWidthForInline) {
+        // Número de série muito longo - colocar em linha separada
+        page.drawText(numeroSerieText, {
+          x: 50,
+          y,
+          size: fontSize,
+          font: font,
+          color: rgb(0, 0, 0),
+        });
+        
+        y -= spacing;
+        
+        // Marca e Modelo na linha seguinte
+        page.drawText(`Marca: ${patrimonio.fabricante || '_________'}`, {
+          x: 50,
+          y,
+          size: fontSize,
+          font: font,
+          color: rgb(0, 0, 0),
+        });
 
-      page.drawText(`Marca: ${patrimonio.fabricante || '_________'}`, {
-        x: 250,
-        y,
-        size: fontSize,
-        font: font,
-        color: rgb(0, 0, 0),
-      });
+        page.drawText(`Modelo: ${patrimonio.modelo || '_________'}`, {
+          x: 250,
+          y,
+          size: fontSize,
+          font: font,
+          color: rgb(0, 0, 0),
+        });
+      } else {
+        // Número de série normal - tudo na mesma linha
+        page.drawText(numeroSerieText, {
+          x: 50,
+          y,
+          size: fontSize,
+          font: font,
+          color: rgb(0, 0, 0),
+        });
 
-      page.drawText(`Modelo: ${patrimonio.modelo || '_________'}`, {
-        x: 400,
-        y,
-        size: fontSize,
-        font: font,
-        color: rgb(0, 0, 0),
-      });
+        page.drawText(`Marca: ${patrimonio.fabricante || '_________'}`, {
+          x: 250,
+          y,
+          size: fontSize,
+          font: font,
+          color: rgb(0, 0, 0),
+        });
+
+        page.drawText(`Modelo: ${patrimonio.modelo || '_________'}`, {
+          x: 400,
+          y,
+          size: fontSize,
+          font: font,
+          color: rgb(0, 0, 0),
+        });
+      }
 
       y -= spacing * 2;
 
