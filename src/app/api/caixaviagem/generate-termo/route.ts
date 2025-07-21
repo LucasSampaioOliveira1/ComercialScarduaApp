@@ -169,10 +169,15 @@ export async function POST(req: NextRequest) {
 
     // Adicionar observação se existir
     if (caixa.observacao) {
+      const obsLabel = "Observações: ";
+      const obsMaxWidth = 350; // ajuste conforme necessário
+      const obsText = obsLabel + caixa.observacao;
+      const obsLines = wrapTextByWidth(obsText, font, fontSize, obsMaxWidth);
+
       if (rightColumn.length < leftColumn.length) {
-        rightColumn.push(`Observações: ${caixa.observacao}`);
+        rightColumn.push(...obsLines);
       } else {
-        leftColumn.push(`Observações: ${caixa.observacao}`);
+        leftColumn.push(...obsLines);
       }
     }
 
@@ -956,4 +961,24 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// Função para quebrar texto em múltiplas linhas baseado na largura máxima (considera palavras e textos contínuos)
+function wrapTextByWidth(text: string, font: any, fontSize: number, maxWidth: number): string[] {
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (let i = 0; i < text.length; i++) {
+    const testLine = currentLine + text[i];
+    const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+
+    if (testWidth > maxWidth && currentLine.length > 0) {
+      lines.push(currentLine);
+      currentLine = text[i];
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  return lines;
 }
